@@ -8,8 +8,6 @@ namespace Lionear.SqlExplorer.Providers.Postgres;
 
 public sealed class PostgresProvider : IDbProvider
 {
-    public DatabaseKind Kind => DatabaseKind.PostgreSql;
-
     public string DisplayName => "PostgreSQL";
 
     // Uses the embedded brand PNG (icon.png) when present; falls back to a glyph otherwise.

@@ -8,6 +8,13 @@ namespace Lionear.SqlExplorer.Sdk;
 public sealed class ConnectionProfile
 {
     public required string Name { get; init; }
-    public required DatabaseKind Kind { get; init; }
     public required string ConnectionString { get; init; }
+
+    /// <summary>
+    /// Which database/catalog to run against, when the host knows it from the schema tree (e.g.
+    /// browsing a table under a specific SQL Server database). Null means "use the connection's own
+    /// default catalog". Providers where the connection is already per-database (Postgres) or which
+    /// have no database layer (SQLite) ignore this.
+    /// </summary>
+    public string? Database { get; init; }
 }

@@ -24,9 +24,9 @@ public sealed class ConnectionService
     public IReadOnlyList<SavedConnection> List() => _store.GetAll();
 
     /// <summary>Persist a connection: secrets to the keychain, the rest to the config file.</summary>
-    public SavedConnection Save(string id, string name, DatabaseKind kind, IReadOnlyDictionary<string, string?> values)
+    public SavedConnection Save(string id, string name, string providerId, IReadOnlyDictionary<string, string?> values)
     {
-        var fields = _providers.Get(kind).ConnectionFields;
+        var fields = _providers.Get(providerId).ConnectionFields;
         var secretKeys = fields.Where(f => f.IsSecret).Select(f => f.Key).ToHashSet();
 
         foreach (var field in fields.Where(f => f.IsSecret))
@@ -47,7 +47,7 @@ public sealed class ConnectionService
             .Where(kv => !secretKeys.Contains(kv.Key))
             .ToDictionary(kv => kv.Key, kv => kv.Value);
 
-        var connection = new SavedConnection { Id = id, Name = name, Kind = kind, Values = nonSecret };
+        var connection = new SavedConnection { Id = id, Name = name, ProviderId = providerId, Values = nonSecret };
         _store.Save(connection);
         return connection;
     }
@@ -63,7 +63,7 @@ public sealed class ConnectionService
 
         // WithSecrets pulls the password back from the keychain so the copy is fully usable.
         var values = WithSecrets(original);
-        return Save(Guid.NewGuid().ToString("N"), newName, original.Kind, values);
+        return Save(Guid.NewGuid().ToString("N"), newName, original.ProviderId, values);
     }
 
     public void Delete(string id)
@@ -71,7 +71,7 @@ public sealed class ConnectionService
         var connection = _store.GetAll().FirstOrDefault(c => c.Id == id);
         if (connection is not null)
         {
-            foreach (var field in _providers.Get(connection.Kind).ConnectionFields.Where(f => f.IsSecret))
+            foreach (var field in _providers.Get(connection.ProviderId).ConnectionFields.Where(f => f.IsSecret))
             {
                 _secrets.Delete(SecretKey(id, field.Key));
             }
@@ -80,27 +80,31 @@ public sealed class ConnectionService
         _store.Delete(id);
     }
 
-    /// <summary>Merge stored non-secret values with keychain secrets into a runnable profile.</summary>
-    public ConnectionProfile Resolve(SavedConnection connection) =>
-        BuildProfile(connection.Name, connection.Kind, WithSecrets(connection));
+    /// <summary>
+    /// Merge stored non-secret values with keychain secrets into a runnable profile. <paramref name="database"/>
+    /// overrides the target catalog when the caller knows it from the schema tree (null = connection default).
+    /// </summary>
+    public ConnectionProfile Resolve(SavedConnection connection, string? database = null) =>
+        BuildProfile(connection.Name, connection.ProviderId, WithSecrets(connection), database);
 
     /// <summary>All field values (non-secret + secrets from the keychain) to prefill the edit dialog.</summary>
     public IReadOnlyDictionary<string, string?> GetEditableValues(SavedConnection connection) =>
         WithSecrets(connection);
 
     /// <summary>Build a profile from raw dialog values (used by Test, before anything is persisted).</summary>
-    public ConnectionProfile BuildProfile(string name, DatabaseKind kind, IReadOnlyDictionary<string, string?> values) =>
+    public ConnectionProfile BuildProfile(
+        string name, string providerId, IReadOnlyDictionary<string, string?> values, string? database = null) =>
         new()
         {
             Name = name,
-            Kind = kind,
-            ConnectionString = _providers.Get(kind).BuildConnectionString(values)
+            ConnectionString = _providers.Get(providerId).BuildConnectionString(values),
+            Database = database
         };
 
     private Dictionary<string, string?> WithSecrets(SavedConnection connection)
     {
         var values = new Dictionary<string, string?>(connection.Values);
-        foreach (var field in _providers.Get(connection.Kind).ConnectionFields.Where(f => f.IsSecret))
+        foreach (var field in _providers.Get(connection.ProviderId).ConnectionFields.Where(f => f.IsSecret))
         {
             values[field.Key] = _secrets.Get(SecretKey(connection.Id, field.Key));
         }

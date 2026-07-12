@@ -2,26 +2,35 @@ using Lionear.SqlExplorer.Sdk;
 
 namespace Lionear.SqlExplorer.Core.Providers;
 
+/// <summary>One loaded provider paired with the manifest <c>id</c> that identifies its engine.</summary>
+public sealed record ProviderRegistration(string Id, IDbProvider Provider);
+
 public interface IDbProviderRegistry
 {
-    IReadOnlyCollection<IDbProvider> All { get; }
+    IReadOnlyList<ProviderRegistration> All { get; }
 
-    IDbProvider Get(DatabaseKind kind);
+    IDbProvider Get(string providerId);
 }
 
+/// <summary>
+/// Resolves a provider from its manifest id. Identity lives in the plugin manifest, not in the
+/// provider or a host enum, so the set of engines stays open to third-party providers.
+/// </summary>
 public sealed class DbProviderRegistry : IDbProviderRegistry
 {
-    private readonly Dictionary<DatabaseKind, IDbProvider> _providers;
+    private readonly List<ProviderRegistration> _all;
+    private readonly Dictionary<string, IDbProvider> _byId;
 
-    public DbProviderRegistry(IEnumerable<IDbProvider> providers)
+    public DbProviderRegistry(IEnumerable<ProviderRegistration> registrations)
     {
-        _providers = providers.ToDictionary(p => p.Kind);
+        _all = registrations.ToList();
+        _byId = _all.ToDictionary(r => r.Id, r => r.Provider);
     }
 
-    public IReadOnlyCollection<IDbProvider> All => _providers.Values;
+    public IReadOnlyList<ProviderRegistration> All => _all;
 
-    public IDbProvider Get(DatabaseKind kind) =>
-        _providers.TryGetValue(kind, out var provider)
+    public IDbProvider Get(string providerId) =>
+        _byId.TryGetValue(providerId, out var provider)
             ? provider
-            : throw new NotSupportedException($"No provider registered for {kind}.");
+            : throw new NotSupportedException($"No provider registered with id '{providerId}'.");
 }

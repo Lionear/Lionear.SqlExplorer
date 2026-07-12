@@ -109,6 +109,10 @@ public partial class TreeNodeViewModel : ViewModelBase
     /// <summary>Owning schema, if this node sits under one (null for schema-less engines like SQLite).</summary>
     public string? SchemaName => _pathToChildren.FirstOrDefault(r => r.Kind == DbNodeKind.Schema)?.Name;
 
+    /// <summary>Owning database/catalog, if this node sits under one — drives execute-time catalog
+    /// context so a browse/query runs against the right database, not the connection default.</summary>
+    public string? DatabaseName => _pathToChildren.FirstOrDefault(r => r.Kind == DbNodeKind.Database)?.Name;
+
     public ObservableCollection<TreeNodeViewModel> Children { get; } = [];
 
     /// <summary>Build a root node for a saved connection. A provider brand image wins; otherwise a

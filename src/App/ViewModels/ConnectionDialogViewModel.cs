@@ -40,7 +40,7 @@ public partial class ConnectionDialogViewModel : ViewModelBase
         Loc = localizer;
 
         AvailableProviders = providers.All
-            .Select(p => new ProviderOption(p.Kind, p.DisplayName))
+            .Select(r => new ProviderOption(r.Id, r.Provider.DisplayName))
             .OrderBy(o => o.DisplayName)
             .ToList();
         _selectedProvider = AvailableProviders.FirstOrDefault();
@@ -67,9 +67,9 @@ public partial class ConnectionDialogViewModel : ViewModelBase
         _id = connection.Id;
         IsEditing = true;
         Name = connection.Name;
-        SelectedProvider = AvailableProviders.FirstOrDefault(o => o.Kind == connection.Kind) ?? SelectedProvider;
+        SelectedProvider = AvailableProviders.FirstOrDefault(o => o.Id == connection.ProviderId) ?? SelectedProvider;
 
-        // Ensure fields match the kind even if SelectedProvider didn't change, then overlay stored values
+        // Ensure fields match the provider even if SelectedProvider didn't change, then overlay stored values
         // (secrets pulled back from the keychain).
         RebuildFields();
         var values = _connections.GetEditableValues(connection);
@@ -101,7 +101,7 @@ public partial class ConnectionDialogViewModel : ViewModelBase
             return;
         }
 
-        foreach (var field in _providers.Get(SelectedProvider.Kind).ConnectionFields)
+        foreach (var field in _providers.Get(SelectedProvider.Id).ConnectionFields)
         {
             var input = new ConnectionFieldInput(field);
             input.PropertyChanged += OnFieldChanged;
@@ -131,8 +131,8 @@ public partial class ConnectionDialogViewModel : ViewModelBase
 
         try
         {
-            var profile = _connections.BuildProfile(Name, option.Kind, Values());
-            var ok = await _providers.Get(option.Kind).TestConnectionAsync(profile, ct);
+            var profile = _connections.BuildProfile(Name, option.Id, Values());
+            var ok = await _providers.Get(option.Id).TestConnectionAsync(profile, ct);
             TestResult = ok ? Loc["TestOk"] : Loc["TestFailed"];
         }
         catch (Exception ex)
@@ -142,11 +142,11 @@ public partial class ConnectionDialogViewModel : ViewModelBase
     }
 
     /// <summary>Persist and return the saved connection (secrets go to the keychain).</summary>
-    public SavedConnection Save() => _connections.Save(_id, Name, SelectedProvider!.Kind, Values());
+    public SavedConnection Save() => _connections.Save(_id, Name, SelectedProvider!.Id, Values());
 }
 
-/// <summary>A selectable provider in the connection dialog: the engine plus its friendly label.</summary>
-public sealed record ProviderOption(DatabaseKind Kind, string DisplayName)
+/// <summary>A selectable provider in the connection dialog: the manifest id plus its friendly label.</summary>
+public sealed record ProviderOption(string Id, string DisplayName)
 {
     public override string ToString() => DisplayName;
 }

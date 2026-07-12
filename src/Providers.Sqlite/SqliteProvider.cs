@@ -8,8 +8,6 @@ namespace Lionear.SqlExplorer.Providers.Sqlite;
 
 public sealed class SqliteProvider : IDbProvider
 {
-    public DatabaseKind Kind => DatabaseKind.Sqlite;
-
     public string DisplayName => "SQLite";
 
     // Uses the embedded brand PNG (icon.png) when present; falls back to a glyph otherwise.

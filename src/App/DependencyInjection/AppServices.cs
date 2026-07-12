@@ -24,12 +24,14 @@ public static class AppServices
 
         // Providers are discovered as plugins from plugins/ (staged there at build time),
         // loaded in isolated AssemblyLoadContexts — the same path a third party would use.
+        // Each provider's engine identity is its manifest id, paired with the instance here.
         var pluginsDir = Path.Combine(AppContext.BaseDirectory, "plugins");
+        var registrations = new List<ProviderRegistration>();
         foreach (var result in new ProviderPluginLoader().Load(pluginsDir))
         {
-            if (result.Succeeded)
+            if (result is { Succeeded: true, Id: { } id })
             {
-                services.AddSingleton<IDbProvider>(result.Provider!);
+                registrations.Add(new ProviderRegistration(id, result.Provider!));
             }
             else
             {
@@ -37,10 +39,13 @@ public static class AppServices
             }
         }
 
-        services.AddSingleton<IDbProviderRegistry, DbProviderRegistry>();
+        services.AddSingleton<IDbProviderRegistry>(new DbProviderRegistry(registrations));
 
         // Connections: metadata in a JSON file, secrets in the OS-native keychain.
-        services.AddSingleton<IConnectionStore>(new JsonConnectionStore());
+        // Migrate pre-v10 configs (legacy "Kind" enum) to the manifest "ProviderId" once at startup.
+        var connectionStore = new JsonConnectionStore();
+        connectionStore.MigrateLegacyProviderIds();
+        services.AddSingleton<IConnectionStore>(connectionStore);
         services.AddSingleton<ISecretStore>(SecretStores.CreateForCurrentOs());
 
         // UI preferences (window geometry, sidebar width) alongside connections.json.

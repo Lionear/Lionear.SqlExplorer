@@ -1,5 +1,4 @@
 using System.Text.Json;
-using System.Text.Json.Serialization;
 using Lionear.SqlExplorer.Core.Connections;
 
 namespace Lionear.SqlExplorer.Infrastructure.Persistence;
@@ -7,13 +6,13 @@ namespace Lionear.SqlExplorer.Infrastructure.Persistence;
 /// <summary>
 /// Stores the non-secret part of connections as a single JSON file under the user's config dir.
 /// Writes are atomic (temp file + replace) so a crash mid-write can't corrupt the list.
+/// Reads migrate the pre-v10 <c>Kind</c> enum field to the new provider-manifest <c>ProviderId</c>.
 /// </summary>
 public sealed class JsonConnectionStore : IConnectionStore
 {
     private static readonly JsonSerializerOptions Options = new()
     {
-        WriteIndented = true,
-        Converters = { new JsonStringEnumConverter() }
+        WriteIndented = true
     };
 
     private readonly string _path;
@@ -39,7 +38,42 @@ public sealed class JsonConnectionStore : IConnectionStore
         }
 
         using var stream = File.OpenRead(_path);
-        return JsonSerializer.Deserialize<List<SavedConnection>>(stream, Options) ?? [];
+        var dtos = JsonSerializer.Deserialize<List<ConnectionDto>>(stream, Options) ?? [];
+        return dtos.Select(ToSavedConnection).ToList();
+    }
+
+    /// <summary>
+    /// One-time startup migration: if the file still stores connections with the pre-v10 <c>Kind</c>
+    /// enum (no <c>ProviderId</c>), rewrite it so the mapped <c>ProviderId</c> is persisted and the
+    /// legacy field is dropped for good. Idempotent — an already-migrated (or absent) file is left
+    /// untouched — and best-effort: a read/write failure never blocks startup (the on-read mapping in
+    /// <see cref="GetAll"/> still covers it).
+    /// </summary>
+    public void MigrateLegacyProviderIds()
+    {
+        try
+        {
+            if (!File.Exists(_path))
+            {
+                return;
+            }
+
+            List<ConnectionDto> dtos;
+            using (var stream = File.OpenRead(_path))
+            {
+                dtos = JsonSerializer.Deserialize<List<ConnectionDto>>(stream, Options) ?? [];
+            }
+
+            if (dtos.All(d => d.ProviderId is not null))
+            {
+                return; // nothing legacy to migrate
+            }
+
+            Write(dtos.Select(ToSavedConnection).ToList());
+        }
+        catch (Exception ex) when (ex is JsonException or IOException)
+        {
+        }
     }
 
     public void Save(SavedConnection connection)
@@ -63,5 +97,36 @@ public sealed class JsonConnectionStore : IConnectionStore
         var temp = Path.Combine(dir, $".{Path.GetFileName(_path)}.{Guid.NewGuid():N}.tmp");
         File.WriteAllText(temp, JsonSerializer.Serialize(connections, Options));
         File.Move(temp, _path, overwrite: true);
+    }
+
+    private static SavedConnection ToSavedConnection(ConnectionDto dto) => new()
+    {
+        Id = dto.Id,
+        Name = dto.Name,
+        ProviderId = dto.ProviderId ?? MigrateLegacyKind(dto.Kind),
+        Values = dto.Values ?? new Dictionary<string, string?>()
+    };
+
+    // Files written before host-API v10 carry a "Kind" enum name instead of a "ProviderId".
+    // Map the built-in engines onto their manifest ids; new files already have ProviderId.
+    private static string MigrateLegacyKind(string? legacyKind) => legacyKind switch
+    {
+        "PostgreSql" => "postgres",
+        "MySql" => "mysql",
+        "Sqlite" => "sqlite",
+        "SqlServer" => "sqlserver",
+        "Oracle" => "oracle",
+        not null => legacyKind, // unknown/third-party legacy value: keep it verbatim
+        null => throw new InvalidDataException("Stored connection has neither 'ProviderId' nor legacy 'Kind'.")
+    };
+
+    /// <summary>Read shape tolerant of both the new <c>ProviderId</c> and the legacy <c>Kind</c> field.</summary>
+    private sealed record ConnectionDto
+    {
+        public string Id { get; init; } = string.Empty;
+        public string Name { get; init; } = string.Empty;
+        public string? ProviderId { get; init; }
+        public string? Kind { get; init; }
+        public Dictionary<string, string?>? Values { get; init; }
     }
 }

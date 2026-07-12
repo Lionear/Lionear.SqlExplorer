@@ -4,8 +4,6 @@ namespace Lionear.SqlExplorer.Providers.MySql;
 
 public sealed class MySqlDialect : ISqlDialect
 {
-    public DatabaseKind Kind => DatabaseKind.MySql;
-
     public IReadOnlySet<string> Keywords { get; } = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
     {
         "SELECT", "FROM", "WHERE", "GROUP", "BY", "ORDER", "HAVING", "LIMIT", "OFFSET",
@@ -19,6 +17,13 @@ public sealed class MySqlDialect : ISqlDialect
     // MySQL/MariaDB quote identifiers with backticks; escape an embedded backtick by doubling it.
     public string QuoteIdentifier(string identifier) =>
         $"`{identifier.Replace("`", "``")}`";
+
+    // MySQL's "database" IS the schema: two-part `db`.`table` (the tree exposes the db; schema is unused).
+    // Naming the db explicitly also makes generated SQL resolve across databases on one connection.
+    public string QualifyName(string? database, string? schema, string table) =>
+        string.IsNullOrEmpty(database)
+            ? QuoteIdentifier(table)
+            : $"{QuoteIdentifier(database)}.{QuoteIdentifier(table)}";
 
     public string Paginate(string sql, int limit, int offset, string? orderBy = null)
     {

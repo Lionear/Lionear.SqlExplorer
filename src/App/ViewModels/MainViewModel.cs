@@ -72,26 +72,76 @@ public partial class MainViewModel : ViewModelBase
     partial void OnSelectedNodeChanged(TreeNodeViewModel? value) =>
         SelectedConnection = value?.Connection;
 
-    private void RefreshConnections(string? selectId = null)
+    // Full rebuild — used only at startup. Add/edit/delete go through the targeted helpers below so
+    // that touching one connection never collapses the whole tree (loses every other node's expand +
+    // loaded subtree). See Upsert/RemoveConnectionNode.
+    private void RefreshConnections()
     {
         ConnectionNodes.Clear();
         foreach (var connection in _connections.List())
         {
-            ConnectionNodes.Add(TreeNodeViewModel.ForConnection(connection, ResolveIconImage(connection.Kind), LoadNodeChildrenAsync));
+            ConnectionNodes.Add(BuildConnectionNode(connection));
+        }
+    }
+
+    private TreeNodeViewModel BuildConnectionNode(SavedConnection connection) =>
+        TreeNodeViewModel.ForConnection(connection, ResolveIconImage(connection.ProviderId), LoadNodeChildrenAsync);
+
+    // Add a new connection node, or replace an edited one in place, leaving every OTHER node's
+    // expand/loaded state untouched. A replaced (edited) node resets its own subtree, since its
+    // connection parameters may have changed — but the rest of the tree stays exactly as it was.
+    private void UpsertConnectionNode(SavedConnection saved)
+    {
+        var node = BuildConnectionNode(saved);
+        var index = IndexOfConnection(saved.Id);
+        if (index >= 0)
+        {
+            ConnectionNodes[index] = node;
+        }
+        else
+        {
+            ConnectionNodes.Add(node);
         }
 
-        SelectedNode = selectId is null
-            ? null
-            : ConnectionNodes.FirstOrDefault(n => n.Connection.Id == selectId);
+        SelectedNode = node;
+    }
+
+    private void RemoveConnectionNode(string id)
+    {
+        var index = IndexOfConnection(id);
+        if (index < 0)
+        {
+            return;
+        }
+
+        if (SelectedNode == ConnectionNodes[index])
+        {
+            SelectedNode = null;
+        }
+
+        ConnectionNodes.RemoveAt(index);
+    }
+
+    private int IndexOfConnection(string id)
+    {
+        for (var i = 0; i < ConnectionNodes.Count; i++)
+        {
+            if (ConnectionNodes[i].Connection.Id == id)
+            {
+                return i;
+            }
+        }
+
+        return -1;
     }
 
     // A provider may ship a brand image and/or a glyph. We render the image when the host can decode
     // it; the tree otherwise falls back to a generic connection line-icon. The glyph is left to hosts
     // that can render emoji (Linux/Avalonia can't), so it is not used here. SVG needs an extra
     // renderer, so raster only for now.
-    private IImage? ResolveIconImage(DatabaseKind kind)
+    private IImage? ResolveIconImage(string providerId)
     {
-        var icon = _providers.Get(kind).Icon;
+        var icon = _providers.Get(providerId).Icon;
         if (icon?.ImageData is not { Length: > 0 } bytes || !CanRenderImage(icon.ImageMediaType))
         {
             return null;
@@ -120,7 +170,7 @@ public partial class MainViewModel : ViewModelBase
         try
         {
             var profile = _connections.Resolve(connection);
-            var nodes = await _providers.Get(connection.Kind).GetChildNodesAsync(profile, ancestors, CancellationToken.None);
+            var nodes = await _providers.Get(connection.ProviderId).GetChildNodesAsync(profile, ancestors, CancellationToken.None);
             if (ancestors.Count == 0)
             {
                 Status = Loc.Get("StatusConnected", nodes.Count);
@@ -147,7 +197,7 @@ public partial class MainViewModel : ViewModelBase
         var saved = await ConnectionDialogRequested(_dialogFactory());
         if (saved is not null)
         {
-            RefreshConnections(saved.Id);
+            UpsertConnectionNode(saved);
         }
     }
 
@@ -165,7 +215,7 @@ public partial class MainViewModel : ViewModelBase
         var saved = await ConnectionDialogRequested(dialog);
         if (saved is not null)
         {
-            RefreshConnections(saved.Id);
+            UpsertConnectionNode(saved);
         }
     }
 
@@ -177,8 +227,9 @@ public partial class MainViewModel : ViewModelBase
             return;
         }
 
-        _connections.Delete(SelectedConnection.Id);
-        RefreshConnections();
+        var id = SelectedConnection.Id;
+        _connections.Delete(id);
+        RemoveConnectionNode(id);
     }
 
     // Copy the selected connection (secret included) under a "… (copy)" name, then select the copy.
@@ -191,7 +242,7 @@ public partial class MainViewModel : ViewModelBase
         }
 
         var copy = _connections.Duplicate(SelectedConnection.Id, $"{SelectedConnection.Name} {Loc["CopySuffix"]}");
-        RefreshConnections(copy.Id);
+        UpsertConnectionNode(copy);
     }
 
     // Connect = (re)load the selected connection's tree from the root and expand it.
@@ -247,7 +298,7 @@ public partial class MainViewModel : ViewModelBase
             return;
         }
 
-        var existing = Documents.FirstOrDefault(d => d.MatchesBrowse(node.Connection.Id, node.SchemaName, node.Name));
+        var existing = Documents.FirstOrDefault(d => d.MatchesBrowse(node.Connection.Id, node.DatabaseName, node.SchemaName, node.Name));
         if (existing is not null)
         {
             SelectedDocument = existing;
@@ -255,7 +306,7 @@ public partial class MainViewModel : ViewModelBase
         }
 
         var document = NewDocument();
-        document.InitBrowse(node.Connection, node.SchemaName, node.Name);
+        document.InitBrowse(node.Connection, node.DatabaseName, node.SchemaName, node.Name);
         AddDocument(document);
         await document.LoadPageAsync(ct);
     }
@@ -289,7 +340,7 @@ public partial class MainViewModel : ViewModelBase
             return;
         }
 
-        var dialect = _providers.Get(SelectedConnection.Kind).Dialect;
+        var dialect = _providers.Get(SelectedConnection.ProviderId).Dialect;
         var text = node.IsTableOrView && node.SchemaName is { } schema
             ? $"{dialect.QuoteIdentifier(schema)}.{dialect.QuoteIdentifier(node.Name)}"
             : dialect.QuoteIdentifier(node.Name);
@@ -308,10 +359,10 @@ public partial class MainViewModel : ViewModelBase
         }
 
         var connection = node.Connection;
-        var dialect = _providers.Get(connection.Kind).Dialect;
-        var qualified = node.SchemaName is { } schema
-            ? $"{dialect.QuoteIdentifier(schema)}.{dialect.QuoteIdentifier(node.Name)}"
-            : dialect.QuoteIdentifier(node.Name);
+        var dialect = _providers.Get(connection.ProviderId).Dialect;
+        // Generated SQL opens in a free query tab with no database context, so qualify it fully — the
+        // dialect decides how far (SQL Server: three-part [db].[schema].[table]; Postgres: schema.table).
+        var qualified = dialect.QualifyName(node.DatabaseName, node.SchemaName, node.Name);
 
         try
         {
@@ -319,7 +370,7 @@ public partial class MainViewModel : ViewModelBase
             {
                 "Select" => $"SELECT * FROM {qualified};",
                 "Count" => $"SELECT COUNT(*) FROM {qualified};",
-                _ => SqlTemplateBuilder.Build(kind ?? "Select", qualified, dialect, await FetchColumnsAsync(connection, qualified))
+                _ => SqlTemplateBuilder.Build(kind ?? "Select", qualified, dialect, await FetchColumnsAsync(connection, node.DatabaseName, qualified))
             };
 
             var document = NewDocument();
@@ -334,10 +385,10 @@ public partial class MainViewModel : ViewModelBase
     }
 
     // A zero-row query is the cheapest way to read a relation's column metadata (names, PK) per dialect.
-    private async Task<IReadOnlyList<ResultColumn>> FetchColumnsAsync(SavedConnection connection, string qualified)
+    private async Task<IReadOnlyList<ResultColumn>> FetchColumnsAsync(SavedConnection connection, string? database, string qualified)
     {
-        var provider = _providers.Get(connection.Kind);
-        var profile = _connections.Resolve(connection);
+        var provider = _providers.Get(connection.ProviderId);
+        var profile = _connections.Resolve(connection, database);
         // One row is enough for the column schema and stays valid across dialects — SQL Server's
         // OFFSET/FETCH rejects FETCH NEXT 0, so a zero-row probe is not portable.
         var probe = provider.Dialect.Paginate($"SELECT * FROM {qualified}", 1, 0);

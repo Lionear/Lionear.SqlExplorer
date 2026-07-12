@@ -8,8 +8,6 @@ namespace Lionear.SqlExplorer.Providers.MsSql;
 
 public sealed class MsSqlProvider : IDbProvider
 {
-    public DatabaseKind Kind => DatabaseKind.SqlServer;
-
     public string DisplayName => "Microsoft SQL Server";
 
     // Uses the embedded brand PNG (icon.png) when present; falls back to a glyph otherwise.
@@ -21,7 +19,9 @@ public sealed class MsSqlProvider : IDbProvider
     [
         new("host", "Host", ConnectionFieldType.Text, Required: true, Default: "localhost"),
         new("port", "Port", ConnectionFieldType.Number, Default: "1433"),
-        new("database", "Database", ConnectionFieldType.Text, Required: true, Default: "master"),
+        // Optional: leave blank to connect to the server (master) and browse every database from the
+        // tree — per-database queries repoint the catalog at execute time (see OpenAsync).
+        new("database", "Database", ConnectionFieldType.Text, Default: "master"),
         new("username", "Username", ConnectionFieldType.Text, Required: true, Default: "sa"),
         new("password", "Password", ConnectionFieldType.Password)
     ];
@@ -49,8 +49,7 @@ public sealed class MsSqlProvider : IDbProvider
 
     public async Task<bool> TestConnectionAsync(ConnectionProfile profile, CancellationToken ct)
     {
-        await using var connection = new SqlConnection(profile.ConnectionString);
-        await connection.OpenAsync(ct);
+        await using var connection = await OpenAsync(profile, ct);
         return connection.State == ConnectionState.Open;
     }
 
@@ -58,8 +57,7 @@ public sealed class MsSqlProvider : IDbProvider
     {
         var stopwatch = Stopwatch.StartNew();
 
-        await using var connection = new SqlConnection(profile.ConnectionString);
-        await connection.OpenAsync(ct);
+        await using var connection = await OpenAsync(profile, ct);
 
         await using var command = new SqlCommand(sql, connection);
         // KeyInfo makes SqlClient resolve base table/column names and primary-key flags, so the result
@@ -122,8 +120,7 @@ public sealed class MsSqlProvider : IDbProvider
         IReadOnlyList<SqlStatement> statements,
         CancellationToken ct)
     {
-        await using var connection = new SqlConnection(profile.ConnectionString);
-        await connection.OpenAsync(ct);
+        await using var connection = await OpenAsync(profile, ct);
         await using var transaction = (SqlTransaction)await connection.BeginTransactionAsync(ct);
 
         var affected = 0;
@@ -225,8 +222,7 @@ public sealed class MsSqlProvider : IDbProvider
         CancellationToken ct)
     {
         var nodes = new List<DbTreeNode>();
-        await using var connection = new SqlConnection(profile.ConnectionString);
-        await connection.OpenAsync(ct);
+        await using var connection = await OpenAsync(profile, ct);
         await using var command = new SqlCommand(sql, connection);
         await using var reader = await command.ExecuteReaderAsync(ct);
         while (await reader.ReadAsync(ct))
@@ -240,8 +236,7 @@ public sealed class MsSqlProvider : IDbProvider
     private static async Task<IReadOnlyList<DbTreeNode>> LoadAgentJobsAsync(ConnectionProfile profile, CancellationToken ct)
     {
         var nodes = new List<DbTreeNode>();
-        await using var connection = new SqlConnection(profile.ConnectionString);
-        await connection.OpenAsync(ct);
+        await using var connection = await OpenAsync(profile, ct);
 
         // SQL Server Agent lives in msdb; on SQL Server for Linux it is often absent/disabled.
         await using (var probe = new SqlCommand("SELECT OBJECT_ID('msdb.dbo.sysjobs')", connection))
@@ -278,8 +273,7 @@ public sealed class MsSqlProvider : IDbProvider
         const string sql = "SELECT name FROM sys.databases WHERE database_id > 4 ORDER BY name";
 
         var nodes = new List<DbTreeNode>();
-        await using var connection = new SqlConnection(profile.ConnectionString);
-        await connection.OpenAsync(ct);
+        await using var connection = await OpenAsync(profile, ct);
         await using var command = new SqlCommand(sql, connection);
         await using var reader = await command.ExecuteReaderAsync(ct);
         while (await reader.ReadAsync(ct))
@@ -462,6 +456,20 @@ public sealed class MsSqlProvider : IDbProvider
     // Re-point the connection at another database on the same server; host/credentials stay intact.
     private static string ConnectionStringFor(ConnectionProfile profile, string database) =>
         new SqlConnectionStringBuilder(profile.ConnectionString) { InitialCatalog = database }.ConnectionString;
+
+    // Open against the tree's database when the host set ConnectionProfile.Database (browsing a table
+    // under a specific catalog); otherwise the connection's own InitialCatalog. This is the fix for
+    // queries silently running against 'master' instead of the selected database.
+    private static async Task<SqlConnection> OpenAsync(ConnectionProfile profile, CancellationToken ct)
+    {
+        var connectionString = string.IsNullOrWhiteSpace(profile.Database)
+            ? profile.ConnectionString
+            : ConnectionStringFor(profile, profile.Database);
+
+        var connection = new SqlConnection(connectionString);
+        await connection.OpenAsync(ct);
+        return connection;
+    }
 
     private static string Name(IReadOnlyList<DbNodeRef> ancestors, DbNodeKind kind) =>
         ancestors.First(a => a.Kind == kind).Name;

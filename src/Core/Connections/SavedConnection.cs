@@ -1,5 +1,3 @@
-using Lionear.SqlExplorer.Sdk;
-
 namespace Lionear.SqlExplorer.Core.Connections;
 
 /// <summary>
@@ -11,6 +9,9 @@ public sealed record SavedConnection
 {
     public required string Id { get; init; }
     public required string Name { get; init; }
-    public required DatabaseKind Kind { get; init; }
+
+    /// <summary>Which provider this connection uses — the plugin manifest's <c>id</c> (e.g. "postgres").</summary>
+    public required string ProviderId { get; init; }
+
     public required IReadOnlyDictionary<string, string?> Values { get; init; }
 }

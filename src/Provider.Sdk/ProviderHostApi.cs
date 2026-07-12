@@ -18,7 +18,14 @@ public static class ProviderHostApi
     // v8 (2026-07-12): added DbNodeKind SchemaFolder/IndexFolder/SequenceFolder/Index/Sequence/Group
     //                  (richer schema tree: schemas grouping, indexes, sequences, cosmetic folders).
     // v9 (2026-07-12): added DbNodeKind Object (generic provider-defined leaf: users/roles/logins/jobs).
-    public const int Version = 9;
+    // v10 (2026-07-12): removed the DatabaseKind enum. Provider identity is now the manifest 'id'
+    //                   string (loader-attached); dropped IDbProvider.Kind, ISqlDialect.Kind and
+    //                   ConnectionProfile.Kind. Open engine set — no central enum to extend.
+    // v11 (2026-07-12): added ConnectionProfile.Database (execute-time catalog context; fixes BUG-1
+    //                   where MSSQL browse/generate ran against the default catalog, not the tree's db)
+    //                   and ISqlDialect.QualifyName (dialect-driven qualified names for generated SQL;
+    //                   SQL Server three-part [db].[schema].[table] so a query tab hits the right db).
+    public const int Version = 11;
 
     /// <summary>True when this host can load a plugin built for <paramref name="pluginVersion"/>.</summary>
     public static bool IsCompatible(int pluginVersion) => pluginVersion == Version;

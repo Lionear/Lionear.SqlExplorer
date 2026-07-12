@@ -8,8 +8,6 @@ namespace Lionear.SqlExplorer.Providers.MySql;
 
 public sealed class MySqlProvider : IDbProvider
 {
-    public DatabaseKind Kind => DatabaseKind.MySql;
-
     public string DisplayName => "MySQL / MariaDB";
 
     // Uses the embedded brand PNG (icon.png) when present; falls back to a glyph otherwise.
@@ -54,6 +52,9 @@ public sealed class MySqlProvider : IDbProvider
         return connection.State == ConnectionState.Open;
     }
 
+    // ConnectionProfile.Database (v11) is not honoured here: MySQL's "database" is its schema, and browse
+    // queries the connection's default database. Cross-database browse would need the host to schema-qualify
+    // by database (or this to reopen with that default) — deferred; today a connection targets one database.
     public async Task<QueryResult> ExecuteQueryAsync(ConnectionProfile profile, string sql, CancellationToken ct)
     {
         var stopwatch = Stopwatch.StartNew();

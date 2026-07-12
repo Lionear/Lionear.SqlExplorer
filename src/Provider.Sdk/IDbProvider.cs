@@ -5,10 +5,14 @@ namespace Lionear.SqlExplorer.Sdk;
 /// third-party providers implement. UI and view-models depend only on this
 /// abstraction, never on a concrete driver.
 /// </summary>
+/// <remarks>
+/// A provider carries no identity of its own: which engine it is comes from the
+/// <c>id</c> in its <c>plugin.json</c> manifest, attached by the loader. That keeps the
+/// set of engines open — a third party ships a new provider with a new manifest id,
+/// no host enum to extend.
+/// </remarks>
 public interface IDbProvider
 {
-    DatabaseKind Kind { get; }
-
     /// <summary>Human-friendly provider name shown in the UI (e.g. "Microsoft SQL Server").</summary>
     string DisplayName { get; }
 

@@ -3,7 +3,8 @@ using Lionear.SqlExplorer.Sdk;
 namespace Lionear.SqlExplorer.Core.Plugins;
 
 /// <summary>Outcome of scanning one plugin folder — a loaded provider or a reason it was skipped.</summary>
-public sealed record ProviderLoadResult(string PluginDirectory, IDbProvider? Provider, string? Error)
+/// <remarks><see cref="Id"/> is the manifest <c>id</c> and is the provider's engine identity.</remarks>
+public sealed record ProviderLoadResult(string PluginDirectory, string? Id, IDbProvider? Provider, string? Error)
 {
     public bool Succeeded => Provider is not null;
 }
@@ -48,13 +49,13 @@ public sealed class ProviderPluginLoader
 
             if (manifest.Type != PluginManifest.Types.Provider)
             {
-                return new ProviderLoadResult(dir, null,
+                return new ProviderLoadResult(dir, manifest.Id, null,
                     $"Plugin '{manifest.Id}' is type '{manifest.Type}', not a provider — skipped.");
             }
 
             if (!ProviderHostApi.IsCompatible(manifest.HostApiVersion))
             {
-                return new ProviderLoadResult(dir, null,
+                return new ProviderLoadResult(dir, manifest.Id, null,
                     $"Plugin '{manifest.Id}' targets host API v{manifest.HostApiVersion}, " +
                     $"this host is v{ProviderHostApi.Version}.");
             }
@@ -62,7 +63,7 @@ public sealed class ProviderPluginLoader
             var assemblyPath = Path.Combine(dir, manifest.EntryAssembly);
             if (!File.Exists(assemblyPath))
             {
-                return new ProviderLoadResult(dir, null,
+                return new ProviderLoadResult(dir, manifest.Id, null,
                     $"Entry assembly '{manifest.EntryAssembly}' not found in '{dir}'.");
             }
 
@@ -74,21 +75,21 @@ public sealed class ProviderPluginLoader
 
             if (providerType is null)
             {
-                return new ProviderLoadResult(dir, null,
+                return new ProviderLoadResult(dir, manifest.Id, null,
                     $"Assembly '{manifest.EntryAssembly}' has no public IDbProvider implementation.");
             }
 
             if (Activator.CreateInstance(providerType) is not IDbProvider provider)
             {
-                return new ProviderLoadResult(dir, null,
+                return new ProviderLoadResult(dir, manifest.Id, null,
                     $"Could not instantiate '{providerType.FullName}' as IDbProvider.");
             }
 
-            return new ProviderLoadResult(dir, provider, null);
+            return new ProviderLoadResult(dir, manifest.Id, provider, null);
         }
         catch (Exception ex)
         {
-            return new ProviderLoadResult(dir, null, ex.Message);
+            return new ProviderLoadResult(dir, null, null, ex.Message);
         }
     }
 }

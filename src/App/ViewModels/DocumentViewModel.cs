@@ -30,6 +30,7 @@ public partial class DocumentViewModel : ViewModelBase
     private readonly ConnectionService _connections;
     private readonly ISqlFormatter _formatter;
 
+    private string? _database;
     private string? _schema;
     private string _table = string.Empty;
     private int _lastRowCount;
@@ -114,18 +115,20 @@ public partial class DocumentViewModel : ViewModelBase
         Title = $"{Loc["QueryTab"]} · {connection.Name}";
     }
 
-    public void InitBrowse(SavedConnection connection, string? schema, string table)
+    public void InitBrowse(SavedConnection connection, string? database, string? schema, string table)
     {
         Connection = connection;
         Mode = DocumentMode.Browse;
+        _database = database;
         _schema = schema;
         _table = table;
         Title = table;
     }
 
-    /// <summary>True when this is the browse tab for the given connection + table (avoids duplicate tabs).</summary>
-    public bool MatchesBrowse(string connectionId, string? schema, string table) =>
-        IsBrowseMode && Connection.Id == connectionId && _schema == schema && _table == table;
+    /// <summary>True when this is the browse tab for the given connection + table (avoids duplicate tabs).
+    /// Database is part of the identity so same-named tables in different databases open as separate tabs.</summary>
+    public bool MatchesBrowse(string connectionId, string? database, string? schema, string table) =>
+        IsBrowseMode && Connection.Id == connectionId && _database == database && _schema == schema && _table == table;
 
     /// <summary>Current browse sort column (base name), or null when unsorted.</summary>
     public string? SortColumn => _sortColumn;
@@ -165,7 +168,7 @@ public partial class DocumentViewModel : ViewModelBase
     /// <summary>Load the current browse page (also the initial load right after <see cref="InitBrowse"/>).</summary>
     public async Task LoadPageAsync(CancellationToken ct = default)
     {
-        var dialect = _providers.Get(Connection.Kind).Dialect;
+        var dialect = _providers.Get(Connection.ProviderId).Dialect;
         var qualified = _schema is { } schema
             ? $"{dialect.QuoteIdentifier(schema)}.{dialect.QuoteIdentifier(_table)}"
             : dialect.QuoteIdentifier(_table);
@@ -217,7 +220,7 @@ public partial class DocumentViewModel : ViewModelBase
     [RelayCommand]
     private void Format()
     {
-        var dialect = _providers.Get(Connection.Kind).Dialect;
+        var dialect = _providers.Get(Connection.ProviderId).Dialect;
         Sql = _formatter.Format(Sql, dialect, SqlFormatOptions.Default);
     }
 
@@ -226,8 +229,8 @@ public partial class DocumentViewModel : ViewModelBase
     {
         try
         {
-            var profile = _connections.Resolve(Connection);
-            var result = await _providers.Get(Connection.Kind).ExecuteQueryAsync(profile, sql, ct);
+            var profile = _connections.Resolve(Connection, _database);
+            var result = await _providers.Get(Connection.ProviderId).ExecuteQueryAsync(profile, sql, ct);
             _lastRowCount = result.Rows.Count;
             SetResult(EditableResultSet.From(result));
             Status = Loc.Get("StatusRows", result.Rows.Count, result.Elapsed.TotalMilliseconds);
@@ -322,7 +325,7 @@ public partial class DocumentViewModel : ViewModelBase
             return;
         }
 
-        var dialect = _providers.Get(Connection.Kind).Dialect;
+        var dialect = _providers.Get(Connection.ProviderId).Dialect;
         var statements = CrudStatementBuilder.Build(Editable, dialect);
         if (statements.Count == 0)
         {
@@ -337,8 +340,8 @@ public partial class DocumentViewModel : ViewModelBase
 
         try
         {
-            var profile = _connections.Resolve(Connection);
-            var affected = await _providers.Get(Connection.Kind).ExecuteBatchAsync(profile, statements, ct);
+            var profile = _connections.Resolve(Connection, _database);
+            var affected = await _providers.Get(Connection.ProviderId).ExecuteBatchAsync(profile, statements, ct);
             // Re-read so DB-assigned values (auto-increment ids, defaults) and a clean baseline show up.
             await ReloadAsync(ct);
             Status = Loc.Get("SaveOk", affected);
