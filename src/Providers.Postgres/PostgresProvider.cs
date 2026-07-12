@@ -63,6 +63,28 @@ public sealed class PostgresProvider : IDbProvider
         // so the result would never be editable (Notes §8).
         await using var reader = await command.ExecuteReaderAsync(CommandBehavior.KeyInfo, ct);
 
+        return await ReadResultAsync(reader, stopwatch, ct);
+    }
+
+    public async Task<IReadOnlyList<QueryResult>> ExecuteScriptAsync(ConnectionProfile profile, string sql, CancellationToken ct)
+    {
+        var stopwatch = Stopwatch.StartNew();
+
+        await using var connection = await OpenAsync(profile, ct);
+        await using var command = new NpgsqlCommand(sql, connection);
+        await using var reader = await command.ExecuteReaderAsync(CommandBehavior.KeyInfo, ct);
+
+        var results = new List<QueryResult>();
+        do
+        {
+            results.Add(await ReadResultAsync(reader, stopwatch, ct));
+        } while (await reader.NextResultAsync(ct));
+
+        return results;
+    }
+
+    private static async Task<QueryResult> ReadResultAsync(NpgsqlDataReader reader, Stopwatch stopwatch, CancellationToken ct)
+    {
         var columns = BuildColumns(reader);
 
         var rows = new List<object?[]>();
@@ -80,8 +102,6 @@ public sealed class PostgresProvider : IDbProvider
 
             rows.Add(row);
         }
-
-        stopwatch.Stop();
 
         return new QueryResult
         {
@@ -157,10 +177,11 @@ public sealed class PostgresProvider : IDbProvider
             DbNodeKind.TableFolder => await LoadRelationsAsync(profile, ancestors, isView: false, ct),
             DbNodeKind.ViewFolder => await LoadRelationsAsync(profile, ancestors, isView: true, ct),
             DbNodeKind.SequenceFolder => await LoadSequencesAsync(profile, ancestors, ct),
-            // Tables carry an extra "Indexes" folder; views have no indexes.
-            DbNodeKind.Table => [.. await LoadColumnsAsync(profile, ancestors, ct), IndexFolder()],
+            // Tables carry extra "Indexes"/"Foreign Keys" folders; views have neither.
+            DbNodeKind.Table => [.. await LoadColumnsAsync(profile, ancestors, ct), IndexFolder(), ForeignKeyFolder()],
             DbNodeKind.View => await LoadColumnsAsync(profile, ancestors, ct),
             DbNodeKind.IndexFolder => await LoadIndexesAsync(profile, ancestors, ct),
+            DbNodeKind.ForeignKeyFolder => await LoadForeignKeysAsync(profile, ancestors, ct),
             _ => []
         };
     }
@@ -171,6 +192,9 @@ public sealed class PostgresProvider : IDbProvider
 
     private static DbTreeNode IndexFolder() =>
         new() { Kind = DbNodeKind.IndexFolder, Name = "Indexes", HasChildren = true };
+
+    private static DbTreeNode ForeignKeyFolder() =>
+        new() { Kind = DbNodeKind.ForeignKeyFolder, Name = "Foreign Keys", HasChildren = true };
 
     private static IReadOnlyList<DbTreeNode> Folders() =>
     [
@@ -351,6 +375,44 @@ public sealed class PostgresProvider : IDbProvider
         return nodes;
     }
 
+    private async Task<IReadOnlyList<DbTreeNode>> LoadForeignKeysAsync(
+        ConnectionProfile profile,
+        IReadOnlyList<DbNodeRef> ancestors,
+        CancellationToken ct)
+    {
+        const string sql = """
+            SELECT con.conname, a.attname AS column_name, ft.relname AS ref_table, fa.attname AS ref_column
+            FROM pg_constraint con
+            JOIN pg_class t ON t.oid = con.conrelid
+            JOIN pg_namespace n ON n.oid = t.relnamespace
+            JOIN unnest(con.conkey) WITH ORDINALITY AS ck(attnum, ord) ON true
+            JOIN pg_attribute a ON a.attrelid = t.oid AND a.attnum = ck.attnum
+            JOIN unnest(con.confkey) WITH ORDINALITY AS fk(attnum, ord) ON fk.ord = ck.ord
+            JOIN pg_class ft ON ft.oid = con.confrelid
+            JOIN pg_attribute fa ON fa.attrelid = ft.oid AND fa.attnum = fk.attnum
+            WHERE con.contype = 'f' AND n.nspname = @schema AND t.relname = @table
+            ORDER BY con.conname, ck.ord
+            """;
+
+        var nodes = new List<DbTreeNode>();
+        await using var connection = new NpgsqlConnection(ConnectionStringFor(profile, Name(ancestors, DbNodeKind.Database)));
+        await connection.OpenAsync(ct);
+        await using var command = new NpgsqlCommand(sql, connection);
+        command.Parameters.AddWithValue("schema", Name(ancestors, DbNodeKind.Schema));
+        command.Parameters.AddWithValue("table", Name(ancestors, DbNodeKind.Table));
+        await using var reader = await command.ExecuteReaderAsync(ct);
+        while (await reader.ReadAsync(ct))
+        {
+            var name = reader.GetString(0);
+            var column = reader.GetString(1);
+            var refTable = reader.GetString(2);
+            var refColumn = reader.GetString(3);
+            nodes.Add(new DbTreeNode { Kind = DbNodeKind.ForeignKey, Name = name, Detail = $"{column} → {refTable}.{refColumn}" });
+        }
+
+        return nodes;
+    }
+
     // Re-point the connection at a sibling database on the same server; secrets/host stay intact.
     private static string ConnectionStringFor(ConnectionProfile profile, string database) =>
         new NpgsqlConnectionStringBuilder(profile.ConnectionString) { Database = database }.ConnectionString;
@@ -424,6 +486,15 @@ public sealed class PostgresProvider : IDbProvider
         await using var connection = await OpenAsync(profile, ct);
         await using var command = new NpgsqlCommand(sql, connection);
         await command.ExecuteNonQueryAsync(ct);
+    }
+
+    public async Task<QueryResult> ExplainAsync(ConnectionProfile profile, string sql, CancellationToken ct)
+    {
+        var stopwatch = Stopwatch.StartNew();
+        await using var connection = await OpenAsync(profile, ct);
+        await using var command = new NpgsqlCommand($"EXPLAIN {sql}", connection);
+        await using var reader = await command.ExecuteReaderAsync(CommandBehavior.KeyInfo, ct);
+        return await ReadResultAsync(reader, stopwatch, ct);
     }
 
     public async Task<IReadOnlyList<string>> GetDatabasesAsync(ConnectionProfile profile, CancellationToken ct)

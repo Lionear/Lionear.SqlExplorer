@@ -45,6 +45,30 @@ public sealed class SqliteProvider : IDbProvider
         command.CommandText = sql;
         await using var reader = await command.ExecuteReaderAsync(ct);
 
+        return await ReadResultAsync(reader, stopwatch, ct);
+    }
+
+    public async Task<IReadOnlyList<QueryResult>> ExecuteScriptAsync(ConnectionProfile profile, string sql, CancellationToken ct)
+    {
+        var stopwatch = Stopwatch.StartNew();
+
+        await using var connection = new SqliteConnection(profile.ConnectionString);
+        await connection.OpenAsync(ct);
+        await using var command = connection.CreateCommand();
+        command.CommandText = sql;
+        await using var reader = await command.ExecuteReaderAsync(ct);
+
+        var results = new List<QueryResult>();
+        do
+        {
+            results.Add(await ReadResultAsync(reader, stopwatch, ct));
+        } while (await reader.NextResultAsync(ct));
+
+        return results;
+    }
+
+    private static async Task<QueryResult> ReadResultAsync(SqliteDataReader reader, Stopwatch stopwatch, CancellationToken ct)
+    {
         var columns = BuildColumns(reader);
 
         var rows = new List<object?[]>();
@@ -63,8 +87,6 @@ public sealed class SqliteProvider : IDbProvider
             rows.Add(row);
         }
 
-        stopwatch.Stop();
-
         return new QueryResult
         {
             Columns = columns,
@@ -78,6 +100,13 @@ public sealed class SqliteProvider : IDbProvider
     // with SQLITE_ENABLE_COLUMN_METADATA, so base table/column names and the PK flag are available.
     private static List<ResultColumn> BuildColumns(SqliteDataReader reader)
     {
+        // A non-SELECT statement (UPDATE/INSERT/DDL) has no columns; GetColumnSchema() throws in that
+        // shape instead of returning an empty schema, so it must never be called for it.
+        if (reader.FieldCount == 0)
+        {
+            return [];
+        }
+
         var schema = reader.GetColumnSchema();
         var columns = new List<ResultColumn>(reader.FieldCount);
         for (var i = 0; i < reader.FieldCount; i++)
@@ -146,6 +175,17 @@ public sealed class SqliteProvider : IDbProvider
     public Task<IReadOnlyList<string>> GetDatabasesAsync(ConnectionProfile profile, CancellationToken ct) =>
         Task.FromResult<IReadOnlyList<string>>([]);
 
+    public async Task<QueryResult> ExplainAsync(ConnectionProfile profile, string sql, CancellationToken ct)
+    {
+        var stopwatch = Stopwatch.StartNew();
+        await using var connection = new SqliteConnection(profile.ConnectionString);
+        await connection.OpenAsync(ct);
+        await using var command = connection.CreateCommand();
+        command.CommandText = $"EXPLAIN QUERY PLAN {sql}";
+        await using var reader = await command.ExecuteReaderAsync(ct);
+        return await ReadResultAsync(reader, stopwatch, ct);
+    }
+
     public async Task<int> ExecuteBatchAsync(
         ConnectionProfile profile,
         IReadOnlyList<SqlStatement> statements,
@@ -188,10 +228,11 @@ public sealed class SqliteProvider : IDbProvider
             DbNodeKind.TableFolder => await LoadObjectsAsync(profile, isView: false, ct),
             DbNodeKind.ViewFolder => await LoadObjectsAsync(profile, isView: true, ct),
             DbNodeKind.SequenceFolder => await LoadSequencesAsync(profile, ct),
-            // Tables carry an extra "Indexes" folder; views have no indexes.
-            DbNodeKind.Table => [.. await LoadColumnsAsync(profile, ancestors[^1].Name, ct), IndexFolder()],
+            // Tables carry extra "Indexes"/"Foreign Keys" folders; views have neither.
+            DbNodeKind.Table => [.. await LoadColumnsAsync(profile, ancestors[^1].Name, ct), IndexFolder(), ForeignKeyFolder()],
             DbNodeKind.View => await LoadColumnsAsync(profile, ancestors[^1].Name, ct),
             DbNodeKind.IndexFolder => await LoadIndexesAsync(profile, Name(ancestors, DbNodeKind.Table), ct),
+            DbNodeKind.ForeignKeyFolder => await LoadForeignKeysAsync(profile, Name(ancestors, DbNodeKind.Table), ct),
             _ => []
         };
     }
@@ -206,6 +247,9 @@ public sealed class SqliteProvider : IDbProvider
 
     private static DbTreeNode IndexFolder() =>
         new() { Kind = DbNodeKind.IndexFolder, Name = "Indexes", HasChildren = true };
+
+    private static DbTreeNode ForeignKeyFolder() =>
+        new() { Kind = DbNodeKind.ForeignKeyFolder, Name = "Foreign Keys", HasChildren = true };
 
     private static string Name(IReadOnlyList<DbNodeRef> ancestors, DbNodeKind kind) =>
         ancestors.First(a => a.Kind == kind).Name;
@@ -321,6 +365,34 @@ public sealed class SqliteProvider : IDbProvider
             var origin = reader.GetString(3);
             var detail = origin == "pk" ? "PK" : unique ? "unique" : null;
             nodes.Add(new DbTreeNode { Kind = DbNodeKind.Index, Name = name, Detail = detail });
+        }
+
+        return nodes;
+    }
+
+    private async Task<IReadOnlyList<DbTreeNode>> LoadForeignKeysAsync(
+        ConnectionProfile profile,
+        string tableName,
+        CancellationToken ct)
+    {
+        // PRAGMA takes an identifier, not a bindable parameter; quote it via the dialect.
+        var sql = $"PRAGMA foreign_key_list({Dialect.QuoteIdentifier(tableName)})";
+
+        var nodes = new List<DbTreeNode>();
+        await using var connection = new SqliteConnection(profile.ConnectionString);
+        await connection.OpenAsync(ct);
+        await using var command = connection.CreateCommand();
+        command.CommandText = sql;
+        await using var reader = await command.ExecuteReaderAsync(ct);
+
+        // foreign_key_list columns: 0=id, 1=seq, 2=table, 3=from, 4=to, 5=on_update, 6=on_delete, 7=match
+        while (await reader.ReadAsync(ct))
+        {
+            var id = reader.GetInt64(0);
+            var refTable = reader.GetString(2);
+            var column = reader.GetString(3);
+            var refColumn = reader.IsDBNull(4) ? column : reader.GetString(4);
+            nodes.Add(new DbTreeNode { Kind = DbNodeKind.ForeignKey, Name = $"fk_{id}", Detail = $"{column} → {refTable}.{refColumn}" });
         }
 
         return nodes;

@@ -40,6 +40,8 @@ public partial class DocumentView : UserControl
             _sqlEditor.TextChanged += OnEditorTextChanged;
             _sqlEditor.TextArea.TextEntered += OnSqlTextEntered;
             _sqlEditor.KeyDown += OnSqlEditorKeyDown;
+            _sqlEditor.TextArea.Caret.PositionChanged += OnCaretPositionChanged;
+            _sqlEditor.TextArea.SelectionChanged += OnEditorSelectionChanged;
         }
 
         _resultsGrid = this.FindControl<DataGrid>("ResultsGrid");
@@ -181,6 +183,24 @@ public partial class DocumentView : UserControl
         _syncingSql = true;
         _viewModel.Sql = _sqlEditor.Text;
         _syncingSql = false;
+    }
+
+    // Kept in sync so "Run"/"Run at cursor"/"Explain" know what text to act on without the VM reaching
+    // back into AvaloniaEdit (Notes: VM stays free of the editor's document type).
+    private void OnCaretPositionChanged(object? sender, EventArgs e)
+    {
+        if (_viewModel is not null && _sqlEditor is not null)
+        {
+            _viewModel.CaretOffset = _sqlEditor.CaretOffset;
+        }
+    }
+
+    private void OnEditorSelectionChanged(object? sender, EventArgs e)
+    {
+        if (_viewModel is not null && _sqlEditor is not null)
+        {
+            _viewModel.SelectionText = _sqlEditor.SelectedText ?? string.Empty;
+        }
     }
 
     // Auto-trigger completion right after typing "." — the common alias.column moment.

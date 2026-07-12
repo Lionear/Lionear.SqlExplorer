@@ -163,6 +163,15 @@ public partial class MainViewModel : ViewModelBase
 
     partial void OnSearchTextChanged(string value) => RefreshSearchResults();
 
+    // F5/Ctrl+Enter live as window-level KeyBindings (MainWindow.axaml, same reasoning as Ctrl+K —
+    // a keypress needs somewhere to land even with nothing focused yet) and forward to whichever
+    // document tab is currently selected.
+    [RelayCommand]
+    private void RunActiveDocument() => SelectedDocument?.RunCommand.Execute(null);
+
+    [RelayCommand]
+    private void RunActiveDocumentAtCursor() => SelectedDocument?.RunAtCursorCommand.Execute(null);
+
     // Fuzzy quick-open across every connection's cached snapshot (1.1): a table/view whose qualified
     // name or one of its columns matches. Connections without a snapshot yet (never connected, or
     // still walking) simply contribute nothing rather than blocking the search.

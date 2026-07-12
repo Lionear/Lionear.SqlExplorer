@@ -255,4 +255,10 @@
   <data name="PrimaryKeyHint" xml:space="preserve">
     <value>Primaire sleutel. Identificeert elke rij uniek; meerdere aangevinkte kolommen vormen een samengestelde sleutel.</value>
   </data>
+  <data name="RunAtCursor" xml:space="preserve">
+    <value>Uitvoeren op cursor</value>
+  </data>
+  <data name="Explain" xml:space="preserve">
+    <value>Explain</value>
+  </data>
 </root>

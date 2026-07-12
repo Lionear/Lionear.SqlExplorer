@@ -255,4 +255,10 @@
   <data name="PrimaryKeyHint" xml:space="preserve">
     <value>Primary key. Uniquely identifies each row; multiple checked columns form a composite key.</value>
   </data>
+  <data name="RunAtCursor" xml:space="preserve">
+    <value>Run at cursor</value>
+  </data>
+  <data name="Explain" xml:space="preserve">
+    <value>Explain</value>
+  </data>
 </root>

@@ -9,6 +9,8 @@
        is delivered to the TopLevel itself, so a UserControl-level KeyBinding would never see it. -->
   <Window.KeyBindings>
     <KeyBinding Gesture="Ctrl+K" Command="{Binding ToggleSearchCommand}" />
+    <KeyBinding Gesture="F5" Command="{Binding RunActiveDocumentCommand}" />
+    <KeyBinding Gesture="Ctrl+Enter" Command="{Binding RunActiveDocumentAtCursorCommand}" />
   </Window.KeyBindings>
   <views:MainView x:Name="Body" />
 </Window>

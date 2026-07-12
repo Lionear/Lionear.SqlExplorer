@@ -77,4 +77,20 @@ public interface IDbProvider
     /// <summary>The databases/catalogs reachable on this connection, for the query-tab database
     /// switcher. Empty for engines with no database layer (e.g. SQLite).</summary>
     Task<IReadOnlyList<string>> GetDatabasesAsync(ConnectionProfile profile, CancellationToken ct);
+
+    /// <summary>
+    /// Run raw SQL text (one or more statements) and return every result set the driver produces
+    /// (via <c>NextResult</c>), not just the first. Powers "Run"/"Run at cursor": the host never
+    /// needs to know up front whether the text is one statement or a script. A statement that
+    /// produces no rows (DDL/DML) still yields one <see cref="QueryResult"/> entry carrying
+    /// <see cref="QueryResult.RecordsAffected"/> so the UI always has at least one tab to show.
+    /// </summary>
+    Task<IReadOnlyList<QueryResult>> ExecuteScriptAsync(ConnectionProfile profile, string sql, CancellationToken ct);
+
+    /// <summary>
+    /// Run this provider's EXPLAIN-equivalent for <paramref name="sql"/> without executing the
+    /// query itself, and return the plan as a normal <see cref="QueryResult"/> so it renders in the
+    /// existing grid infrastructure.
+    /// </summary>
+    Task<QueryResult> ExplainAsync(ConnectionProfile profile, string sql, CancellationToken ct);
 }

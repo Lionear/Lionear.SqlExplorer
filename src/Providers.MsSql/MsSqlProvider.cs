@@ -65,6 +65,28 @@ public sealed class MsSqlProvider : IDbProvider
         // comes back read-only with no base table.
         await using var reader = await command.ExecuteReaderAsync(CommandBehavior.KeyInfo, ct);
 
+        return await ReadResultAsync(reader, stopwatch, ct);
+    }
+
+    public async Task<IReadOnlyList<QueryResult>> ExecuteScriptAsync(ConnectionProfile profile, string sql, CancellationToken ct)
+    {
+        var stopwatch = Stopwatch.StartNew();
+
+        await using var connection = await OpenAsync(profile, ct);
+        await using var command = new SqlCommand(sql, connection);
+        await using var reader = await command.ExecuteReaderAsync(CommandBehavior.KeyInfo, ct);
+
+        var results = new List<QueryResult>();
+        do
+        {
+            results.Add(await ReadResultAsync(reader, stopwatch, ct));
+        } while (await reader.NextResultAsync(ct));
+
+        return results;
+    }
+
+    private static async Task<QueryResult> ReadResultAsync(SqlDataReader reader, Stopwatch stopwatch, CancellationToken ct)
+    {
         var columns = BuildColumns(reader);
 
         var rows = new List<object?[]>();
@@ -82,8 +104,6 @@ public sealed class MsSqlProvider : IDbProvider
 
             rows.Add(row);
         }
-
-        stopwatch.Stop();
 
         return new QueryResult
         {
@@ -160,10 +180,11 @@ public sealed class MsSqlProvider : IDbProvider
             DbNodeKind.TableFolder => await LoadRelationsAsync(profile, ancestors, isView: false, ct),
             DbNodeKind.ViewFolder => await LoadRelationsAsync(profile, ancestors, isView: true, ct),
             DbNodeKind.SequenceFolder => await LoadSequencesAsync(profile, ancestors, ct),
-            // Tables carry an extra "Indexes" folder; views have no indexes.
-            DbNodeKind.Table => [.. await LoadColumnsAsync(profile, ancestors, ct), IndexFolder()],
+            // Tables carry extra "Indexes"/"Foreign Keys" folders; views have neither.
+            DbNodeKind.Table => [.. await LoadColumnsAsync(profile, ancestors, ct), IndexFolder(), ForeignKeyFolder()],
             DbNodeKind.View => await LoadColumnsAsync(profile, ancestors, ct),
             DbNodeKind.IndexFolder => await LoadIndexesAsync(profile, ancestors, ct),
+            DbNodeKind.ForeignKeyFolder => await LoadForeignKeysAsync(profile, ancestors, ct),
             _ => []
         };
     }
@@ -259,6 +280,9 @@ public sealed class MsSqlProvider : IDbProvider
 
     private static DbTreeNode IndexFolder() =>
         new() { Kind = DbNodeKind.IndexFolder, Name = "Indexes", HasChildren = true };
+
+    private static DbTreeNode ForeignKeyFolder() =>
+        new() { Kind = DbNodeKind.ForeignKeyFolder, Name = "Foreign Keys", HasChildren = true };
 
     private static IReadOnlyList<DbTreeNode> Folders() =>
     [
@@ -441,6 +465,41 @@ public sealed class MsSqlProvider : IDbProvider
         return nodes;
     }
 
+    private static async Task<IReadOnlyList<DbTreeNode>> LoadForeignKeysAsync(
+        ConnectionProfile profile,
+        IReadOnlyList<DbNodeRef> ancestors,
+        CancellationToken ct)
+    {
+        const string sql = """
+            SELECT fk.name, c.name AS column_name, rt.name AS ref_table, rc.name AS ref_column
+            FROM sys.foreign_keys fk
+            JOIN sys.foreign_key_columns fkc ON fkc.constraint_object_id = fk.object_id
+            JOIN sys.columns c ON c.object_id = fkc.parent_object_id AND c.column_id = fkc.parent_column_id
+            JOIN sys.tables rt ON rt.object_id = fk.referenced_object_id
+            JOIN sys.columns rc ON rc.object_id = fkc.referenced_object_id AND rc.column_id = fkc.referenced_column_id
+            WHERE fk.parent_object_id = OBJECT_ID(@qualified)
+            ORDER BY fk.name, fkc.constraint_column_id
+            """;
+
+        var qualified = $"{Name(ancestors, DbNodeKind.Schema)}.{Name(ancestors, DbNodeKind.Table)}";
+        var nodes = new List<DbTreeNode>();
+        await using var connection = new SqlConnection(ConnectionStringFor(profile, Name(ancestors, DbNodeKind.Database)));
+        await connection.OpenAsync(ct);
+        await using var command = new SqlCommand(sql, connection);
+        command.Parameters.AddWithValue("qualified", qualified);
+        await using var reader = await command.ExecuteReaderAsync(ct);
+        while (await reader.ReadAsync(ct))
+        {
+            var name = reader.GetString(0);
+            var column = reader.GetString(1);
+            var refTable = reader.GetString(2);
+            var refColumn = reader.GetString(3);
+            nodes.Add(new DbTreeNode { Kind = DbNodeKind.ForeignKey, Name = name, Detail = $"{column} → {refTable}.{refColumn}" });
+        }
+
+        return nodes;
+    }
+
     // Re-point the connection at another database on the same server; host/credentials stay intact.
     private static string ConnectionStringFor(ConnectionProfile profile, string database) =>
         new SqlConnectionStringBuilder(profile.ConnectionString) { InitialCatalog = database }.ConnectionString;
@@ -512,6 +571,36 @@ public sealed class MsSqlProvider : IDbProvider
         await using var connection = await OpenAsync(profile, ct);
         await using var command = new SqlCommand(sql, connection);
         await command.ExecuteNonQueryAsync(ct);
+    }
+
+    // SHOWPLAN_ALL must be the only thing "on" in its own batch — turned on, the plan-producing query
+    // itself is never executed (rows come back describing the plan, not the query's own result), then
+    // turned off. Three separate SqlCommands on one connection/session, not a single-statement prefix
+    // like Postgres/MySQL EXPLAIN.
+    public async Task<QueryResult> ExplainAsync(ConnectionProfile profile, string sql, CancellationToken ct)
+    {
+        var stopwatch = Stopwatch.StartNew();
+        await using var connection = await OpenAsync(profile, ct);
+
+        await using (var on = new SqlCommand("SET SHOWPLAN_ALL ON", connection))
+        {
+            await on.ExecuteNonQueryAsync(ct);
+        }
+
+        QueryResult result;
+        try
+        {
+            await using var command = new SqlCommand(sql, connection);
+            await using var reader = await command.ExecuteReaderAsync(CommandBehavior.KeyInfo, ct);
+            result = await ReadResultAsync(reader, stopwatch, ct);
+        }
+        finally
+        {
+            await using var off = new SqlCommand("SET SHOWPLAN_ALL OFF", connection);
+            await off.ExecuteNonQueryAsync(ct);
+        }
+
+        return result;
     }
 
     public async Task<IReadOnlyList<string>> GetDatabasesAsync(ConnectionProfile profile, CancellationToken ct)

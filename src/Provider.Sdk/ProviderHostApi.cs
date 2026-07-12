@@ -35,7 +35,11 @@ public static class ProviderHostApi
     //                   (Postgres GENERATED ALWAYS AS IDENTITY, MySQL AUTO_INCREMENT, SQL Server
     //                   IDENTITY(1,1), SQLite's INTEGER PRIMARY KEY AUTOINCREMENT column-shape) so it
     //                   belongs in BuildCreateStatement, unlike DROP/ALTER which stayed host-only.
-    public const int Version = 13;
+    // v14 (2026-07-12): added DbNodeKind ForeignKeyFolder/ForeignKey (FK-introspection in the tree,
+    //                   an enabler for a future ER-diagram) and IDbProvider.ExecuteScriptAsync
+    //                   (raw SQL text -> every result set via NextResult, powers "Run"/"Run at cursor"
+    //                   and multi-resultset scripts) + ExplainAsync (per-engine EXPLAIN as a QueryResult).
+    public const int Version = 14;
 
     /// <summary>True when this host can load a plugin built for <paramref name="pluginVersion"/>.</summary>
     public static bool IsCompatible(int pluginVersion) => pluginVersion == Version;

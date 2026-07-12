@@ -32,6 +32,12 @@ public enum DbNodeKind
     /// <summary>A single sequence / auto-increment generator in a schema.</summary>
     Sequence,
 
+    /// <summary>Grouping node under a table that holds its foreign keys.</summary>
+    ForeignKeyFolder,
+
+    /// <summary>A single foreign key on a table; <see cref="DbTreeNode.Detail"/> describes the relation.</summary>
+    ForeignKey,
+
     /// <summary>
     /// A provider-defined leaf object the host doesn't model specially — a user, role, login,
     /// agent job, certificate, … The provider owns the label; the host just shows a generic icon.

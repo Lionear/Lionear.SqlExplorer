@@ -60,6 +60,28 @@ public sealed class MySqlProvider : IDbProvider
         await using var command = new MySqlCommand(sql, connection);
         await using var reader = await command.ExecuteReaderAsync(ct);
 
+        return await ReadResultAsync(reader, stopwatch, ct);
+    }
+
+    public async Task<IReadOnlyList<QueryResult>> ExecuteScriptAsync(ConnectionProfile profile, string sql, CancellationToken ct)
+    {
+        var stopwatch = Stopwatch.StartNew();
+
+        await using var connection = await OpenAsync(profile, ct);
+        await using var command = new MySqlCommand(sql, connection);
+        await using var reader = await command.ExecuteReaderAsync(ct);
+
+        var results = new List<QueryResult>();
+        do
+        {
+            results.Add(await ReadResultAsync(reader, stopwatch, ct));
+        } while (await reader.NextResultAsync(ct));
+
+        return results;
+    }
+
+    private static async Task<QueryResult> ReadResultAsync(MySqlDataReader reader, Stopwatch stopwatch, CancellationToken ct)
+    {
         var columns = BuildColumns(reader);
 
         var rows = new List<object?[]>();
@@ -77,8 +99,6 @@ public sealed class MySqlProvider : IDbProvider
 
             rows.Add(row);
         }
-
-        stopwatch.Stop();
 
         return new QueryResult
         {
@@ -151,10 +171,11 @@ public sealed class MySqlProvider : IDbProvider
             DbNodeKind.Database => Folders(),
             DbNodeKind.TableFolder => await LoadRelationsAsync(profile, ancestors, isView: false, ct),
             DbNodeKind.ViewFolder => await LoadRelationsAsync(profile, ancestors, isView: true, ct),
-            // Tables carry an extra "Indexes" folder; views have no indexes.
-            DbNodeKind.Table => [.. await LoadColumnsAsync(profile, ancestors, ct), IndexFolder()],
+            // Tables carry extra "Indexes"/"Foreign Keys" folders; views have neither.
+            DbNodeKind.Table => [.. await LoadColumnsAsync(profile, ancestors, ct), IndexFolder(), ForeignKeyFolder()],
             DbNodeKind.View => await LoadColumnsAsync(profile, ancestors, ct),
             DbNodeKind.IndexFolder => await LoadIndexesAsync(profile, ancestors, ct),
+            DbNodeKind.ForeignKeyFolder => await LoadForeignKeysAsync(profile, ancestors, ct),
             _ => []
         };
     }
@@ -167,6 +188,9 @@ public sealed class MySqlProvider : IDbProvider
 
     private static DbTreeNode IndexFolder() =>
         new() { Kind = DbNodeKind.IndexFolder, Name = "Indexes", HasChildren = true };
+
+    private static DbTreeNode ForeignKeyFolder() =>
+        new() { Kind = DbNodeKind.ForeignKeyFolder, Name = "Foreign Keys", HasChildren = true };
 
     private async Task<IReadOnlyList<DbTreeNode>> LoadDatabasesAsync(ConnectionProfile profile, CancellationToken ct) =>
         (await GetDatabasesAsync(profile, ct))
@@ -286,6 +310,37 @@ public sealed class MySqlProvider : IDbProvider
         return nodes;
     }
 
+    private static async Task<IReadOnlyList<DbTreeNode>> LoadForeignKeysAsync(
+        ConnectionProfile profile,
+        IReadOnlyList<DbNodeRef> ancestors,
+        CancellationToken ct)
+    {
+        const string sql = """
+            SELECT constraint_name, column_name, referenced_table_name, referenced_column_name
+            FROM information_schema.key_column_usage
+            WHERE table_schema = @db AND table_name = @table AND referenced_table_name IS NOT NULL
+            ORDER BY constraint_name, ordinal_position
+            """;
+
+        var nodes = new List<DbTreeNode>();
+        await using var connection = new MySqlConnection(profile.ConnectionString);
+        await connection.OpenAsync(ct);
+        await using var command = new MySqlCommand(sql, connection);
+        command.Parameters.AddWithValue("db", Name(ancestors, DbNodeKind.Database));
+        command.Parameters.AddWithValue("table", Name(ancestors, DbNodeKind.Table));
+        await using var reader = await command.ExecuteReaderAsync(ct);
+        while (await reader.ReadAsync(ct))
+        {
+            var name = reader.GetString(0);
+            var column = reader.GetString(1);
+            var refTable = reader.GetString(2);
+            var refColumn = reader.GetString(3);
+            nodes.Add(new DbTreeNode { Kind = DbNodeKind.ForeignKey, Name = name, Detail = $"{column} → {refTable}.{refColumn}" });
+        }
+
+        return nodes;
+    }
+
     private static string Name(IReadOnlyList<DbNodeRef> ancestors, DbNodeKind kind) =>
         ancestors.First(a => a.Kind == kind).Name;
 
@@ -355,6 +410,15 @@ public sealed class MySqlProvider : IDbProvider
         await using var connection = await OpenAsync(profile, ct);
         await using var command = new MySqlCommand(sql, connection);
         await command.ExecuteNonQueryAsync(ct);
+    }
+
+    public async Task<QueryResult> ExplainAsync(ConnectionProfile profile, string sql, CancellationToken ct)
+    {
+        var stopwatch = Stopwatch.StartNew();
+        await using var connection = await OpenAsync(profile, ct);
+        await using var command = new MySqlCommand($"EXPLAIN {sql}", connection);
+        await using var reader = await command.ExecuteReaderAsync(ct);
+        return await ReadResultAsync(reader, stopwatch, ct);
     }
 
     public async Task<IReadOnlyList<string>> GetDatabasesAsync(ConnectionProfile profile, CancellationToken ct)

@@ -13,6 +13,7 @@ using Lionear.SqlExplorer.Core.History;
 using Lionear.SqlExplorer.Core.Localization;
 using Lionear.SqlExplorer.Core.Providers;
 using Lionear.SqlExplorer.Core.Schema;
+using Lionear.SqlExplorer.Core.Sql;
 using Lionear.SqlExplorer.Sdk;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
@@ -23,6 +24,19 @@ public enum DocumentMode
 {
     Query,
     Browse
+}
+
+/// <summary>One tab in the multi-resultset strip: a display label ("Result 1 · 42 rows", "EXPLAIN")
+/// plus the editable set it wraps. <see cref="IsSelected"/> is host-maintained (not part of identity)
+/// so the tab strip can highlight which one the grid currently shows.</summary>
+public sealed partial class ResultSetTab(string label, EditableResultSet set) : ObservableObject
+{
+    public string Label { get; } = label;
+
+    public EditableResultSet Set { get; } = set;
+
+    [ObservableProperty]
+    private bool _isSelected;
 }
 
 /// <summary>
@@ -64,6 +78,25 @@ public partial class DocumentViewModel : ViewModelBase
 
     [ObservableProperty]
     private EditableRow? _selectedRow;
+
+    // Multi-resultset support: a script/selection with several statements (or a driver that returns
+    // several result sets for one) lands here, one tab per set. Editable always mirrors
+    // ResultSets[SelectedResultSetIndex].Set — SetResult keeps doing the row/pending-state wiring it
+    // always did, just called on a selection change too, not only on a fresh execute.
+    public ObservableCollection<ResultSetTab> ResultSets { get; } = [];
+
+    [ObservableProperty]
+    private int _selectedResultSetIndex;
+
+    public bool HasMultipleResultSets => ResultSets.Count > 1;
+
+    /// <summary>Caret offset and current selection in the SQL editor, kept in sync by the view so
+    /// Run/Run-at-cursor/Explain know what text to act on without reaching back into AvaloniaEdit.</summary>
+    [ObservableProperty]
+    private int _caretOffset;
+
+    [ObservableProperty]
+    private string _selectionText = string.Empty;
 
     [ObservableProperty]
     private bool _hasChanges;
@@ -307,7 +340,91 @@ public partial class DocumentViewModel : ViewModelBase
     }
 
     [RelayCommand]
-    private async Task RunAsync(CancellationToken ct) => await ExecuteAsync(Sql, ct);
+    private async Task RunAsync(CancellationToken ct) =>
+        await RunScriptAsync(SelectionText.Length > 0 ? SelectionText : Sql, ct);
+
+    [RelayCommand]
+    private async Task RunAtCursorAsync(CancellationToken ct)
+    {
+        var text = SelectionText.Length > 0 ? SelectionText : SqlStatementSplitter.StatementAtCursor(Sql, CaretOffset);
+        if (string.IsNullOrWhiteSpace(text))
+        {
+            return;
+        }
+
+        await RunScriptAsync(text, ct);
+    }
+
+    [RelayCommand]
+    private async Task ExplainAsync(CancellationToken ct)
+    {
+        var text = SelectionText.Length > 0 ? SelectionText : SqlStatementSplitter.StatementAtCursor(Sql, CaretOffset);
+        if (string.IsNullOrWhiteSpace(text))
+        {
+            return;
+        }
+
+        try
+        {
+            var profile = _connections.Resolve(Connection, _database);
+            var result = await _providers.Get(Connection.ProviderId).ExplainAsync(profile, text, ct);
+            SetResultSets([new ResultSetTab("EXPLAIN", EditableResultSet.From(result))]);
+            Status = Loc.Get("StatusRows", result.Rows.Count, result.Elapsed.TotalMilliseconds);
+        }
+        catch (Exception ex)
+        {
+            Status = ex.Message;
+        }
+    }
+
+    // Query-mode "Run"/"Run at cursor": the text may be one statement or a whole script, and the driver
+    // may return zero, one, or several result sets — the host never needs to know which up front.
+    // GO is not real T-SQL (a client-side batch separator only), so on SQL Server the text is split into
+    // GO-batches first and each is executed separately; every other engine sends the text through as-is.
+    private async Task RunScriptAsync(string sql, CancellationToken ct)
+    {
+        var stopwatch = Stopwatch.StartNew();
+        try
+        {
+            var profile = _connections.Resolve(Connection, _database);
+            var provider = _providers.Get(Connection.ProviderId);
+
+            var batches = Connection.ProviderId == "sqlserver"
+                ? SqlStatementSplitter.SplitGoBatches(sql)
+                : [sql];
+
+            var results = new List<QueryResult>();
+            foreach (var batch in batches)
+            {
+                results.AddRange(await provider.ExecuteScriptAsync(profile, batch, ct));
+            }
+
+            stopwatch.Stop();
+            var totalRows = results.Sum(r => r.Rows.Count);
+            SetResultSets(BuildResultTabs(results));
+            Status = Loc.Get("StatusRows", totalRows, stopwatch.Elapsed.TotalMilliseconds);
+            if (IsQueryMode)
+            {
+                AppendHistory(sql, QueryHistoryKind.Query, stopwatch.ElapsedMilliseconds, totalRows, success: true, error: null);
+            }
+        }
+        catch (Exception ex)
+        {
+            stopwatch.Stop();
+            Status = ex.Message;
+            if (IsQueryMode)
+            {
+                AppendHistory(sql, QueryHistoryKind.Query, stopwatch.ElapsedMilliseconds, 0, success: false, error: ex.Message);
+            }
+        }
+    }
+
+    private static List<ResultSetTab> BuildResultTabs(IReadOnlyList<QueryResult> results) =>
+        results.Count <= 1
+            ? [new ResultSetTab("Result", EditableResultSet.From(results.Count == 1 ? results[0] : EmptyResult()))]
+            : results.Select((r, i) => new ResultSetTab($"Result {i + 1} · {r.Rows.Count} rows", EditableResultSet.From(r))).ToList();
+
+    private static QueryResult EmptyResult() => new() { Columns = [], Rows = [], RecordsAffected = 0, Elapsed = TimeSpan.Zero };
 
     [RelayCommand(CanExecute = nameof(CanPrevPage))]
     private async Task PrevPageAsync(CancellationToken ct)
@@ -353,7 +470,7 @@ public partial class DocumentViewModel : ViewModelBase
             var result = await _providers.Get(Connection.ProviderId).ExecuteQueryAsync(profile, sql, ct);
             stopwatch.Stop();
             _lastRowCount = result.Rows.Count;
-            SetResult(EditableResultSet.From(result));
+            SetResultSets([new ResultSetTab("Result", EditableResultSet.From(result))]);
             Status = Loc.Get("StatusRows", result.Rows.Count, result.Elapsed.TotalMilliseconds);
             if (IsQueryMode)
             {
@@ -470,7 +587,60 @@ public partial class DocumentViewModel : ViewModelBase
 
     private static readonly JsonSerializerOptions PrettyJson = new() { WriteIndented = true };
 
-    private void SetResult(EditableResultSet editable)
+    // Replace the whole result-set list (fresh execute) and select the first tab. Comes after every Run/
+    // Run-at-cursor/Explain/browse-page-load — never appended to, always a full swap.
+    private void SetResultSets(IReadOnlyList<ResultSetTab> tabs)
+    {
+        ResultSets.Clear();
+        foreach (var tab in tabs)
+        {
+            ResultSets.Add(tab);
+        }
+
+        OnPropertyChanged(nameof(HasMultipleResultSets));
+
+        if (SelectedResultSetIndex == 0)
+        {
+            // The setter no-ops when the value doesn't change, so the very common "still on tab 0" case
+            // needs an explicit SetResult call — OnSelectedResultSetIndexChanged won't fire for it.
+            MarkSelected(0);
+            SetResult(tabs.Count > 0 ? tabs[0].Set : null);
+        }
+        else
+        {
+            SelectedResultSetIndex = 0;
+        }
+    }
+
+    partial void OnSelectedResultSetIndexChanged(int value)
+    {
+        MarkSelected(value);
+        if (value >= 0 && value < ResultSets.Count)
+        {
+            SetResult(ResultSets[value].Set);
+        }
+    }
+
+    // Drives the tab strip's highlight — the Button in DocumentView.axaml binds Classes.Accent to IsSelected.
+    private void MarkSelected(int index)
+    {
+        for (var i = 0; i < ResultSets.Count; i++)
+        {
+            ResultSets[i].IsSelected = i == index;
+        }
+    }
+
+    [RelayCommand]
+    private void SelectResultSet(ResultSetTab tab)
+    {
+        var index = ResultSets.IndexOf(tab);
+        if (index >= 0)
+        {
+            SelectedResultSetIndex = index;
+        }
+    }
+
+    private void SetResult(EditableResultSet? editable)
     {
         if (Editable is not null)
         {
@@ -483,10 +653,13 @@ public partial class DocumentViewModel : ViewModelBase
 
         SelectedRow = null;
         Editable = editable;
-        editable.Rows.CollectionChanged += OnRowsChanged;
-        foreach (var row in editable.Rows)
+        if (editable is not null)
         {
-            row.PropertyChanged += OnRowChanged;
+            editable.Rows.CollectionChanged += OnRowsChanged;
+            foreach (var row in editable.Rows)
+            {
+                row.PropertyChanged += OnRowChanged;
+            }
         }
 
         RefreshPending();
@@ -592,9 +765,10 @@ public partial class DocumentViewModel : ViewModelBase
     [RelayCommand(CanExecute = nameof(CanDiscard))]
     private async Task DiscardAsync(CancellationToken ct) => await ReloadAsync(ct);
 
-    // Reload the current view: the browse page in Browse mode, the typed query in Query mode.
+    // Reload the current view: the browse page in Browse mode, the typed query in Query mode. A reload
+    // always re-runs the whole editor text, never a stale selection from before the save.
     private Task ReloadAsync(CancellationToken ct) =>
-        IsBrowseMode ? LoadPageAsync(ct) : ExecuteAsync(Sql, ct);
+        IsBrowseMode ? LoadPageAsync(ct) : RunScriptAsync(Sql, ct);
 
     partial void OnEditableChanged(EditableResultSet? value)
     {
