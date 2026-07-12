@@ -76,10 +76,14 @@ public partial class DocumentView : UserControl
         _viewModel.PropertyChanged += OnViewModelPropertyChanged;
         _viewModel.SaveReviewRequested = ShowSaveReviewAsync;
 
-        // A browse tab has no SQL editor: collapse its row so the grid fills the pane.
-        if (_viewModel.IsBrowseMode && this.FindControl<Grid>("RootGrid") is { } grid)
+        // The TabControl reuses one DocumentView across tabs (swapping DataContext), so the SQL
+        // editor row must be set BOTH ways: collapsed for browse, restored for query. Otherwise a
+        // browse tab collapses the row and every later query tab shows no SQL pane.
+        if (this.FindControl<Grid>("RootGrid") is { } grid)
         {
-            grid.RowDefinitions[1].Height = new GridLength(0);
+            grid.RowDefinitions[1].Height = _viewModel.IsBrowseMode
+                ? new GridLength(0)
+                : new GridLength(2, GridUnitType.Star);
         }
 
         PushSqlToEditor();
