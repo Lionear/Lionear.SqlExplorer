@@ -97,6 +97,55 @@ public sealed class SqliteProvider : IDbProvider
         return columns;
     }
 
+    // SQLite has no server/database layer, so only table creation applies — right under the
+    // Tables folder, same spot "New Table" already targets for browsing.
+    public IReadOnlyList<CreateCapability> CreateCapabilities { get; } =
+        [new(DbObjectKind.Table, DbNodeKind.TableFolder)];
+
+    public IReadOnlyList<string> ColumnTypes { get; } = ["INTEGER", "TEXT", "REAL", "BLOB", "NUMERIC"];
+
+    public SqlStatement BuildCreateStatement(CreateObjectSpec spec)
+    {
+        if (spec.Kind != DbObjectKind.Table)
+        {
+            throw new NotSupportedException($"SQLite cannot create a {spec.Kind}.");
+        }
+
+        // AUTOINCREMENT only exists on SQLite as part of "INTEGER PRIMARY KEY AUTOINCREMENT" — a single
+        // inline column definition, not a modifier addable to an arbitrary type, and it replaces (not
+        // joins) the trailing PRIMARY KEY clause. SQLite also forbids AUTOINCREMENT on a composite key,
+        // so only the first such column is honoured; a second is silently treated as a normal column.
+        var autoIncrementColumn = spec.Columns.FirstOrDefault(c => c.AutoIncrement)?.Name;
+
+        var columns = spec.Columns.Select(c => c.Name == autoIncrementColumn
+            ? $"{Dialect.QuoteIdentifier(c.Name)} INTEGER PRIMARY KEY AUTOINCREMENT"
+            : $"{Dialect.QuoteIdentifier(c.Name)} {c.Type}{(c.Nullable ? "" : " NOT NULL")}");
+
+        var primaryKey = spec.Columns
+            .Where(c => c.PrimaryKey && c.Name != autoIncrementColumn)
+            .Select(c => Dialect.QuoteIdentifier(c.Name))
+            .ToList();
+        var clauses = primaryKey.Count > 0
+            ? columns.Append($"PRIMARY KEY ({string.Join(", ", primaryKey)})")
+            : columns;
+
+        var sql = $"CREATE TABLE {Dialect.QuoteIdentifier(spec.Name)} ({string.Join(", ", clauses)})";
+        return new SqlStatement(sql, []);
+    }
+
+    public async Task ExecuteDdlAsync(ConnectionProfile profile, string sql, CancellationToken ct)
+    {
+        await using var connection = new SqliteConnection(profile.ConnectionString);
+        await connection.OpenAsync(ct);
+        await using var command = connection.CreateCommand();
+        command.CommandText = sql;
+        await command.ExecuteNonQueryAsync(ct);
+    }
+
+    // No server/database layer — nothing to list, so the query-tab database switcher stays hidden.
+    public Task<IReadOnlyList<string>> GetDatabasesAsync(ConnectionProfile profile, CancellationToken ct) =>
+        Task.FromResult<IReadOnlyList<string>>([]);
+
     public async Task<int> ExecuteBatchAsync(
         ConnectionProfile profile,
         IReadOnlyList<SqlStatement> statements,

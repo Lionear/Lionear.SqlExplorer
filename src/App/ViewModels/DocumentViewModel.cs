@@ -1,3 +1,4 @@
+using System.Collections.ObjectModel;
 using System.Collections.Specialized;
 using System.ComponentModel;
 using System.Diagnostics;
@@ -97,6 +98,16 @@ public partial class DocumentViewModel : ViewModelBase
     [ObservableProperty]
     private string _aggregationSummary = string.Empty;
 
+    // Query-tab connection/database switcher (DBeaver-style): query-mode only, browse tabs stay pinned
+    // to their tree-node's connection/database. Backs the two toolbar ComboBoxes in DocumentView.
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(IsResultEditable))]
+    [NotifyPropertyChangedFor(nameof(ReadOnlyReason))]
+    private SavedConnection _connection = null!;
+
+    [ObservableProperty]
+    private string? _selectedDatabase;
+
     public DocumentViewModel(
         IDbProviderRegistry providers,
         ConnectionService connections,
@@ -124,7 +135,16 @@ public partial class DocumentViewModel : ViewModelBase
 
     public ILocalizer Loc { get; }
 
-    public SavedConnection Connection { get; private set; } = null!;
+    /// <summary>Every saved connection, for the query-tab connection switcher. Snapshotted once at
+    /// <see cref="InitQuery"/> — a connection added while the tab is open won't retroactively appear.</summary>
+    public IReadOnlyList<SavedConnection> AvailableConnections { get; private set; } = [];
+
+    /// <summary>Databases/catalogs on the current <see cref="Connection"/>, for the database switcher.
+    /// Empty (and the picker hidden, see <see cref="HasDatabasePicker"/>) for engines with no database
+    /// layer, e.g. SQLite.</summary>
+    public ObservableCollection<string> AvailableDatabases { get; } = [];
+
+    public bool HasDatabasePicker => AvailableDatabases.Count > 0;
 
     public DocumentMode Mode { get; private set; }
 
@@ -150,19 +170,77 @@ public partial class DocumentViewModel : ViewModelBase
 
     public void InitQuery(SavedConnection connection)
     {
-        Connection = connection;
+        // Mode must land before the Connection assignment: OnConnectionChanged branches on IsQueryMode
+        // to decide whether to touch Title/AvailableDatabases at all (browse tabs manage their own).
         Mode = DocumentMode.Query;
-        Title = $"{Loc["QueryTab"]} · {connection.Name}";
+        AvailableConnections = _connections.List();
+
+        // Re-resolve to the AvailableConnections instance with the same id rather than using `connection`
+        // as-is: it usually comes from a different ConnectionService.List() snapshot (e.g. the tree's own
+        // copy), and SavedConnection's record equality is broken by its Values dictionary (two loads of
+        // the same connection never compare equal). The ComboBox's SelectedItem binding needs a genuine
+        // match against ItemsSource, or it silently shows nothing selected.
+        Connection = AvailableConnections.FirstOrDefault(c => c.Id == connection.Id) ?? connection;
     }
 
     public void InitBrowse(SavedConnection connection, string? database, string? schema, string table)
     {
-        Connection = connection;
         Mode = DocumentMode.Browse;
         _database = database;
         _schema = schema;
         _table = table;
+        Connection = connection;
         Title = table;
+    }
+
+    // Query-tab connection switch (InitQuery counts as the first one): refresh the tab title and the
+    // database list for the newly-selected connection. Browse tabs are pinned to their tree-node's
+    // connection/database and never touch either — this is a no-op there.
+    partial void OnConnectionChanged(SavedConnection value)
+    {
+        if (!IsQueryMode)
+        {
+            return;
+        }
+
+        Title = $"{Loc["QueryTab"]} · {value.Name}";
+        _ = RefreshDatabasesAsync(value);
+    }
+
+    // The database dropdown writes straight through to the same _database field ExecuteAsync/SaveAsync
+    // already resolve with — browse tabs set it once via InitBrowse and never touch this property.
+    partial void OnSelectedDatabaseChanged(string? value) => _database = value;
+
+    private async Task RefreshDatabasesAsync(SavedConnection connection)
+    {
+        AvailableDatabases.Clear();
+        SelectedDatabase = null;
+        OnPropertyChanged(nameof(HasDatabasePicker));
+
+        try
+        {
+            var provider = _providers.Get(connection.ProviderId);
+            var profile = _connections.Resolve(connection);
+            var databases = await provider.GetDatabasesAsync(profile, CancellationToken.None);
+
+            // A later connection switch may have raced ahead of this one — don't let a stale response
+            // repopulate the picker for a connection that's no longer selected.
+            if (connection != Connection)
+            {
+                return;
+            }
+
+            foreach (var database in databases)
+            {
+                AvailableDatabases.Add(database);
+            }
+
+            OnPropertyChanged(nameof(HasDatabasePicker));
+        }
+        catch
+        {
+            // Best-effort: the picker just stays empty/hidden for this connection.
+        }
     }
 
     /// <summary>True when this is the browse tab for the given connection + table (avoids duplicate tabs).

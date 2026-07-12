@@ -63,6 +63,17 @@ public static class AppServices
 
         services.AddTransient<ConnectionDialogViewModel>();
         services.AddSingleton<Func<ConnectionDialogViewModel>>(sp => sp.GetRequiredService<ConnectionDialogViewModel>);
+
+        // DDL Create dialog ("New Database…"/"New Schema…"/"New Table…"): reconfigured per open via
+        // Configure(...), same factory-delegate pattern as ConnectionDialogViewModel.
+        services.AddTransient<CreateObjectDialogViewModel>();
+        services.AddSingleton<Func<CreateObjectDialogViewModel>>(sp => sp.GetRequiredService<CreateObjectDialogViewModel>);
+
+        // DROP/ALTER confirmation dialog (host-only SQL, see Core/Ddl/AlterStatementBuilder) — same
+        // factory-delegate pattern as the other two dialogs.
+        services.AddTransient<AlterObjectDialogViewModel>();
+        services.AddSingleton<Func<AlterObjectDialogViewModel>>(sp => sp.GetRequiredService<AlterObjectDialogViewModel>);
+
         services.AddTransient<MainViewModel>();
 
         return services.BuildServiceProvider();

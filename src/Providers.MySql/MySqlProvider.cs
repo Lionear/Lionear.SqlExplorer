@@ -47,20 +47,15 @@ public sealed class MySqlProvider : IDbProvider
 
     public async Task<bool> TestConnectionAsync(ConnectionProfile profile, CancellationToken ct)
     {
-        await using var connection = new MySqlConnection(profile.ConnectionString);
-        await connection.OpenAsync(ct);
+        await using var connection = await OpenAsync(profile, ct);
         return connection.State == ConnectionState.Open;
     }
 
-    // ConnectionProfile.Database (v11) is not honoured here: MySQL's "database" is its schema, and browse
-    // queries the connection's default database. Cross-database browse would need the host to schema-qualify
-    // by database (or this to reopen with that default) — deferred; today a connection targets one database.
     public async Task<QueryResult> ExecuteQueryAsync(ConnectionProfile profile, string sql, CancellationToken ct)
     {
         var stopwatch = Stopwatch.StartNew();
 
-        await using var connection = new MySqlConnection(profile.ConnectionString);
-        await connection.OpenAsync(ct);
+        await using var connection = await OpenAsync(profile, ct);
 
         await using var command = new MySqlCommand(sql, connection);
         await using var reader = await command.ExecuteReaderAsync(ct);
@@ -122,8 +117,7 @@ public sealed class MySqlProvider : IDbProvider
         IReadOnlyList<SqlStatement> statements,
         CancellationToken ct)
     {
-        await using var connection = new MySqlConnection(profile.ConnectionString);
-        await connection.OpenAsync(ct);
+        await using var connection = await OpenAsync(profile, ct);
         await using var transaction = await connection.BeginTransactionAsync(ct);
 
         var affected = 0;
@@ -174,26 +168,10 @@ public sealed class MySqlProvider : IDbProvider
     private static DbTreeNode IndexFolder() =>
         new() { Kind = DbNodeKind.IndexFolder, Name = "Indexes", HasChildren = true };
 
-    private static async Task<IReadOnlyList<DbTreeNode>> LoadDatabasesAsync(ConnectionProfile profile, CancellationToken ct)
-    {
-        const string sql = """
-            SELECT schema_name FROM information_schema.schemata
-            WHERE schema_name NOT IN ('information_schema', 'mysql', 'performance_schema', 'sys')
-            ORDER BY schema_name
-            """;
-
-        var nodes = new List<DbTreeNode>();
-        await using var connection = new MySqlConnection(profile.ConnectionString);
-        await connection.OpenAsync(ct);
-        await using var command = new MySqlCommand(sql, connection);
-        await using var reader = await command.ExecuteReaderAsync(ct);
-        while (await reader.ReadAsync(ct))
-        {
-            nodes.Add(new DbTreeNode { Kind = DbNodeKind.Database, Name = reader.GetString(0), HasChildren = true });
-        }
-
-        return nodes;
-    }
+    private async Task<IReadOnlyList<DbTreeNode>> LoadDatabasesAsync(ConnectionProfile profile, CancellationToken ct) =>
+        (await GetDatabasesAsync(profile, ct))
+            .Select(name => new DbTreeNode { Kind = DbNodeKind.Database, Name = name, HasChildren = true })
+            .ToList();
 
     private static async Task<IReadOnlyList<DbTreeNode>> LoadRelationsAsync(
         ConnectionProfile profile,
@@ -310,4 +288,93 @@ public sealed class MySqlProvider : IDbProvider
 
     private static string Name(IReadOnlyList<DbNodeRef> ancestors, DbNodeKind kind) =>
         ancestors.First(a => a.Kind == kind).Name;
+
+    // Re-point the connection at a sibling database on the same server; host/credentials stay intact.
+    private static string ConnectionStringFor(ConnectionProfile profile, string database) =>
+        new MySqlConnectionStringBuilder(profile.ConnectionString) { Database = database }.ConnectionString;
+
+    // Open against the tree's database when the host set ConnectionProfile.Database (query-tab database
+    // switcher, DDL on a specific db); otherwise the connection's own default. Previously ignored here
+    // entirely (see the removed comment above ExecuteQueryAsync) — now honoured like MsSql/Postgres.
+    private static async Task<MySqlConnection> OpenAsync(ConnectionProfile profile, CancellationToken ct)
+    {
+        var connectionString = string.IsNullOrWhiteSpace(profile.Database)
+            ? profile.ConnectionString
+            : ConnectionStringFor(profile, profile.Database);
+
+        var connection = new MySqlConnection(connectionString);
+        await connection.OpenAsync(ct);
+        return connection;
+    }
+
+    // MySQL has no separate schema layer — "database" doubles as schema, so only Database and Table are
+    // creatable (no CreateCapability for Schema, unlike Postgres/MsSql).
+    public IReadOnlyList<CreateCapability> CreateCapabilities { get; } =
+    [
+        new(DbObjectKind.Database, null),
+        new(DbObjectKind.Table, DbNodeKind.TableFolder)
+    ];
+
+    public IReadOnlyList<string> ColumnTypes { get; } =
+        ["INT", "BIGINT", "VARCHAR(255)", "TEXT", "BOOLEAN", "DECIMAL(18,2)", "DATETIME", "DATE", "JSON"];
+
+    public SqlStatement BuildCreateStatement(CreateObjectSpec spec)
+    {
+        var sql = spec.Kind switch
+        {
+            // CREATE DATABASE and CREATE SCHEMA are synonyms in MySQL; database creation is the only
+            // "container" this provider declares (see CreateCapabilities).
+            DbObjectKind.Database => $"CREATE DATABASE {Dialect.QuoteIdentifier(spec.Name)}",
+            // No schema layer to qualify with — the connection is already pointed at the target
+            // database via ConnectionProfile.Database when this runs (see ExecuteDdlAsync).
+            DbObjectKind.Table => BuildCreateTable(spec),
+            _ => throw new NotSupportedException($"MySQL cannot create a {spec.Kind}.")
+        };
+
+        return new SqlStatement(sql, []);
+    }
+
+    private string BuildCreateTable(CreateObjectSpec spec)
+    {
+        // MySQL requires an AUTO_INCREMENT column to be a key — satisfied here whenever it's also the
+        // primary key (the common case); left to a normal DB error otherwise, same as any other DDL failure.
+        var columns = spec.Columns.Select(c =>
+            $"{Dialect.QuoteIdentifier(c.Name)} {c.Type}{(c.AutoIncrement ? " AUTO_INCREMENT" : "")}{(c.Nullable ? "" : " NOT NULL")}");
+
+        var primaryKey = spec.Columns.Where(c => c.PrimaryKey).Select(c => Dialect.QuoteIdentifier(c.Name)).ToList();
+        var clauses = primaryKey.Count > 0
+            ? columns.Append($"PRIMARY KEY ({string.Join(", ", primaryKey)})")
+            : columns;
+
+        return $"CREATE TABLE {Dialect.QuoteIdentifier(spec.Name)} ({string.Join(", ", clauses)})";
+    }
+
+    // MySQL DDL auto-commits regardless — no explicit transaction needed here either way.
+    public async Task ExecuteDdlAsync(ConnectionProfile profile, string sql, CancellationToken ct)
+    {
+        await using var connection = await OpenAsync(profile, ct);
+        await using var command = new MySqlCommand(sql, connection);
+        await command.ExecuteNonQueryAsync(ct);
+    }
+
+    public async Task<IReadOnlyList<string>> GetDatabasesAsync(ConnectionProfile profile, CancellationToken ct)
+    {
+        const string sql = """
+            SELECT schema_name FROM information_schema.schemata
+            WHERE schema_name NOT IN ('information_schema', 'mysql', 'performance_schema', 'sys')
+            ORDER BY schema_name
+            """;
+
+        var names = new List<string>();
+        await using var connection = new MySqlConnection(profile.ConnectionString);
+        await connection.OpenAsync(ct);
+        await using var command = new MySqlCommand(sql, connection);
+        await using var reader = await command.ExecuteReaderAsync(ct);
+        while (await reader.ReadAsync(ct))
+        {
+            names.Add(reader.GetString(0));
+        }
+
+        return names;
+    }
 }

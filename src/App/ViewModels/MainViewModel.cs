@@ -30,6 +30,8 @@ public partial class MainViewModel : ViewModelBase
     private readonly IQueryHistoryStore _history;
     private readonly ISchemaCache _schemaCache;
     private readonly Func<ConnectionDialogViewModel> _dialogFactory;
+    private readonly Func<CreateObjectDialogViewModel> _createDialogFactory;
+    private readonly Func<AlterObjectDialogViewModel> _alterDialogFactory;
 
     // Selected tree node drives the active connection: any node knows its owning connection.
     [ObservableProperty]
@@ -63,6 +65,8 @@ public partial class MainViewModel : ViewModelBase
         IQueryHistoryStore history,
         ISchemaCache schemaCache,
         Func<ConnectionDialogViewModel> dialogFactory,
+        Func<CreateObjectDialogViewModel> createDialogFactory,
+        Func<AlterObjectDialogViewModel> alterDialogFactory,
         ILocalizer localizer)
     {
         _providers = providers;
@@ -71,6 +75,8 @@ public partial class MainViewModel : ViewModelBase
         _history = history;
         _schemaCache = schemaCache;
         _dialogFactory = dialogFactory;
+        _createDialogFactory = createDialogFactory;
+        _alterDialogFactory = alterDialogFactory;
         Loc = localizer;
 
         _history.Changed += OnHistoryChanged;
@@ -228,6 +234,14 @@ public partial class MainViewModel : ViewModelBase
     /// <summary>Set by the view so the VM can request a modal connection dialog.</summary>
     public Func<ConnectionDialogViewModel, Task<SavedConnection?>>? ConnectionDialogRequested { get; set; }
 
+    /// <summary>Set by the view so the VM can request the DDL Create dialog; returns the confirmed
+    /// (possibly user-edited) SQL to run, or null on cancel.</summary>
+    public Func<CreateObjectDialogViewModel, Task<string?>>? CreateObjectDialogRequested { get; set; }
+
+    /// <summary>Set by the view so the VM can request the DROP/ALTER confirmation dialog; returns the
+    /// confirmed (possibly user-edited) SQL to run, or null on cancel.</summary>
+    public Func<AlterObjectDialogViewModel, Task<string?>>? AlterObjectDialogRequested { get; set; }
+
     /// <summary>Set by the view so the VM can copy text to the OS clipboard.</summary>
     public Func<string, Task>? ClipboardRequested { get; set; }
 
@@ -248,7 +262,8 @@ public partial class MainViewModel : ViewModelBase
 
     private TreeNodeViewModel BuildConnectionNode(SavedConnection connection)
     {
-        var node = TreeNodeViewModel.ForConnection(connection, ResolveIconImage(connection.ProviderId), LoadNodeChildrenAsync);
+        var node = TreeNodeViewModel.ForConnection(
+            connection, _providers.Get(connection.ProviderId), ResolveIconImage(connection.ProviderId), LoadNodeChildrenAsync);
         // Drive the schema cache off the root's connection state: build once it reaches Connected
         // (via the Connect command or a manual expand), drop it again on disconnect/error.
         node.PropertyChanged += OnConnectionNodeStateChanged;
@@ -431,6 +446,190 @@ public partial class MainViewModel : ViewModelBase
         _connections.Delete(id);
         _schemaCache.Invalidate(id);
         RemoveConnectionNode(id);
+    }
+
+    // DDL Create (host-API v12): "New Database…" on a connection root — no parent schema, and the
+    // profile connects with no database override so it lands on the connection's own default catalog
+    // (matches each provider's CREATE DATABASE convention: Postgres/MsSql run it there, not "inside"
+    // the database being created).
+    [RelayCommand]
+    private async Task NewDatabaseAsync()
+    {
+        if (SelectedNode is not { CanCreateDatabase: true } node)
+        {
+            return;
+        }
+
+        await CreateObjectAsync(node, DbObjectKind.Database, parentSchema: null, database: null);
+    }
+
+    // "New Schema…" on a Schemas folder — runs against that folder's own database.
+    [RelayCommand]
+    private async Task NewSchemaAsync()
+    {
+        if (SelectedNode is not { CanCreateSchema: true } node)
+        {
+            return;
+        }
+
+        await CreateObjectAsync(node, DbObjectKind.Schema, parentSchema: null, node.DatabaseName);
+    }
+
+    // "New Table…" on a Tables folder — runs against that folder's schema + database (MySQL has no
+    // schema layer, so SchemaName is null there and the provider ignores it).
+    [RelayCommand]
+    private async Task NewTableAsync()
+    {
+        if (SelectedNode is not { CanCreateTable: true } node)
+        {
+            return;
+        }
+
+        await CreateObjectAsync(node, DbObjectKind.Table, node.SchemaName, node.DatabaseName);
+    }
+
+    // Shared DDL Create flow: open the dialog pre-configured for `kind`, run the (possibly user-edited)
+    // SQL it returns via ExecuteDdlAsync, then refresh `node` so the new object appears in the tree —
+    // `node` is always the one the "New …" menu item appeared on, i.e. already the right parent to reload.
+    private async Task CreateObjectAsync(TreeNodeViewModel node, DbObjectKind kind, string? parentSchema, string? database)
+    {
+        if (CreateObjectDialogRequested is null)
+        {
+            return;
+        }
+
+        var provider = _providers.Get(node.Connection.ProviderId);
+        var dialog = _createDialogFactory();
+        dialog.Configure(provider, kind, parentSchema);
+
+        var sql = await CreateObjectDialogRequested(dialog);
+        if (string.IsNullOrWhiteSpace(sql))
+        {
+            return;
+        }
+
+        try
+        {
+            var profile = _connections.Resolve(node.Connection, database);
+            await provider.ExecuteDdlAsync(profile, sql, CancellationToken.None);
+            await node.RefreshAsync();
+        }
+        catch (Exception ex)
+        {
+            Status = ex.Message;
+        }
+    }
+
+    // DROP/ALTER (host-only SQL, see Core/Ddl/AlterStatementBuilder — no SDK member, no host-API bump):
+    // "Drop Database…" on a Database node — resolves with no database override (`database: null`) so
+    // it connects via the connection's own default catalog, never the one being dropped (Postgres/MsSql
+    // both refuse DROP DATABASE on the connection you're using it from).
+    [RelayCommand]
+    private async Task DropDatabaseAsync()
+    {
+        if (SelectedNode is not { CanDropDatabase: true } node)
+        {
+            return;
+        }
+
+        await AlterObjectAsync(node, AlterKind.DropDatabase, database: null, node.Name, schema: null, node.Name);
+    }
+
+    [RelayCommand]
+    private async Task DropSchemaAsync()
+    {
+        if (SelectedNode is not { CanDropSchema: true } node)
+        {
+            return;
+        }
+
+        await AlterObjectAsync(node, AlterKind.DropSchema, node.DatabaseName, node.Name, schema: null, node.Name);
+    }
+
+    [RelayCommand]
+    private async Task DropTableAsync()
+    {
+        if (SelectedNode is not { CanDropTable: true } node)
+        {
+            return;
+        }
+
+        await AlterObjectAsync(node, AlterKind.DropTable, node.DatabaseName, node.Name, node.SchemaName, node.Name,
+            isView: node.NodeKind == DbNodeKind.View);
+    }
+
+    [RelayCommand]
+    private async Task AddColumnAsync()
+    {
+        if (SelectedNode is not { CanAddColumn: true } node)
+        {
+            return;
+        }
+
+        await AlterObjectAsync(node, AlterKind.AddColumn, node.DatabaseName, node.Name, node.SchemaName, node.Name);
+    }
+
+    [RelayCommand]
+    private async Task DropColumnAsync()
+    {
+        if (SelectedNode is not { CanDropColumn: true } node || node.TableName is not { } table)
+        {
+            return;
+        }
+
+        await AlterObjectAsync(node, AlterKind.DropColumn, node.DatabaseName, $"{table}.{node.Name}", node.SchemaName, table, existingColumn: node.Name);
+    }
+
+    [RelayCommand]
+    private async Task RenameColumnAsync()
+    {
+        if (SelectedNode is not { CanRenameColumn: true } node || node.TableName is not { } table)
+        {
+            return;
+        }
+
+        await AlterObjectAsync(node, AlterKind.RenameColumn, node.DatabaseName, $"{table}.{node.Name}", node.SchemaName, table, existingColumn: node.Name);
+    }
+
+    // Shared DROP/ALTER flow: open the confirmation dialog, run the (possibly user-edited) SQL it
+    // returns, then fully reload the connection's tree. A full reload (not just `node`) is needed here
+    // unlike CreateObjectAsync: a drop/rename can remove or rename the very node the action ran on, and
+    // there's no parent-pointer to refresh just the affected list — this also re-triggers the 1.1 schema
+    // cache rebuild for free, via the existing Connected-state wiring (OnConnectionNodeStateChanged).
+    private async Task AlterObjectAsync(
+        TreeNodeViewModel node, AlterKind kind, string? database, string objectLabel, string? schema, string target,
+        bool isView = false, string? existingColumn = null)
+    {
+        if (AlterObjectDialogRequested is null)
+        {
+            return;
+        }
+
+        var provider = _providers.Get(node.Connection.ProviderId);
+        var dialog = _alterDialogFactory();
+        dialog.Configure(kind, node.Connection.ProviderId, provider.Dialect, provider.ColumnTypes, objectLabel, schema, target, isView, existingColumn);
+
+        var sql = await AlterObjectDialogRequested(dialog);
+        if (string.IsNullOrWhiteSpace(sql))
+        {
+            return;
+        }
+
+        try
+        {
+            var profile = _connections.Resolve(node.Connection, database);
+            await provider.ExecuteDdlAsync(profile, sql, CancellationToken.None);
+
+            var root = ConnectionNodes.FirstOrDefault(n => n.Connection.Id == node.Connection.Id);
+            if (root is not null)
+            {
+                await root.RefreshAsync();
+            }
+        }
+        catch (Exception ex)
+        {
+            Status = ex.Message;
+        }
     }
 
     // Copy the selected connection (secret included) under a "… (copy)" name, then select the copy.

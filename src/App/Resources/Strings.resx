@@ -183,4 +183,76 @@
   <data name="AggMax" xml:space="preserve">
     <value>Max</value>
   </data>
+  <data name="NewDatabase" xml:space="preserve">
+    <value>New Database…</value>
+  </data>
+  <data name="NewSchema" xml:space="preserve">
+    <value>New Schema…</value>
+  </data>
+  <data name="NewTable" xml:space="preserve">
+    <value>New Table…</value>
+  </data>
+  <data name="ObjectName" xml:space="preserve">
+    <value>Name</value>
+  </data>
+  <data name="ColumnName" xml:space="preserve">
+    <value>Column</value>
+  </data>
+  <data name="ColumnType" xml:space="preserve">
+    <value>Type</value>
+  </data>
+  <data name="ColumnNullable" xml:space="preserve">
+    <value>Nullable</value>
+  </data>
+  <data name="ColumnPrimaryKey" xml:space="preserve">
+    <value>PK</value>
+  </data>
+  <data name="AddColumn" xml:space="preserve">
+    <value>+ Add column</value>
+  </data>
+  <data name="SqlPreview" xml:space="preserve">
+    <value>SQL preview</value>
+  </data>
+  <data name="Create" xml:space="preserve">
+    <value>Create</value>
+  </data>
+  <data name="DropDatabase" xml:space="preserve">
+    <value>Drop Database…</value>
+  </data>
+  <data name="DropSchema" xml:space="preserve">
+    <value>Drop Schema…</value>
+  </data>
+  <data name="DropTable" xml:space="preserve">
+    <value>Drop Table…</value>
+  </data>
+  <data name="AddColumnTitle" xml:space="preserve">
+    <value>Add Column</value>
+  </data>
+  <data name="AddColumnMenu" xml:space="preserve">
+    <value>Add Column…</value>
+  </data>
+  <data name="DropColumn" xml:space="preserve">
+    <value>Drop Column…</value>
+  </data>
+  <data name="RenameColumn" xml:space="preserve">
+    <value>Rename Column…</value>
+  </data>
+  <data name="NewName" xml:space="preserve">
+    <value>New name</value>
+  </data>
+  <data name="Confirm" xml:space="preserve">
+    <value>Confirm</value>
+  </data>
+  <data name="IrreversibleWarning" xml:space="preserve">
+    <value>This cannot be undone.</value>
+  </data>
+  <data name="ColumnAutoIncrement" xml:space="preserve">
+    <value>AI</value>
+  </data>
+  <data name="AutoIncrementHint" xml:space="preserve">
+    <value>Auto-increment (identity). Rendered per engine: Postgres GENERATED ALWAYS AS IDENTITY, MySQL AUTO_INCREMENT, SQL Server IDENTITY(1,1), SQLite INTEGER PRIMARY KEY AUTOINCREMENT.</value>
+  </data>
+  <data name="PrimaryKeyHint" xml:space="preserve">
+    <value>Primary key. Uniquely identifies each row; multiple checked columns form a composite key.</value>
+  </data>
 </root>

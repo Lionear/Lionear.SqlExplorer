@@ -183,4 +183,76 @@
   <data name="AggMax" xml:space="preserve">
     <value>Max</value>
   </data>
+  <data name="NewDatabase" xml:space="preserve">
+    <value>Nieuwe database…</value>
+  </data>
+  <data name="NewSchema" xml:space="preserve">
+    <value>Nieuw schema…</value>
+  </data>
+  <data name="NewTable" xml:space="preserve">
+    <value>Nieuwe tabel…</value>
+  </data>
+  <data name="ObjectName" xml:space="preserve">
+    <value>Naam</value>
+  </data>
+  <data name="ColumnName" xml:space="preserve">
+    <value>Kolom</value>
+  </data>
+  <data name="ColumnType" xml:space="preserve">
+    <value>Type</value>
+  </data>
+  <data name="ColumnNullable" xml:space="preserve">
+    <value>Nullable</value>
+  </data>
+  <data name="ColumnPrimaryKey" xml:space="preserve">
+    <value>PK</value>
+  </data>
+  <data name="AddColumn" xml:space="preserve">
+    <value>+ Kolom toevoegen</value>
+  </data>
+  <data name="SqlPreview" xml:space="preserve">
+    <value>SQL-voorbeeld</value>
+  </data>
+  <data name="Create" xml:space="preserve">
+    <value>Aanmaken</value>
+  </data>
+  <data name="DropDatabase" xml:space="preserve">
+    <value>Database verwijderen…</value>
+  </data>
+  <data name="DropSchema" xml:space="preserve">
+    <value>Schema verwijderen…</value>
+  </data>
+  <data name="DropTable" xml:space="preserve">
+    <value>Tabel verwijderen…</value>
+  </data>
+  <data name="AddColumnTitle" xml:space="preserve">
+    <value>Kolom toevoegen</value>
+  </data>
+  <data name="AddColumnMenu" xml:space="preserve">
+    <value>Kolom toevoegen…</value>
+  </data>
+  <data name="DropColumn" xml:space="preserve">
+    <value>Kolom verwijderen…</value>
+  </data>
+  <data name="RenameColumn" xml:space="preserve">
+    <value>Kolom hernoemen…</value>
+  </data>
+  <data name="NewName" xml:space="preserve">
+    <value>Nieuwe naam</value>
+  </data>
+  <data name="Confirm" xml:space="preserve">
+    <value>Bevestigen</value>
+  </data>
+  <data name="IrreversibleWarning" xml:space="preserve">
+    <value>Dit kan niet ongedaan gemaakt worden.</value>
+  </data>
+  <data name="ColumnAutoIncrement" xml:space="preserve">
+    <value>AI</value>
+  </data>
+  <data name="AutoIncrementHint" xml:space="preserve">
+    <value>Auto-increment (identity). Per engine anders gerenderd: Postgres GENERATED ALWAYS AS IDENTITY, MySQL AUTO_INCREMENT, SQL Server IDENTITY(1,1), SQLite INTEGER PRIMARY KEY AUTOINCREMENT.</value>
+  </data>
+  <data name="PrimaryKeyHint" xml:space="preserve">
+    <value>Primaire sleutel. Identificeert elke rij uniek; meerdere aangevinkte kolommen vormen een samengestelde sleutel.</value>
+  </data>
 </root>

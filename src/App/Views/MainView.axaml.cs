@@ -132,6 +132,8 @@ public partial class MainView : UserControl
         if (_viewModel is not null)
         {
             _viewModel.ConnectionDialogRequested = ShowConnectionDialogAsync;
+            _viewModel.CreateObjectDialogRequested = ShowCreateObjectDialogAsync;
+            _viewModel.AlterObjectDialogRequested = ShowAlterObjectDialogAsync;
             _viewModel.ClipboardRequested = CopyToClipboardAsync;
             _viewModel.PropertyChanged += OnViewModelPropertyChanged;
         }
@@ -158,6 +160,28 @@ public partial class MainView : UserControl
 
         var dialog = new ConnectionDialog { DataContext = dialogViewModel };
         return await dialog.ShowDialog<SavedConnection?>(owner);
+    }
+
+    private async Task<string?> ShowCreateObjectDialogAsync(CreateObjectDialogViewModel dialogViewModel)
+    {
+        if (TopLevel.GetTopLevel(this) is not Window owner)
+        {
+            return null;
+        }
+
+        var dialog = new CreateObjectDialog { DataContext = dialogViewModel };
+        return await dialog.ShowDialog<string?>(owner);
+    }
+
+    private async Task<string?> ShowAlterObjectDialogAsync(AlterObjectDialogViewModel dialogViewModel)
+    {
+        if (TopLevel.GetTopLevel(this) is not Window owner)
+        {
+            return null;
+        }
+
+        var dialog = new AlterObjectDialog { DataContext = dialogViewModel };
+        return await dialog.ShowDialog<string?>(owner);
     }
 
     private async Task CopyToClipboardAsync(string text)

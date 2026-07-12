@@ -19,6 +19,10 @@ public partial class TreeNodeViewModel : ViewModelBase
     // The ancestry to hand the provider when loading THIS node's children (empty for a root).
     private readonly IReadOnlyList<DbNodeRef> _pathToChildren;
 
+    // The owning connection's provider — null only for the "…" placeholder — read for
+    // CreateCapabilities (DDL Create menu visibility); inherited down the subtree like Connection.
+    private readonly IDbProvider? _provider;
+
     private bool _loaded;
 
     [ObservableProperty]
@@ -32,6 +36,7 @@ public partial class TreeNodeViewModel : ViewModelBase
 
     private TreeNodeViewModel(
         SavedConnection connection,
+        IDbProvider provider,
         DbNodeKind? kind,
         string name,
         string title,
@@ -42,6 +47,7 @@ public partial class TreeNodeViewModel : ViewModelBase
         Func<SavedConnection, IReadOnlyList<DbNodeRef>, Task<IReadOnlyList<DbTreeNode>>>? load)
     {
         Connection = connection;
+        _provider = provider;
         NodeKind = kind;
         Name = name;
         Title = title;
@@ -114,6 +120,40 @@ public partial class TreeNodeViewModel : ViewModelBase
 
     public bool IsPlaceholder { get; }
 
+    /// <summary>DDL Create menu visibility (1-to-1 with the provider's declared <c>CreateCapabilities</c>):
+    /// "New Database…" on a connection root, "New Schema…"/"New Table…" on the node kind the provider
+    /// says each belongs under. False (never shown) for providers/positions with no such capability.</summary>
+    public bool CanCreateDatabase => _provider is not null && IsConnectionNode
+        && _provider.CreateCapabilities.Any(c => c.Kind == DbObjectKind.Database && c.ParentNode is null);
+
+    public bool CanCreateSchema => _provider is not null && NodeKind is { } kind
+        && _provider.CreateCapabilities.Any(c => c.Kind == DbObjectKind.Schema && c.ParentNode == kind);
+
+    public bool CanCreateTable => _provider is not null && NodeKind is { } kind
+        && _provider.CreateCapabilities.Any(c => c.Kind == DbObjectKind.Table && c.ParentNode == kind);
+
+    // DROP/ALTER menu visibility (host-only, no SDK — see Core/Ddl/AlterStatementBuilder): reuses the
+    // same CreateCapabilities the provider already declares, since every engine here can drop exactly
+    // what it can create. Gated on the node itself BEING that kind (unlike CanCreate*, which gates on
+    // the node it would be created UNDER).
+    public bool CanDropDatabase => _provider is not null && NodeKind == DbNodeKind.Database
+        && _provider.CreateCapabilities.Any(c => c.Kind == DbObjectKind.Database);
+
+    public bool CanDropSchema => _provider is not null && NodeKind == DbNodeKind.Schema
+        && _provider.CreateCapabilities.Any(c => c.Kind == DbObjectKind.Schema);
+
+    public bool CanDropTable => _provider is not null && IsTableOrView
+        && _provider.CreateCapabilities.Any(c => c.Kind == DbObjectKind.Table);
+
+    /// <summary>"Add Column…" only on an actual table (not a view — ALTER TABLE ADD doesn't apply there).</summary>
+    public bool CanAddColumn => _provider is not null && NodeKind == DbNodeKind.Table
+        && _provider.CreateCapabilities.Any(c => c.Kind == DbObjectKind.Table);
+
+    public bool CanDropColumn => _provider is not null && IsColumn
+        && _provider.CreateCapabilities.Any(c => c.Kind == DbObjectKind.Table);
+
+    public bool CanRenameColumn => CanDropColumn;
+
     /// <summary>Owning schema, if this node sits under one (null for schema-less engines like SQLite).</summary>
     public string? SchemaName => _pathToChildren.FirstOrDefault(r => r.Kind == DbNodeKind.Schema)?.Name;
 
@@ -121,15 +161,19 @@ public partial class TreeNodeViewModel : ViewModelBase
     /// context so a browse/query runs against the right database, not the connection default.</summary>
     public string? DatabaseName => _pathToChildren.FirstOrDefault(r => r.Kind == DbNodeKind.Database)?.Name;
 
+    /// <summary>Owning table/view, for a column node (used by Add/Drop/Rename Column).</summary>
+    public string? TableName => _pathToChildren.FirstOrDefault(r => r.Kind is DbNodeKind.Table or DbNodeKind.View)?.Name;
+
     public ObservableCollection<TreeNodeViewModel> Children { get; } = [];
 
     /// <summary>Build a root node for a saved connection. A provider brand image wins; otherwise a
     /// generic connection line-icon is shown.</summary>
     public static TreeNodeViewModel ForConnection(
         SavedConnection connection,
+        IDbProvider provider,
         IImage? iconImage,
         Func<SavedConnection, IReadOnlyList<DbNodeRef>, Task<IReadOnlyList<DbTreeNode>>> load) =>
-        new(connection, kind: null, connection.Name, connection.Name, hasChildren: true,
+        new(connection, provider, kind: null, connection.Name, connection.Name, hasChildren: true,
             NodeIcons.Connection, iconImage, pathToChildren: [], load);
 
     /// <summary>Reload this node's children from scratch (e.g. the Connect/Refresh action).</summary>
@@ -184,7 +228,7 @@ public partial class TreeNodeViewModel : ViewModelBase
                 var title = child.Detail is null ? child.Name : $"{child.Name} : {child.Detail}";
                 var childPath = new List<DbNodeRef>(_pathToChildren) { new(child.Kind, child.Name) };
                 Children.Add(new TreeNodeViewModel(
-                    Connection, child.Kind, child.Name, title, child.HasChildren,
+                    Connection, _provider!, child.Kind, child.Name, title, child.HasChildren,
                     NodeIcons.For(child.Kind), iconImage: null, childPath, _load));
             }
 

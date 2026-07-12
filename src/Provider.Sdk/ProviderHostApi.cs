@@ -25,7 +25,17 @@ public static class ProviderHostApi
     //                   where MSSQL browse/generate ran against the default catalog, not the tree's db)
     //                   and ISqlDialect.QualifyName (dialect-driven qualified names for generated SQL;
     //                   SQL Server three-part [db].[schema].[table] so a query tab hits the right db).
-    public const int Version = 11;
+    // v12 (2026-07-12): added Capabilities.cs (DbObjectKind/CreateCapability/CreateObjectSpec/
+    //                   NewColumnSpec) + IDbProvider.CreateCapabilities/ColumnTypes/
+    //                   BuildCreateStatement/ExecuteDdlAsync (DDL Create: databases/schemas/tables from
+    //                   the tree) and IDbProvider.GetDatabasesAsync (query-tab database switcher).
+    //                   Postgres and MySql now also honour ConnectionProfile.Database at execute time
+    //                   (previously MSSQL-only, see v11) so the switcher works on every engine.
+    // v13 (2026-07-12): added NewColumnSpec.AutoIncrement — genuinely provider-specific rendering
+    //                   (Postgres GENERATED ALWAYS AS IDENTITY, MySQL AUTO_INCREMENT, SQL Server
+    //                   IDENTITY(1,1), SQLite's INTEGER PRIMARY KEY AUTOINCREMENT column-shape) so it
+    //                   belongs in BuildCreateStatement, unlike DROP/ALTER which stayed host-only.
+    public const int Version = 13;
 
     /// <summary>True when this host can load a plugin built for <paramref name="pluginVersion"/>.</summary>
     public static bool IsCompatible(int pluginVersion) => pluginVersion == Version;

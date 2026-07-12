@@ -55,4 +55,26 @@ public interface IDbProvider
         ConnectionProfile profile,
         IReadOnlyList<SqlStatement> statements,
         CancellationToken ct);
+
+    /// <summary>What DDL Create can build for this provider, and which tree-node kind each "New …"
+    /// action appears under. Empty = nothing creatable (host hides every DDL Create menu item).</summary>
+    IReadOnlyList<CreateCapability> CreateCapabilities { get; }
+
+    /// <summary>Column-type suggestions offered in the DDL Create table dialog's type dropdown.</summary>
+    IReadOnlyList<string> ColumnTypes { get; }
+
+    /// <summary>Render <paramref name="spec"/> as dialect-correct DDL for the host to preview (and let
+    /// the user edit) before running it via <see cref="ExecuteDdlAsync"/>.</summary>
+    SqlStatement BuildCreateStatement(CreateObjectSpec spec);
+
+    /// <summary>
+    /// Run one DDL statement (typically the — possibly user-edited — text from
+    /// <see cref="BuildCreateStatement"/>) outside any transaction: some engines forbid statements like
+    /// <c>CREATE DATABASE</c> inside one, which rules out reusing <see cref="ExecuteBatchAsync"/>.
+    /// </summary>
+    Task ExecuteDdlAsync(ConnectionProfile profile, string sql, CancellationToken ct);
+
+    /// <summary>The databases/catalogs reachable on this connection, for the query-tab database
+    /// switcher. Empty for engines with no database layer (e.g. SQLite).</summary>
+    Task<IReadOnlyList<string>> GetDatabasesAsync(ConnectionProfile profile, CancellationToken ct);
 }

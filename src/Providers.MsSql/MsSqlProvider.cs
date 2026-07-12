@@ -184,7 +184,7 @@ public sealed class MsSqlProvider : IDbProvider
     ];
 
     // Cosmetic Group folders all share one kind; dispatch on the folder's name.
-    private static async Task<IReadOnlyList<DbTreeNode>> LoadGroupAsync(
+    private async Task<IReadOnlyList<DbTreeNode>> LoadGroupAsync(
         ConnectionProfile profile,
         IReadOnlyList<DbNodeRef> ancestors,
         CancellationToken ct) =>
@@ -267,22 +267,10 @@ public sealed class MsSqlProvider : IDbProvider
         new() { Kind = DbNodeKind.SequenceFolder, Name = "Sequences", HasChildren = true }
     ];
 
-    private static async Task<IReadOnlyList<DbTreeNode>> LoadDatabasesAsync(ConnectionProfile profile, CancellationToken ct)
-    {
-        // database_id 1..4 are the system databases (master/tempdb/model/msdb).
-        const string sql = "SELECT name FROM sys.databases WHERE database_id > 4 ORDER BY name";
-
-        var nodes = new List<DbTreeNode>();
-        await using var connection = await OpenAsync(profile, ct);
-        await using var command = new SqlCommand(sql, connection);
-        await using var reader = await command.ExecuteReaderAsync(ct);
-        while (await reader.ReadAsync(ct))
-        {
-            nodes.Add(new DbTreeNode { Kind = DbNodeKind.Database, Name = reader.GetString(0), HasChildren = true });
-        }
-
-        return nodes;
-    }
+    private async Task<IReadOnlyList<DbTreeNode>> LoadDatabasesAsync(ConnectionProfile profile, CancellationToken ct) =>
+        (await GetDatabasesAsync(profile, ct))
+            .Select(name => new DbTreeNode { Kind = DbNodeKind.Database, Name = name, HasChildren = true })
+            .ToList();
 
     private static async Task<IReadOnlyList<DbTreeNode>> LoadSchemasAsync(
         ConnectionProfile profile,
@@ -473,4 +461,73 @@ public sealed class MsSqlProvider : IDbProvider
 
     private static string Name(IReadOnlyList<DbNodeRef> ancestors, DbNodeKind kind) =>
         ancestors.First(a => a.Kind == kind).Name;
+
+    // Database creation has no schema/table parent in the tree — CreateCapability.ParentNode is null
+    // for "the connection root" (same convention TreeNodeViewModel.NodeKind already uses).
+    public IReadOnlyList<CreateCapability> CreateCapabilities { get; } =
+    [
+        new(DbObjectKind.Database, null),
+        new(DbObjectKind.Schema, DbNodeKind.SchemaFolder),
+        new(DbObjectKind.Table, DbNodeKind.TableFolder)
+    ];
+
+    public IReadOnlyList<string> ColumnTypes { get; } =
+        ["int", "bigint", "nvarchar(255)", "varchar(255)", "bit", "decimal(18,2)", "datetime2", "date", "uniqueidentifier", "text"];
+
+    public SqlStatement BuildCreateStatement(CreateObjectSpec spec)
+    {
+        var sql = spec.Kind switch
+        {
+            DbObjectKind.Database => $"CREATE DATABASE {Dialect.QuoteIdentifier(spec.Name)}",
+            // Must be the only statement in its batch — ExecuteDdlAsync runs one statement, no "GO".
+            DbObjectKind.Schema => $"CREATE SCHEMA {Dialect.QuoteIdentifier(spec.Name)}",
+            DbObjectKind.Table => BuildCreateTable(spec),
+            _ => throw new NotSupportedException($"SQL Server cannot create a {spec.Kind}.")
+        };
+
+        return new SqlStatement(sql, []);
+    }
+
+    private string BuildCreateTable(CreateObjectSpec spec)
+    {
+        var qualified = spec.Schema is { Length: > 0 }
+            ? $"{Dialect.QuoteIdentifier(spec.Schema)}.{Dialect.QuoteIdentifier(spec.Name)}"
+            : Dialect.QuoteIdentifier(spec.Name);
+
+        var columns = spec.Columns.Select(c =>
+            $"{Dialect.QuoteIdentifier(c.Name)} {c.Type}{(c.AutoIncrement ? " IDENTITY(1,1)" : "")}{(c.Nullable ? "" : " NOT NULL")}");
+
+        var primaryKey = spec.Columns.Where(c => c.PrimaryKey).Select(c => Dialect.QuoteIdentifier(c.Name)).ToList();
+        var clauses = primaryKey.Count > 0
+            ? columns.Append($"PRIMARY KEY ({string.Join(", ", primaryKey)})")
+            : columns;
+
+        return $"CREATE TABLE {qualified} ({string.Join(", ", clauses)})";
+    }
+
+    // CREATE DATABASE runs on master (this connection's own InitialCatalog when ConnectionProfile.Database
+    // isn't set, per the "master" ConnectionField default) — no explicit transaction, single statement.
+    public async Task ExecuteDdlAsync(ConnectionProfile profile, string sql, CancellationToken ct)
+    {
+        await using var connection = await OpenAsync(profile, ct);
+        await using var command = new SqlCommand(sql, connection);
+        await command.ExecuteNonQueryAsync(ct);
+    }
+
+    public async Task<IReadOnlyList<string>> GetDatabasesAsync(ConnectionProfile profile, CancellationToken ct)
+    {
+        // database_id 1..4 are the system databases (master/tempdb/model/msdb).
+        const string sql = "SELECT name FROM sys.databases WHERE database_id > 4 ORDER BY name";
+
+        var names = new List<string>();
+        await using var connection = await OpenAsync(profile, ct);
+        await using var command = new SqlCommand(sql, connection);
+        await using var reader = await command.ExecuteReaderAsync(ct);
+        while (await reader.ReadAsync(ct))
+        {
+            names.Add(reader.GetString(0));
+        }
+
+        return names;
+    }
 }

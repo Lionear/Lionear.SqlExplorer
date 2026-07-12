@@ -47,8 +47,7 @@ public sealed class PostgresProvider : IDbProvider
 
     public async Task<bool> TestConnectionAsync(ConnectionProfile profile, CancellationToken ct)
     {
-        await using var connection = new NpgsqlConnection(profile.ConnectionString);
-        await connection.OpenAsync(ct);
+        await using var connection = await OpenAsync(profile, ct);
         return connection.State == ConnectionState.Open;
     }
 
@@ -56,8 +55,7 @@ public sealed class PostgresProvider : IDbProvider
     {
         var stopwatch = Stopwatch.StartNew();
 
-        await using var connection = new NpgsqlConnection(profile.ConnectionString);
-        await connection.OpenAsync(ct);
+        await using var connection = await OpenAsync(profile, ct);
 
         await using var command = new NpgsqlCommand(sql, connection);
         // KeyInfo makes Npgsql resolve base table/column names and primary-key flags via the
@@ -122,8 +120,7 @@ public sealed class PostgresProvider : IDbProvider
         IReadOnlyList<SqlStatement> statements,
         CancellationToken ct)
     {
-        await using var connection = new NpgsqlConnection(profile.ConnectionString);
-        await connection.OpenAsync(ct);
+        await using var connection = await OpenAsync(profile, ct);
         await using var transaction = await connection.BeginTransactionAsync(ct);
 
         var affected = 0;
@@ -182,26 +179,10 @@ public sealed class PostgresProvider : IDbProvider
         new() { Kind = DbNodeKind.SequenceFolder, Name = "Sequences", HasChildren = true }
     ];
 
-    private async Task<IReadOnlyList<DbTreeNode>> LoadDatabasesAsync(ConnectionProfile profile, CancellationToken ct)
-    {
-        const string sql = """
-            SELECT datname FROM pg_database
-            WHERE datistemplate = false AND datallowconn = true
-            ORDER BY datname
-            """;
-
-        var nodes = new List<DbTreeNode>();
-        await using var connection = new NpgsqlConnection(profile.ConnectionString);
-        await connection.OpenAsync(ct);
-        await using var command = new NpgsqlCommand(sql, connection);
-        await using var reader = await command.ExecuteReaderAsync(ct);
-        while (await reader.ReadAsync(ct))
-        {
-            nodes.Add(new DbTreeNode { Kind = DbNodeKind.Database, Name = reader.GetString(0), HasChildren = true });
-        }
-
-        return nodes;
-    }
+    private async Task<IReadOnlyList<DbTreeNode>> LoadDatabasesAsync(ConnectionProfile profile, CancellationToken ct) =>
+        (await GetDatabasesAsync(profile, ct))
+            .Select(name => new DbTreeNode { Kind = DbNodeKind.Database, Name = name, HasChildren = true })
+            .ToList();
 
     private async Task<IReadOnlyList<DbTreeNode>> LoadSchemasAsync(
         ConnectionProfile profile,
@@ -374,6 +355,95 @@ public sealed class PostgresProvider : IDbProvider
     private static string ConnectionStringFor(ConnectionProfile profile, string database) =>
         new NpgsqlConnectionStringBuilder(profile.ConnectionString) { Database = database }.ConnectionString;
 
+    // Open against the tree's database when the host set ConnectionProfile.Database (browsing/querying
+    // under a specific catalog); otherwise the connection's own default. Mirrors MsSql's OpenAsync —
+    // execute previously always ignored ConnectionProfile.Database here (v11 only fixed MSSQL).
+    private static async Task<NpgsqlConnection> OpenAsync(ConnectionProfile profile, CancellationToken ct)
+    {
+        var connectionString = string.IsNullOrWhiteSpace(profile.Database)
+            ? profile.ConnectionString
+            : ConnectionStringFor(profile, profile.Database);
+
+        var connection = new NpgsqlConnection(connectionString);
+        await connection.OpenAsync(ct);
+        return connection;
+    }
+
     private static string Name(IReadOnlyList<DbNodeRef> ancestors, DbNodeKind kind) =>
         ancestors.First(a => a.Kind == kind).Name;
+
+    // Database creation has no schema/table parent in the tree — CreateCapability.ParentNode is null
+    // for "the connection root" (same convention TreeNodeViewModel.NodeKind already uses).
+    public IReadOnlyList<CreateCapability> CreateCapabilities { get; } =
+    [
+        new(DbObjectKind.Database, null),
+        new(DbObjectKind.Schema, DbNodeKind.SchemaFolder),
+        new(DbObjectKind.Table, DbNodeKind.TableFolder)
+    ];
+
+    public IReadOnlyList<string> ColumnTypes { get; } =
+        ["integer", "bigint", "text", "varchar(255)", "boolean", "numeric", "timestamp", "timestamptz", "date", "uuid", "jsonb"];
+
+    public SqlStatement BuildCreateStatement(CreateObjectSpec spec)
+    {
+        var sql = spec.Kind switch
+        {
+            DbObjectKind.Database => $"CREATE DATABASE {Dialect.QuoteIdentifier(spec.Name)}",
+            DbObjectKind.Schema => $"CREATE SCHEMA {Dialect.QuoteIdentifier(spec.Name)}",
+            DbObjectKind.Table => BuildCreateTable(spec),
+            _ => throw new NotSupportedException($"Postgres cannot create a {spec.Kind}.")
+        };
+
+        return new SqlStatement(sql, []);
+    }
+
+    private string BuildCreateTable(CreateObjectSpec spec)
+    {
+        var qualified = spec.Schema is { Length: > 0 }
+            ? $"{Dialect.QuoteIdentifier(spec.Schema)}.{Dialect.QuoteIdentifier(spec.Name)}"
+            : Dialect.QuoteIdentifier(spec.Name);
+
+        // GENERATED ALWAYS AS IDENTITY is the modern (PG 10+) auto-increment form — works alongside a
+        // separate trailing PRIMARY KEY clause, unlike SQLite where autoincrement reshapes the column
+        // definition itself.
+        var columns = spec.Columns.Select(c =>
+            $"{Dialect.QuoteIdentifier(c.Name)} {c.Type}{(c.AutoIncrement ? " GENERATED ALWAYS AS IDENTITY" : "")}{(c.Nullable ? "" : " NOT NULL")}");
+
+        var primaryKey = spec.Columns.Where(c => c.PrimaryKey).Select(c => Dialect.QuoteIdentifier(c.Name)).ToList();
+        var clauses = primaryKey.Count > 0
+            ? columns.Append($"PRIMARY KEY ({string.Join(", ", primaryKey)})")
+            : columns;
+
+        return $"CREATE TABLE {qualified} ({string.Join(", ", clauses)})";
+    }
+
+    // CREATE DATABASE must run outside a transaction (Postgres forbids it inside one) — no
+    // BeginTransactionAsync here, unlike ExecuteBatchAsync. Autocommit handles schema/table DDL fine too.
+    public async Task ExecuteDdlAsync(ConnectionProfile profile, string sql, CancellationToken ct)
+    {
+        await using var connection = await OpenAsync(profile, ct);
+        await using var command = new NpgsqlCommand(sql, connection);
+        await command.ExecuteNonQueryAsync(ct);
+    }
+
+    public async Task<IReadOnlyList<string>> GetDatabasesAsync(ConnectionProfile profile, CancellationToken ct)
+    {
+        const string sql = """
+            SELECT datname FROM pg_database
+            WHERE datistemplate = false AND datallowconn = true
+            ORDER BY datname
+            """;
+
+        var names = new List<string>();
+        await using var connection = new NpgsqlConnection(profile.ConnectionString);
+        await connection.OpenAsync(ct);
+        await using var command = new NpgsqlCommand(sql, connection);
+        await using var reader = await command.ExecuteReaderAsync(ct);
+        while (await reader.ReadAsync(ct))
+        {
+            names.Add(reader.GetString(0));
+        }
+
+        return names;
+    }
 }

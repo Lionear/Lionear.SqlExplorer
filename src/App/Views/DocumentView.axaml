@@ -5,11 +5,25 @@
              x:Class="Lionear.SqlExplorer.App.Views.DocumentView">
   <Grid x:Name="RootGrid" RowDefinitions="Auto,2*,Auto,Auto,3*,Auto,Auto">
 
-    <!-- Row 0: mode-specific toolbar. Query = Run/Format; Browse = paging + filter. -->
+    <!-- Row 0: mode-specific toolbar. Query = connection/database switcher + Run/Format; Browse = paging + filter. -->
     <StackPanel Grid.Row="0" Orientation="Horizontal" Spacing="8" Margin="0,0,0,8"
                 IsVisible="{Binding IsQueryMode}">
       <Button Classes="Accent" Content="{Binding Loc[Run]}" Command="{Binding RunCommand}" />
       <Button Content="{Binding Loc[Format]}" Command="{Binding FormatCommand}" />
+      <!-- Connection/database switcher (DBeaver-style): pick which saved connection — and which
+           database on it — this query tab runs against. Database combo hides itself when the engine
+           has no database layer (SQLite: HasDatabasePicker stays false). -->
+      <ComboBox MinWidth="160" ItemsSource="{Binding AvailableConnections}"
+                SelectedItem="{Binding Connection}">
+        <ComboBox.ItemTemplate>
+          <DataTemplate>
+            <TextBlock Text="{Binding Name}" />
+          </DataTemplate>
+        </ComboBox.ItemTemplate>
+      </ComboBox>
+      <ComboBox MinWidth="140" ItemsSource="{Binding AvailableDatabases}"
+                SelectedItem="{Binding SelectedDatabase}"
+                IsVisible="{Binding HasDatabasePicker}" />
     </StackPanel>
 
     <Grid Grid.Row="0" Margin="0,0,0,8" ColumnDefinitions="Auto,Auto,Auto,*,Auto"

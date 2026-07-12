@@ -4,6 +4,6 @@
   "type": "provider",
   "name": "PostgreSQL",
   "version": "1.0.0",
-  "hostApiVersion": 11,
+  "hostApiVersion": 13,
   "entryAssembly": "Lionear.SqlExplorer.Providers.Postgres.dll"
 }
