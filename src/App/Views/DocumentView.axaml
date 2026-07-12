@@ -90,7 +90,7 @@
             CornerRadius="{StaticResource CatControlRadius}" ClipToBounds="True">
       <ae:TextEditor x:Name="SqlEditor"
                      ShowLineNumbers="True"
-                     WordWrap="False"
+                     WordWrap="{Binding EditorWordWrap}"
                      Padding="4"
                      FontFamily="Cascadia Code,Consolas,Menlo,monospace" />
     </Border>
@@ -147,7 +147,17 @@
                 IsReadOnly="{Binding !IsResultEditable}"
                 SelectedItem="{Binding SelectedRow}"
                 SelectionMode="Extended"
-                CanUserResizeColumns="True" />
+                CanUserResizeColumns="True">
+        <DataGrid.ContextMenu>
+          <!-- Copies the current selection, or the whole result set if nothing is selected — same
+               source/fallback as the "Export…" button, just to the clipboard instead of a file. -->
+          <ContextMenu>
+            <MenuItem Header="{Binding Loc[CopyAsCsv]}" Click="OnCopyAsCsvClick" />
+            <MenuItem Header="{Binding Loc[CopyAsMarkdown]}" Click="OnCopyAsMarkdownClick" />
+            <MenuItem Header="{Binding Loc[CopyAsInsert]}" Click="OnCopyAsInsertClick" />
+          </ContextMenu>
+        </DataGrid.ContextMenu>
+      </DataGrid>
     </Border>
 
     <!-- Row 6: selection aggregation strip (count + sum/avg/min/max for a numeric column). -->

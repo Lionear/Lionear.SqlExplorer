@@ -1,9 +1,18 @@
 namespace Lionear.SqlExplorer.Core.Settings;
 
+/// <summary>Preferred colour scheme; <see cref="System"/> follows the OS setting live.</summary>
+public enum AppTheme
+{
+    System,
+    Light,
+    Dark
+}
+
 /// <summary>
-/// User-scoped UI preferences that survive across runs (window geometry, layout).
-/// Null members mean "never set" → the view falls back to its design-time default.
-/// Deliberately no secrets and no connection data — that lives in their own stores.
+/// User-scoped UI preferences that survive across runs (window geometry, layout, theme,
+/// language, editor/query preferences). Null members mean "never set" → the view falls back to
+/// its design-time default. Deliberately no secrets and no connection data — that lives in their
+/// own stores.
 /// </summary>
 public sealed class AppSettings
 {
@@ -24,4 +33,17 @@ public sealed class AppSettings
 
     /// <summary>Restored width of the connection sidebar column, in pixels.</summary>
     public double? SidebarWidth { get; set; }
+
+    /// <summary>Two-letter culture code (e.g. "nl", "en"); null = follow the OS/thread default.</summary>
+    public string? Language { get; set; }
+
+    public AppTheme Theme { get; set; } = AppTheme.System;
+
+    /// <summary>SQL editor font size in points; null = AvaloniaEdit's design-time default.</summary>
+    public double? EditorFontSize { get; set; }
+
+    public bool EditorWordWrap { get; set; }
+
+    /// <summary>Whether the save-flow shows the generated SQL for review before running it.</summary>
+    public bool ConfirmBeforeSave { get; set; } = true;
 }

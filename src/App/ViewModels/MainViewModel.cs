@@ -5,6 +5,8 @@ using System.IO;
 using Avalonia.Media;
 using Avalonia.Media.Imaging;
 using Avalonia.Threading;
+using Avalonia.Controls.ApplicationLifetimes;
+using Lionear.SqlExplorer.App.Theming;
 using Lionear.SqlExplorer.Core.Connections;
 using Lionear.SqlExplorer.Core.Editing;
 using Lionear.SqlExplorer.Core.Export;
@@ -14,6 +16,7 @@ using Lionear.SqlExplorer.Core.Import;
 using Lionear.SqlExplorer.Core.Localization;
 using Lionear.SqlExplorer.Core.Providers;
 using Lionear.SqlExplorer.Core.Schema;
+using Lionear.SqlExplorer.Core.Settings;
 using Lionear.SqlExplorer.Sdk;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
@@ -36,6 +39,8 @@ public partial class MainViewModel : ViewModelBase
     private readonly Func<CreateObjectDialogViewModel> _createDialogFactory;
     private readonly Func<AlterObjectDialogViewModel> _alterDialogFactory;
     private readonly Func<ImportCsvDialogViewModel> _importCsvDialogFactory;
+    private readonly Func<SettingsViewModel> _settingsDialogFactory;
+    private readonly IAppSettingsStore _settingsStore;
 
     // Selected tree node drives the active connection: any node knows its owning connection.
     [ObservableProperty]
@@ -72,6 +77,8 @@ public partial class MainViewModel : ViewModelBase
         Func<CreateObjectDialogViewModel> createDialogFactory,
         Func<AlterObjectDialogViewModel> alterDialogFactory,
         Func<ImportCsvDialogViewModel> importCsvDialogFactory,
+        Func<SettingsViewModel> settingsDialogFactory,
+        IAppSettingsStore settingsStore,
         ILocalizer localizer)
     {
         _providers = providers;
@@ -83,6 +90,8 @@ public partial class MainViewModel : ViewModelBase
         _createDialogFactory = createDialogFactory;
         _alterDialogFactory = alterDialogFactory;
         _importCsvDialogFactory = importCsvDialogFactory;
+        _settingsDialogFactory = settingsDialogFactory;
+        _settingsStore = settingsStore;
         Loc = localizer;
 
         _history.Changed += OnHistoryChanged;
@@ -160,14 +169,14 @@ public partial class MainViewModel : ViewModelBase
     // Global, context-free actions surfaced in the same Ctrl+K overlay as schema objects. Destructive
     // or tree-selection-dependent commands (Drop*, AddColumn, …) stay off this list — they already have
     // their own confirm-dialog path from the tree, and blind-executing them from a text box invites
-    // mistakes. Rebuilt per search (cheap, a dozen items) rather than cached, so labels follow
-    // ToggleLanguage immediately instead of freezing at construction time.
+    // mistakes. Rebuilt per search (cheap, a dozen items) rather than cached, so labels follow a
+    // language switch immediately instead of freezing at construction time.
     private IEnumerable<CommandQuickOpenItem> QuickOpenCommands()
     {
         yield return new CommandQuickOpenItem(Loc["NewQueryTab"], "Command", () => NewQueryTabCommand.Execute(null));
         yield return new CommandQuickOpenItem(Loc["History"], "Command", () => ToggleHistoryCommand.Execute(null));
         yield return new CommandQuickOpenItem(Loc["ClearHistory"], "Command", () => ClearHistoryCommand.Execute(null));
-        yield return new CommandQuickOpenItem(Loc["Language"], "Command", () => ToggleLanguageCommand.Execute(null));
+        yield return new CommandQuickOpenItem(Loc["Settings"], "Command", () => OpenSettingsCommand.Execute(null));
         yield return new CommandQuickOpenItem(Loc["NewConnection"], "Command", () => NewConnectionCommand.Execute(null));
         yield return new CommandQuickOpenItem(Loc["Connect"], "Command", () => ConnectCommand.Execute(null));
         yield return new CommandQuickOpenItem(Loc["Disconnect"], "Command", () => DisconnectCommand.Execute(null));
@@ -980,16 +989,59 @@ public partial class MainViewModel : ViewModelBase
     }
 
     [RelayCommand]
-    private void ToggleLanguage()
+    private void SetLanguage(string code)
     {
-        var next = Loc.Culture.TwoLetterISOLanguageName == "nl"
-            ? CultureInfo.GetCultureInfo("en")
-            : CultureInfo.GetCultureInfo("nl");
-
-        Loc.SetCulture(next);
+        Loc.SetCulture(CultureInfo.GetCultureInfo(code));
+        var settings = _settingsStore.Load();
+        settings.Language = code;
+        _settingsStore.Save(settings);
     }
 
-    private DocumentViewModel NewDocument() => new(_providers, _connections, _formatter, _history, _schemaCache, Loc);
+    [RelayCommand]
+    private void SetTheme(AppTheme theme)
+    {
+        ThemeApplier.Apply(theme);
+        var settings = _settingsStore.Load();
+        settings.Theme = theme;
+        _settingsStore.Save(settings);
+    }
+
+    /// <summary>Set by the view so the VM can show the Preferences window.</summary>
+    public Func<SettingsViewModel, Task>? SettingsDialogRequested { get; set; }
+
+    [RelayCommand]
+    private async Task OpenSettingsAsync()
+    {
+        if (SettingsDialogRequested is null)
+        {
+            return;
+        }
+
+        await SettingsDialogRequested(_settingsDialogFactory());
+    }
+
+    [RelayCommand]
+    private void Exit()
+    {
+        if (Avalonia.Application.Current?.ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
+        {
+            desktop.Shutdown();
+        }
+    }
+
+    /// <summary>Set by the view so the VM can show the About window.</summary>
+    public Func<Task>? AboutRequested { get; set; }
+
+    [RelayCommand]
+    private async Task ShowAboutAsync()
+    {
+        if (AboutRequested is not null)
+        {
+            await AboutRequested();
+        }
+    }
+
+    private DocumentViewModel NewDocument() => new(_providers, _connections, _formatter, _history, _schemaCache, _settingsStore, Loc);
 
     private void AddDocument(DocumentViewModel document)
     {

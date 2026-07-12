@@ -1,6 +1,8 @@
 using System;
+using System.Threading.Tasks;
 using Avalonia;
 using Avalonia.Controls;
+using Lionear.SqlExplorer.App.ViewModels;
 using Lionear.SqlExplorer.Core.Settings;
 
 namespace Lionear.SqlExplorer.App.Views;
@@ -19,6 +21,47 @@ public partial class MainWindow : Window
         _settingsStore = settingsStore;
         InitializeComponent();
         RestoreLayout();
+
+        // macOS gets its menu bar from NativeMenu.Menu (set in XAML) — the in-window Menu would
+        // otherwise render a second, redundant bar underneath the title bar there.
+        if (OperatingSystem.IsMacOS())
+        {
+            AppMenu.IsVisible = false;
+        }
+
+        DataContextChanged += (_, _) =>
+        {
+            if (DataContext is MainViewModel vm)
+            {
+                vm.AboutRequested = ShowAboutAsync;
+
+                // A language switch fires Loc.PropertyChanged(null) — the correct "everything on
+                // this object changed" signal, and Loc[key] does return the fresh string right away,
+                // but that alone does not repaint anything already on screen (confirmed: neither more
+                // dispatcher pumps nor an explicit InvalidateVisual on every control in the tree makes
+                // a difference — the bindings themselves never re-pull the new value, this isn't a
+                // paint/layout problem). Toggling DataContext off and back forces every binding under
+                // it to tear down and re-create from scratch, which does re-read the fresh value —
+                // the same "reuse a control, swap its DataContext" mechanism DocumentView already
+                // relies on for tab reuse, just applied here to force a refresh instead.
+                vm.Loc.PropertyChanged += (_, _) =>
+                {
+                    var dataContext = DataContext;
+                    DataContext = null;
+                    DataContext = dataContext;
+                };
+            }
+        };
+    }
+
+    private async Task ShowAboutAsync()
+    {
+        if (DataContext is not MainViewModel vm)
+        {
+            return;
+        }
+
+        await new AboutWindow(vm.Loc).ShowDialog(this);
     }
 
     private void RestoreLayout()

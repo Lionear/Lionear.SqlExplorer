@@ -78,6 +78,10 @@ public static class AppServices
         services.AddTransient<ImportCsvDialogViewModel>();
         services.AddSingleton<Func<ImportCsvDialogViewModel>>(sp => sp.GetRequiredService<ImportCsvDialogViewModel>);
 
+        // Preferences window — same factory-delegate pattern as the other dialogs.
+        services.AddTransient<SettingsViewModel>();
+        services.AddSingleton<Func<SettingsViewModel>>(sp => sp.GetRequiredService<SettingsViewModel>);
+
         services.AddTransient<MainViewModel>();
 
         return services.BuildServiceProvider();

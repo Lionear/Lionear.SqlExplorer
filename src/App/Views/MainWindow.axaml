@@ -12,5 +12,33 @@
     <KeyBinding Gesture="F5" Command="{Binding RunActiveDocumentCommand}" />
     <KeyBinding Gesture="Ctrl+Enter" Command="{Binding RunActiveDocumentAtCursorCommand}" />
   </Window.KeyBindings>
-  <views:MainView x:Name="Body" />
+
+  <!-- macOS gets its menu bar from NativeMenu.Menu below (native, always active regardless of OS —
+       Avalonia only surfaces it on macOS); the in-window Menu here is hidden there in code-behind
+       so the two never show up stacked on top of each other. -->
+  <NativeMenu.Menu>
+    <NativeMenu>
+      <NativeMenuItem Header="{Binding Loc[Preferences]}" Command="{Binding OpenSettingsCommand}" />
+      <NativeMenuItemSeparator />
+      <NativeMenuItem Header="{Binding Loc[About]}" Command="{Binding ShowAboutCommand}" />
+    </NativeMenu>
+  </NativeMenu.Menu>
+
+  <DockPanel>
+    <Menu x:Name="AppMenu" DockPanel.Dock="Top">
+      <MenuItem Header="{Binding Loc[MenuFile]}">
+        <MenuItem Header="{Binding Loc[NewQueryTab]}" Command="{Binding NewQueryTabCommand}" />
+        <MenuItem Header="{Binding Loc[NewConnectionMenu]}" Command="{Binding NewConnectionCommand}" />
+        <Separator />
+        <MenuItem Header="{Binding Loc[Exit]}" Command="{Binding ExitCommand}" />
+      </MenuItem>
+      <MenuItem Header="{Binding Loc[MenuEdit]}">
+        <MenuItem Header="{Binding Loc[Preferences]}" Command="{Binding OpenSettingsCommand}" />
+      </MenuItem>
+      <MenuItem Header="{Binding Loc[MenuHelp]}">
+        <MenuItem Header="{Binding Loc[About]}" Command="{Binding ShowAboutCommand}" />
+      </MenuItem>
+    </Menu>
+    <views:MainView x:Name="Body" />
+  </DockPanel>
 </Window>

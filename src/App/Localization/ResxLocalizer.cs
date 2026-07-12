@@ -30,7 +30,10 @@ public sealed class ResxLocalizer : ILocalizer
         CultureInfo.CurrentCulture = culture;
         CultureInfo.CurrentUICulture = culture;
 
-        // Null property name signals "everything changed" — refreshes the indexer bindings.
         PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(null));
+        // Explicit indexer-changed notification (WPF/Avalonia convention) — belt-and-suspenders
+        // alongside the null-name "everything changed" signal above, in case Avalonia's binding
+        // engine specifically expects this form for an indexer access node.
+        PropertyChanged?.Invoke(this, new PropertyChangedEventArgs("Item[]"));
     }
 }

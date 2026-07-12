@@ -141,6 +141,7 @@ public partial class MainView : UserControl
             _viewModel.ImportCsvDialogRequested = ShowImportCsvDialogAsync;
             _viewModel.ExportFormatRequested = ShowExportFormatDialogAsync;
             _viewModel.ExportFileRequested = WriteExportFileAsync;
+            _viewModel.SettingsDialogRequested = ShowSettingsDialogAsync;
             _viewModel.PropertyChanged += OnViewModelPropertyChanged;
         }
     }
@@ -256,6 +257,17 @@ public partial class MainView : UserControl
         await using var stream = await file.OpenWriteAsync();
         await using var writer = new StreamWriter(stream);
         await writer.WriteAsync(text);
+    }
+
+    private async Task ShowSettingsDialogAsync(SettingsViewModel dialogViewModel)
+    {
+        if (TopLevel.GetTopLevel(this) is not Window owner)
+        {
+            return;
+        }
+
+        var dialog = new SettingsWindow { DataContext = dialogViewModel };
+        await dialog.ShowDialog(owner);
     }
 
     private async Task CopyToClipboardAsync(string text)

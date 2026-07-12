@@ -76,6 +76,29 @@ public static class ResultExporter
         }
     }
 
+    /// <summary>GitHub-flavoured Markdown table — meant for pasting into a PR/issue/chat, not for
+    /// round-tripping (no escaping beyond making the source stay a single Markdown row).</summary>
+    public static string ToMarkdown(IReadOnlyList<ResultColumn> columns, IEnumerable<object?[]> rows)
+    {
+        var sb = new StringBuilder();
+        sb.Append('|').Append(string.Join('|', columns.Select(c => $" {MarkdownCell(c.Name)} "))).AppendLine("|");
+        sb.Append('|').Append(string.Join('|', columns.Select(_ => "---"))).AppendLine("|");
+        foreach (var row in rows)
+        {
+            sb.Append('|').Append(string.Join('|', row.Select(v => $" {MarkdownCell(FormatMarkdownValue(v))} "))).AppendLine("|");
+        }
+
+        return sb.ToString();
+    }
+
+    private static string FormatMarkdownValue(object? value) =>
+        value is null or DBNull ? "" : Convert.ToString(value, System.Globalization.CultureInfo.InvariantCulture) ?? "";
+
+    // A table row is one line of Markdown source — an embedded "|" would end the cell early, and a
+    // newline would end the row early, so both get replaced rather than escaped.
+    private static string MarkdownCell(string value) =>
+        value.Replace("|", "\\|").Replace("\r\n", " ").Replace('\n', ' ').Replace('\r', ' ');
+
     /// <summary>
     /// One <c>INSERT</c> statement per row with literal (not parameterised) values, meant to be
     /// copy-pasted/run elsewhere — unlike <c>CrudStatementBuilder</c>'s parameterised INSERT built for

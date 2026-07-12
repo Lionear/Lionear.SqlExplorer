@@ -31,7 +31,7 @@
     <value>Format</value>
   </data>
   <data name="Language" xml:space="preserve">
-    <value>Nederlands</value>
+    <value>Language</value>
   </data>
   <data name="StatusConnected" xml:space="preserve">
     <value>Connected · {0} schema(s)</value>
@@ -296,5 +296,80 @@
   </data>
   <data name="ImportOk" xml:space="preserve">
     <value>Imported {0} row(s)</value>
+  </data>
+  <data name="Settings" xml:space="preserve">
+    <value>Settings</value>
+  </data>
+  <data name="Preferences" xml:space="preserve">
+    <value>Preferences…</value>
+  </data>
+  <data name="SettingsGeneral" xml:space="preserve">
+    <value>General app preferences.</value>
+  </data>
+  <data name="SettingsAppearance" xml:space="preserve">
+    <value>Appearance</value>
+  </data>
+  <data name="SettingsEditor" xml:space="preserve">
+    <value>Editor</value>
+  </data>
+  <data name="SettingsQuery" xml:space="preserve">
+    <value>Query</value>
+  </data>
+  <data name="Theme" xml:space="preserve">
+    <value>Theme</value>
+  </data>
+  <data name="ThemeSystem" xml:space="preserve">
+    <value>System</value>
+  </data>
+  <data name="ThemeLight" xml:space="preserve">
+    <value>Light</value>
+  </data>
+  <data name="ThemeDark" xml:space="preserve">
+    <value>Dark</value>
+  </data>
+  <data name="EditorFontSize" xml:space="preserve">
+    <value>Font size</value>
+  </data>
+  <data name="EditorWordWrap" xml:space="preserve">
+    <value>Word wrap</value>
+  </data>
+  <data name="ConfirmBeforeSave" xml:space="preserve">
+    <value>Show a review dialog before saving changes</value>
+  </data>
+  <data name="RestoreDefaults" xml:space="preserve">
+    <value>Restore Defaults</value>
+  </data>
+  <data name="ApplyAndClose" xml:space="preserve">
+    <value>Apply and Close</value>
+  </data>
+  <data name="MenuFile" xml:space="preserve">
+    <value>_File</value>
+  </data>
+  <data name="MenuEdit" xml:space="preserve">
+    <value>_Edit</value>
+  </data>
+  <data name="MenuHelp" xml:space="preserve">
+    <value>_Help</value>
+  </data>
+  <data name="NewConnectionMenu" xml:space="preserve">
+    <value>New Connection…</value>
+  </data>
+  <data name="Exit" xml:space="preserve">
+    <value>Exit</value>
+  </data>
+  <data name="About" xml:space="preserve">
+    <value>About</value>
+  </data>
+  <data name="AboutText" xml:space="preserve">
+    <value>Lionear SQL Explorer</value>
+  </data>
+  <data name="CopyAsCsv" xml:space="preserve">
+    <value>Copy as CSV</value>
+  </data>
+  <data name="CopyAsMarkdown" xml:space="preserve">
+    <value>Copy as Markdown</value>
+  </data>
+  <data name="CopyAsInsert" xml:space="preserve">
+    <value>Copy as INSERT</value>
   </data>
 </root>

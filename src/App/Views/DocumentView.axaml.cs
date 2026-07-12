@@ -4,6 +4,7 @@ using Avalonia.Controls;
 using Avalonia.Controls.Templates;
 using Avalonia.Data;
 using Avalonia.Input;
+using Avalonia.Input.Platform;
 using Avalonia.Interactivity;
 using Avalonia.Layout;
 using Avalonia.Platform.Storage;
@@ -136,6 +137,11 @@ public partial class DocumentView : UserControl
                 : new GridLength(2, GridUnitType.Star);
         }
 
+        if (_sqlEditor is not null && _viewModel.EditorFontSize is { } fontSize)
+        {
+            _sqlEditor.FontSize = fontSize;
+        }
+
         PushSqlToEditor();
         RebuildResultColumns();
     }
@@ -197,6 +203,28 @@ public partial class DocumentView : UserControl
         await using var stream = await file.OpenWriteAsync();
         await using var writer = new StreamWriter(stream);
         await writer.WriteAsync(text);
+    }
+
+    private void OnCopyAsCsvClick(object? sender, RoutedEventArgs e) => _ = CopyResultAsync(ExportFormat.Csv);
+
+    private void OnCopyAsMarkdownClick(object? sender, RoutedEventArgs e) => _ = CopyResultAsync(ExportFormat.Markdown);
+
+    private void OnCopyAsInsertClick(object? sender, RoutedEventArgs e) => _ = CopyResultAsync(ExportFormat.Sql);
+
+    // Same selection-or-whole-result source as "Export…", straight to the clipboard instead of a file.
+    private async Task CopyResultAsync(ExportFormat format)
+    {
+        if (TopLevel.GetTopLevel(this) is not { Clipboard: { } clipboard } || _viewModel is null || _resultsGrid is null)
+        {
+            return;
+        }
+
+        var selected = _resultsGrid.SelectedItems.OfType<EditableRow>().ToList();
+        var text = _viewModel.BuildExportText(format, selected.Count > 0 ? selected : null);
+        if (text.Length > 0)
+        {
+            await clipboard.SetTextAsync(text);
+        }
     }
 
     // Enter in a per-column filter box applies immediately, same as the free-text WHERE box's Apply

@@ -14,6 +14,7 @@ using Lionear.SqlExplorer.Core.History;
 using Lionear.SqlExplorer.Core.Localization;
 using Lionear.SqlExplorer.Core.Providers;
 using Lionear.SqlExplorer.Core.Schema;
+using Lionear.SqlExplorer.Core.Settings;
 using Lionear.SqlExplorer.Core.Sql;
 using Lionear.SqlExplorer.Sdk;
 using CommunityToolkit.Mvvm.ComponentModel;
@@ -32,7 +33,8 @@ public enum ExportFormat
 {
     Csv,
     Json,
-    Sql
+    Sql,
+    Markdown
 }
 
 /// <summary>One column's inline browse-filter box; empty <see cref="Value"/> means "no filter".</summary>
@@ -164,12 +166,15 @@ public partial class DocumentViewModel : ViewModelBase
     [ObservableProperty]
     private string? _selectedDatabase;
 
+    private readonly IAppSettingsStore _settingsStore;
+
     public DocumentViewModel(
         IDbProviderRegistry providers,
         ConnectionService connections,
         ISqlFormatter formatter,
         IQueryHistoryStore history,
         ISchemaCache schemaCache,
+        IAppSettingsStore settingsStore,
         ILocalizer localizer)
     {
         _providers = providers;
@@ -177,8 +182,19 @@ public partial class DocumentViewModel : ViewModelBase
         _formatter = formatter;
         _history = history;
         _schemaCache = schemaCache;
+        _settingsStore = settingsStore;
         Loc = localizer;
+
+        var settings = _settingsStore.Load();
+        EditorFontSize = settings.EditorFontSize;
+        EditorWordWrap = settings.EditorWordWrap;
     }
+
+    /// <summary>SQL editor font size/word-wrap, read once from settings at document creation
+    /// (Notes: no live-binding infrastructure needed for a per-tab cosmetic default like this).</summary>
+    public double? EditorFontSize { get; }
+
+    public bool EditorWordWrap { get; }
 
     /// <summary>Quick-open-ranked completions (1.3) for the SQL text at <paramref name="caret"/>: alias
     /// columns after "alias.", tables after FROM/JOIN, a broad table+column+keyword mix elsewhere.</summary>
@@ -240,6 +256,7 @@ public partial class DocumentViewModel : ViewModelBase
             ExportFormat.Csv => ResultExporter.ToCsv(editable.Columns, raw),
             ExportFormat.Json => ResultExporter.ToJson(editable.Columns, raw),
             ExportFormat.Sql => ResultExporter.ToSqlInserts(editable.Columns, raw, _providers.Get(Connection.ProviderId).Dialect, Connection.ProviderId, ExportTableName(editable)),
+            ExportFormat.Markdown => ResultExporter.ToMarkdown(editable.Columns, raw),
             _ => string.Empty
         };
     }
@@ -841,7 +858,7 @@ public partial class DocumentViewModel : ViewModelBase
     [RelayCommand(CanExecute = nameof(CanSave))]
     private async Task SaveAsync(CancellationToken ct)
     {
-        if (Editable is null || SaveReviewRequested is null)
+        if (Editable is null)
         {
             return;
         }
@@ -855,9 +872,15 @@ public partial class DocumentViewModel : ViewModelBase
         }
 
         var preview = BuildPreview(statements);
-        if (!await SaveReviewRequested(preview))
+
+        // Read fresh (not cached at construction) so a Settings-window change takes effect on the
+        // very next save, no new tab required.
+        if (_settingsStore.Load().ConfirmBeforeSave)
         {
-            return;
+            if (SaveReviewRequested is null || !await SaveReviewRequested(preview))
+            {
+                return;
+            }
         }
 
         var stopwatch = Stopwatch.StartNew();
