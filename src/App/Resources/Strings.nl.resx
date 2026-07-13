@@ -150,6 +150,12 @@
   <data name="ConnectionFailed" xml:space="preserve">
     <value>Kan geen verbinding maken met de server.</value>
   </data>
+  <data name="Output" xml:space="preserve">
+    <value>Uitvoer</value>
+  </data>
+  <data name="ClearOutput" xml:space="preserve">
+    <value>Wissen</value>
+  </data>
   <data name="ImportConnectionString" xml:space="preserve">
     <value>Importeren uit connectiestring</value>
   </data>

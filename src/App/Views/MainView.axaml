@@ -4,7 +4,7 @@
              xmlns:cvt="using:Lionear.SqlExplorer.App.Converters"
              xmlns:views="using:Lionear.SqlExplorer.App.Views"
              x:Class="Lionear.SqlExplorer.App.Views.MainView">
-  <Grid RowDefinitions="Auto,*,Auto">
+  <Grid RowDefinitions="Auto,*,Auto,Auto">
 
     <!-- Top toolbar: new query tab + quick actions. Language/theme live in the menu bar now;
          connection actions live in the sidebar. -->
@@ -17,6 +17,8 @@
                 Content="{Binding Loc[GoToObject]}" ToolTip.Tip="Ctrl+K" Command="{Binding ToggleSearchCommand}" />
         <Button Classes="Subtle"
                 Content="{Binding Loc[History]}" Command="{Binding ToggleHistoryCommand}" />
+        <Button Classes="Subtle"
+                Content="{Binding Loc[Output]}" Command="{Binding ToggleOutputCommand}" />
       </StackPanel>
     </Border>
 
@@ -131,8 +133,22 @@
       <GridSplitter Grid.Column="1" Width="4" ResizeDirection="Columns"
                     Background="Transparent" />
 
-      <!-- Right: editor tabs (query panes + table-browse panes). -->
-      <Panel Grid.Column="2" Margin="0">
+      <!-- Right: editor tabs (query panes + table-browse panes), with an inline error banner on top. -->
+      <Grid Grid.Column="2" Margin="0" RowDefinitions="Auto,*">
+
+        <!-- Error banner: the latest failure, dismissible; also logged to the Output panel. -->
+        <Border Grid.Row="0" IsVisible="{Binding HasErrorBanner}"
+                Background="#33D64545" BorderBrush="#D64545" BorderThickness="0,0,0,1" Padding="10,7">
+          <Grid ColumnDefinitions="Auto,*,Auto">
+            <TextBlock Grid.Column="0" Text="⚠" Foreground="#D64545" VerticalAlignment="Center" Margin="0,0,8,0" />
+            <TextBlock Grid.Column="1" Text="{Binding ErrorBanner}" TextWrapping="Wrap"
+                       VerticalAlignment="Center" Foreground="{DynamicResource CatTextBrush}" />
+            <Button Grid.Column="2" Content="×" Classes="Subtle" Padding="6,0" FontSize="15"
+                    VerticalAlignment="Center" Command="{Binding DismissErrorCommand}" />
+          </Grid>
+        </Border>
+
+        <Panel Grid.Row="1">
         <TabControl ItemsSource="{Binding Documents}" SelectedItem="{Binding SelectedDocument}">
           <TabControl.ItemTemplate>
             <DataTemplate>
@@ -156,7 +172,8 @@
                    Foreground="{DynamicResource CatTextFaintBrush}"
                    Text="{Binding Loc[EmptyHint]}"
                    IsVisible="{Binding SelectedDocument, Converter={x:Static conv:ObjectConverters.IsNull}}" />
-      </Panel>
+        </Panel>
+      </Grid>
 
       <!-- History panel (toggled from the toolbar): search + list, double-click re-runs into a query tab. -->
       <Border Grid.Column="3" Width="300" IsVisible="{Binding IsHistoryVisible}"
@@ -225,8 +242,40 @@
       </Border>
     </Border>
 
+    <!-- Output/log panel (toggled from the toolbar): timestamped connection results + errors. -->
+    <Border Grid.Row="2" Height="170" IsVisible="{Binding IsOutputVisible}"
+            Background="{DynamicResource CatPanelBgBrush}"
+            BorderBrush="{DynamicResource CatHairlineBrush}" BorderThickness="0,1,0,0">
+      <Grid RowDefinitions="Auto,*">
+        <Grid Grid.Row="0" ColumnDefinitions="*,Auto" Margin="10,6,8,4">
+          <TextBlock Grid.Column="0" Text="{Binding Loc[Output]}" FontWeight="SemiBold" FontSize="12"
+                     Foreground="{DynamicResource CatTextSecondaryBrush}" VerticalAlignment="Center" />
+          <Button Grid.Column="1" Classes="Subtle" Padding="8,2"
+                  Content="{Binding Loc[ClearOutput]}" Command="{Binding ClearOutputCommand}" />
+        </Grid>
+        <ListBox Grid.Row="1" Background="Transparent" ItemsSource="{Binding OutputEntries}">
+          <ListBox.ItemTemplate>
+            <DataTemplate>
+              <Grid ColumnDefinitions="Auto,Auto,Auto,*" Margin="0,1">
+                <TextBlock Grid.Column="0" Text="{Binding TimeText}" FontSize="11"
+                           FontFamily="Cascadia Code,Consolas,Menlo,monospace"
+                           Foreground="{DynamicResource CatTextFaintBrush}" Margin="0,0,8,0" />
+                <TextBlock Grid.Column="1" Text="{Binding LevelText}" FontSize="11" FontWeight="SemiBold"
+                           Width="44" Margin="0,0,8,0"
+                           Foreground="{Binding IsError, Converter={x:Static cvt:OutputLevelBrushConverter.Instance}}" />
+                <TextBlock Grid.Column="2" Text="{Binding Source}" FontSize="11" Margin="0,0,8,0"
+                           Foreground="{DynamicResource CatTextSecondaryBrush}" />
+                <TextBlock Grid.Column="3" Text="{Binding Message}" FontSize="11" TextWrapping="Wrap"
+                           FontFamily="Cascadia Code,Consolas,Menlo,monospace" />
+              </Grid>
+            </DataTemplate>
+          </ListBox.ItemTemplate>
+        </ListBox>
+      </Grid>
+    </Border>
+
     <!-- Bottom status bar: connection state dot + active connection + last status message. -->
-    <Border Grid.Row="2" Background="{DynamicResource CatToolbarBgBrush}"
+    <Border Grid.Row="3" Background="{DynamicResource CatToolbarBgBrush}"
             BorderBrush="{DynamicResource CatHairlineBrush}" BorderThickness="0,1,0,0">
       <Grid ColumnDefinitions="Auto,*" Margin="10,4">
         <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="7" VerticalAlignment="Center">

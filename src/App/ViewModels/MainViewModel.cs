@@ -61,6 +61,16 @@ public partial class MainViewModel : ViewModelBase
     [ObservableProperty]
     private string _historySearch = string.Empty;
 
+    // Output/log panel (toggleable) + the inline error banner. Errors go to both plus the status bar.
+    [ObservableProperty]
+    private bool _isOutputVisible;
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasErrorBanner))]
+    private string? _errorBanner;
+
+    public bool HasErrorBanner => !string.IsNullOrEmpty(ErrorBanner);
+
     [ObservableProperty]
     private bool _isSearchVisible;
 
@@ -113,6 +123,49 @@ public partial class MainViewModel : ViewModelBase
 
     [RelayCommand]
     private void ClearHistory() => _history.Clear();
+
+    /// <summary>Rolling output/log lines (connection results, errors), oldest first, capped.</summary>
+    public ObservableCollection<OutputLogEntry> OutputEntries { get; } = [];
+
+    [RelayCommand]
+    private void ToggleOutput() => IsOutputVisible = !IsOutputVisible;
+
+    [RelayCommand]
+    private void ClearOutput()
+    {
+        OutputEntries.Clear();
+        ErrorBanner = null;
+    }
+
+    [RelayCommand]
+    private void DismissError() => ErrorBanner = null;
+
+    // Report an error everywhere it belongs: status bar, inline banner, and the output log.
+    private void ReportError(string? source, string message)
+    {
+        Status = message;
+        ErrorBanner = message;
+        Append(OutputLevel.Error, source, message);
+    }
+
+    // Report a success/notice: status bar + output log, and clear any stale error banner.
+    private void ReportInfo(string? source, string message)
+    {
+        Status = message;
+        ErrorBanner = null;
+        Append(OutputLevel.Info, source, message);
+    }
+
+    private const int MaxOutputEntries = 500;
+
+    private void Append(OutputLevel level, string? source, string message)
+    {
+        OutputEntries.Add(new OutputLogEntry(DateTime.Now, level, source, message));
+        while (OutputEntries.Count > MaxOutputEntries)
+        {
+            OutputEntries.RemoveAt(0);
+        }
+    }
 
     // Re-run a history entry: drop its SQL into a fresh query tab on its own connection (or the current
     // one if that connection is gone).
@@ -477,15 +530,16 @@ public partial class MainViewModel : ViewModelBase
             var nodes = await provider.GetChildNodesAsync(profile, ancestors, CancellationToken.None);
             if (ancestors.Count == 0)
             {
-                Status = Loc.Get("StatusConnected", nodes.Count);
+                ReportInfo(connection.Name, Loc.Get("StatusConnected", nodes.Count));
             }
 
             return nodes;
         }
         catch (Exception ex)
         {
-            // Surface the message and let the tree node mark itself errored (root shows a red status dot).
-            Status = ex.Message;
+            // Surface the message (status bar + banner + output log) and let the tree node mark itself
+            // errored (root shows a red status dot).
+            ReportError(connection.Name, ex.Message);
             throw;
         }
     }
@@ -605,7 +659,7 @@ public partial class MainViewModel : ViewModelBase
         }
         catch (Exception ex)
         {
-            Status = ex.Message;
+            ReportError(SelectedConnection?.Name, ex.Message);
         }
     }
 
@@ -717,7 +771,7 @@ public partial class MainViewModel : ViewModelBase
         }
         catch (Exception ex)
         {
-            Status = ex.Message;
+            ReportError(SelectedConnection?.Name, ex.Message);
         }
     }
 
@@ -759,7 +813,7 @@ public partial class MainViewModel : ViewModelBase
         }
         catch (Exception ex)
         {
-            Status = ex.Message;
+            ReportError(SelectedConnection?.Name, ex.Message);
         }
     }
 
@@ -813,7 +867,7 @@ public partial class MainViewModel : ViewModelBase
 
             var profile = _connections.Resolve(connection, node.DatabaseName);
             var affected = await provider.ExecuteBatchAsync(profile, statements, CancellationToken.None);
-            Status = Loc.Get("ImportOk", affected);
+            ReportInfo(SelectedConnection?.Name, Loc.Get("ImportOk", affected));
 
             var root = ConnectionNodes.FirstOrDefault(n => n.Connection.Id == connection.Id);
             if (root is not null)
@@ -823,7 +877,7 @@ public partial class MainViewModel : ViewModelBase
         }
         catch (Exception ex)
         {
-            Status = ex.Message;
+            ReportError(SelectedConnection?.Name, ex.Message);
         }
     }
 
@@ -982,7 +1036,7 @@ public partial class MainViewModel : ViewModelBase
         }
         catch (Exception ex)
         {
-            Status = ex.Message;
+            ReportError(SelectedConnection?.Name, ex.Message);
         }
     }
 

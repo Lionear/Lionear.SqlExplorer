@@ -150,6 +150,12 @@
   <data name="ConnectionFailed" xml:space="preserve">
     <value>Could not connect to the server.</value>
   </data>
+  <data name="Output" xml:space="preserve">
+    <value>Output</value>
+  </data>
+  <data name="ClearOutput" xml:space="preserve">
+    <value>Clear</value>
+  </data>
   <data name="ImportConnectionString" xml:space="preserve">
     <value>Import from connection string</value>
   </data>
