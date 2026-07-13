@@ -16,11 +16,34 @@
   <!-- macOS gets its menu bar from NativeMenu.Menu below (native, always active regardless of OS —
        Avalonia only surfaces it on macOS); the in-window Menu here is hidden there in code-behind
        so the two never show up stacked on top of each other. -->
+  <!-- Mirror the in-window File/Edit/Help menu below. macOS only surfaces top-level NativeMenuItems
+       that carry their own submenu as menu-bar entries, so flat items would silently vanish. -->
   <NativeMenu.Menu>
     <NativeMenu>
-      <NativeMenuItem Header="{Binding Loc[Preferences]}" Command="{Binding OpenSettingsCommand}" />
-      <NativeMenuItemSeparator />
-      <NativeMenuItem Header="{Binding Loc[About]}" Command="{Binding ShowAboutCommand}" />
+      <NativeMenuItem Header="{Binding Loc[MenuFile]}">
+        <NativeMenuItem.Menu>
+          <NativeMenu>
+            <NativeMenuItem Header="{Binding Loc[NewQueryTab]}" Command="{Binding NewQueryTabCommand}" />
+            <NativeMenuItem Header="{Binding Loc[NewConnectionMenu]}" Command="{Binding NewConnectionCommand}" />
+            <NativeMenuItemSeparator />
+            <NativeMenuItem Header="{Binding Loc[Exit]}" Command="{Binding ExitCommand}" />
+          </NativeMenu>
+        </NativeMenuItem.Menu>
+      </NativeMenuItem>
+      <NativeMenuItem Header="{Binding Loc[MenuEdit]}">
+        <NativeMenuItem.Menu>
+          <NativeMenu>
+            <NativeMenuItem Header="{Binding Loc[Preferences]}" Command="{Binding OpenSettingsCommand}" />
+          </NativeMenu>
+        </NativeMenuItem.Menu>
+      </NativeMenuItem>
+      <NativeMenuItem Header="{Binding Loc[MenuHelp]}">
+        <NativeMenuItem.Menu>
+          <NativeMenu>
+            <NativeMenuItem Header="{Binding Loc[About]}" Command="{Binding ShowAboutCommand}" />
+          </NativeMenu>
+        </NativeMenuItem.Menu>
+      </NativeMenuItem>
     </NativeMenu>
   </NativeMenu.Menu>
 

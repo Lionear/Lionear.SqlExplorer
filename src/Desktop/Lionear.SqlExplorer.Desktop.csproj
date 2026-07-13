@@ -4,38 +4,85 @@
     <OutputType>Exe</OutputType>
     <RootNamespace>Lionear.SqlExplorer.Desktop</RootNamespace>
     <ApplicationIcon>app.ico</ApplicationIcon>
+    <MacBundleName>Lionear SQL Explorer</MacBundleName>
   </PropertyGroup>
 
   <ItemGroup>
     <ProjectReference Include="..\App\Lionear.SqlExplorer.App.csproj" />
   </ItemGroup>
 
+  <!-- Keep the macOS bundle metadata out of the plain build output; the CreateMacAppBundle
+       target below copies them into the .app it assembles from the publish output. -->
+  <ItemGroup>
+    <None Update="Info.plist;app.icns" CopyToOutputDirectory="Never" />
+  </ItemGroup>
+
   <ItemGroup>
     <PackageReference Include="Avalonia.Desktop" Version="12.0.5" />
   </ItemGroup>
 
-  <!-- Stage each provider's self-contained output into plugins/<id>/ beside the executable,
-       so the plugin loader discovers them exactly as it would third-party plugins. The providers
-       are built ahead of this via App's ReferenceOutputAssembly=false references. -->
-  <Target Name="StageProviderPlugins" AfterTargets="Build">
+  <!-- Each provider's self-contained output, tagged with the plugin-id folder it belongs in.
+       Populated inside a target (not at project scope) because the wildcards must be evaluated
+       after the providers have built, not during the initial project evaluation. -->
+  <Target Name="CollectProviderPluginFiles">
     <ItemGroup>
-      <PostgresPluginFiles Include="$(MSBuildThisFileDirectory)..\Providers.Postgres\bin\$(Configuration)\$(TargetFramework)\**\*" />
-      <SqlitePluginFiles Include="$(MSBuildThisFileDirectory)..\Providers.Sqlite\bin\$(Configuration)\$(TargetFramework)\**\*" />
-      <MySqlPluginFiles Include="$(MSBuildThisFileDirectory)..\Providers.MySql\bin\$(Configuration)\$(TargetFramework)\**\*" />
-      <MsSqlPluginFiles Include="$(MSBuildThisFileDirectory)..\Providers.MsSql\bin\$(Configuration)\$(TargetFramework)\**\*" />
+      <ProviderPluginFile Include="$(MSBuildThisFileDirectory)..\Providers.Postgres\bin\$(Configuration)\$(TargetFramework)\**\*">
+        <PluginId>postgres</PluginId>
+      </ProviderPluginFile>
+      <ProviderPluginFile Include="$(MSBuildThisFileDirectory)..\Providers.Sqlite\bin\$(Configuration)\$(TargetFramework)\**\*">
+        <PluginId>sqlite</PluginId>
+      </ProviderPluginFile>
+      <ProviderPluginFile Include="$(MSBuildThisFileDirectory)..\Providers.MySql\bin\$(Configuration)\$(TargetFramework)\**\*">
+        <PluginId>mysql</PluginId>
+      </ProviderPluginFile>
+      <ProviderPluginFile Include="$(MSBuildThisFileDirectory)..\Providers.MsSql\bin\$(Configuration)\$(TargetFramework)\**\*">
+        <PluginId>sqlserver</PluginId>
+      </ProviderPluginFile>
     </ItemGroup>
-    <Copy SourceFiles="@(PostgresPluginFiles)"
-          DestinationFiles="@(PostgresPluginFiles->'$(TargetDir)plugins\postgres\%(RecursiveDir)%(Filename)%(Extension)')"
+  </Target>
+
+  <!-- Stage the providers into plugins/<id>/ beside the built executable, so the plugin loader
+       discovers them exactly as it would third-party plugins. -->
+  <Target Name="StageProviderPlugins" AfterTargets="Build" DependsOnTargets="CollectProviderPluginFiles">
+    <Copy SourceFiles="@(ProviderPluginFile)"
+          DestinationFiles="@(ProviderPluginFile->'$(TargetDir)plugins\%(PluginId)\%(RecursiveDir)%(Filename)%(Extension)')"
           SkipUnchangedFiles="true" />
-    <Copy SourceFiles="@(SqlitePluginFiles)"
-          DestinationFiles="@(SqlitePluginFiles->'$(TargetDir)plugins\sqlite\%(RecursiveDir)%(Filename)%(Extension)')"
+  </Target>
+
+  <!-- Same staging into the publish output. `dotnet publish` does not run the Build-time staging
+       into $(PublishDir), so without this a published app (and the macOS bundle below) would ship
+       with no database providers at all. -->
+  <Target Name="StageProviderPluginsForPublish" AfterTargets="Publish" DependsOnTargets="CollectProviderPluginFiles">
+    <Copy SourceFiles="@(ProviderPluginFile)"
+          DestinationFiles="@(ProviderPluginFile->'$(PublishDir)plugins\%(PluginId)\%(RecursiveDir)%(Filename)%(Extension)')"
           SkipUnchangedFiles="true" />
-    <Copy SourceFiles="@(MySqlPluginFiles)"
-          DestinationFiles="@(MySqlPluginFiles->'$(TargetDir)plugins\mysql\%(RecursiveDir)%(Filename)%(Extension)')"
-          SkipUnchangedFiles="true" />
-    <Copy SourceFiles="@(MsSqlPluginFiles)"
-          DestinationFiles="@(MsSqlPluginFiles->'$(TargetDir)plugins\sqlserver\%(RecursiveDir)%(Filename)%(Extension)')"
-          SkipUnchangedFiles="true" />
+  </Target>
+
+  <!-- Assemble a real macOS .app bundle from the publish output. macOS reads the bold application-menu
+       name and Dock title from Contents/Info.plist (CFBundleName); running the loose executable (or
+       `dotnet run`) has no bundle, so it falls back to "Avalonia Application". Runs on macOS only,
+       after Publish, so `dotnet publish -r osx-arm64` (or osx-x64) produces a launchable bundle.
+       Depends on the publish staging so the copied tree already contains plugins/. -->
+  <Target Name="CreateMacAppBundle" AfterTargets="Publish"
+          DependsOnTargets="StageProviderPluginsForPublish"
+          Condition="'$([MSBuild]::IsOSPlatform(`OSX`))' == 'true'">
+    <PropertyGroup>
+      <MacBundleRoot>$(PublishDir)../$(MacBundleName).app</MacBundleRoot>
+      <MacBundleContents>$(MacBundleRoot)/Contents</MacBundleContents>
+      <MacBundleExe>$(MacBundleContents)/MacOS</MacBundleExe>
+      <MacBundleResources>$(MacBundleContents)/Resources</MacBundleResources>
+    </PropertyGroup>
+    <RemoveDir Directories="$(MacBundleRoot)" />
+    <MakeDir Directories="$(MacBundleExe);$(MacBundleResources)" />
+    <ItemGroup>
+      <MacPublishedFiles Include="$(PublishDir)**\*" />
+    </ItemGroup>
+    <Copy SourceFiles="@(MacPublishedFiles)"
+          DestinationFiles="@(MacPublishedFiles->'$(MacBundleExe)/%(RecursiveDir)%(Filename)%(Extension)')" />
+    <Copy SourceFiles="Info.plist" DestinationFiles="$(MacBundleContents)/Info.plist" />
+    <Copy SourceFiles="app.icns" DestinationFiles="$(MacBundleResources)/app.icns" />
+    <Exec Command="chmod +x &quot;$(MacBundleExe)/$(AssemblyName)&quot;" />
+    <Message Importance="high" Text="Created macOS app bundle: $(MacBundleRoot)" />
   </Target>
 
 </Project>

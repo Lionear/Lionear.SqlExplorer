@@ -73,7 +73,9 @@ public partial class MainWindow : Window
 
         var settings = _settingsStore.Load();
 
-        if (settings.WindowWidth is { } w && settings.WindowHeight is { } h)
+        // Guard against a zero/negative size: an interrupted first run (crash or a kill before the
+        // window was ever measured) can persist 0x0, which would restore to an invisible window.
+        if (settings.WindowWidth is { } w && settings.WindowHeight is { } h && w > 0 && h > 0)
         {
             Width = w;
             Height = h;
@@ -113,8 +115,11 @@ public partial class MainWindow : Window
         settings.WindowMaximized = maximized;
 
         // When maximized, Width/Height/Position describe the maximized frame; keep the last
-        // normal-state values so restoring un-maximizes to a sane size and place.
-        if (!maximized)
+        // normal-state values so restoring un-maximizes to a sane size and place. Also skip a
+        // NaN/zero size — that means the window was never laid out (e.g. closed/killed during
+        // startup), and persisting it would restore to an invisible 0x0 window next run.
+        // (A relational pattern is already false for NaN, so `is > 0` covers the never-laid-out case.)
+        if (!maximized && Width is > 0 && Height is > 0)
         {
             settings.WindowWidth = Width;
             settings.WindowHeight = Height;
