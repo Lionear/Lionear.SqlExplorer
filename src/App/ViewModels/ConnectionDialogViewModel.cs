@@ -146,6 +146,13 @@ public partial class ConnectionDialogViewModel : ViewModelBase
                 field.Value = value;
             }
         }
+
+        // The custom Route B view built in RebuildFields read the defaults; rebuild it now that the
+        // stored values are in place so it shows what was actually saved.
+        if (HasCustomAdvancedView)
+        {
+            BuildCustomAdvancedView(_providers.Get(connection.ProviderId));
+        }
     }
 
     partial void OnSelectedProviderChanged(ProviderOption? value)
@@ -181,18 +188,23 @@ public partial class ConnectionDialogViewModel : ViewModelBase
             (field.Advanced ? AdvancedFields : BasicFields).Add(input);
         }
 
-        // Route B: a provider may render the Advanced section itself. Its view reads/writes the same
-        // declared field values through the context, so save/import/BuildConnectionString are unaffected.
-        if (provider is ICustomConnectionUi customUi)
-        {
-            CustomAdvancedView = customUi.CreateAdvancedView(new FieldValuesContext(this));
-            HasCustomAdvancedView = CustomAdvancedView is not null;
-        }
-
-        HasAdvancedFields = AdvancedFields.Count > 0 || HasCustomAdvancedView;
+        BuildCustomAdvancedView(provider);
         // Empty string parses to a (possibly empty) map for supporters, null for providers that don't
         // implement it — a cheap capability probe with no side effects.
         SupportsImport = TryParse(SelectedProvider.Id, string.Empty) is not null;
+    }
+
+    // Route B: a provider may render the Advanced section itself. Its view reads/writes the same declared
+    // field values through the context, so save/import/BuildConnectionString are unaffected. The view
+    // reads the current field values once at construction, so this must run AFTER any prefill (see
+    // LoadForEdit) — otherwise an edited connection's stored advanced values show as defaults.
+    private void BuildCustomAdvancedView(IDbProvider provider)
+    {
+        CustomAdvancedView = provider is ICustomConnectionUi customUi
+            ? customUi.CreateAdvancedView(new FieldValuesContext(this))
+            : null;
+        HasCustomAdvancedView = CustomAdvancedView is not null;
+        HasAdvancedFields = AdvancedFields.Count > 0 || HasCustomAdvancedView;
     }
 
     private IReadOnlyDictionary<string, string?>? TryParse(string providerId, string connectionString)
