@@ -239,6 +239,7 @@ public partial class MainViewModel : ViewModelBase
         yield return new CommandQuickOpenItem(Loc["ClearHistory"], "Command", () => ClearHistoryCommand.Execute(null));
         yield return new CommandQuickOpenItem(Loc["Settings"], "Command", () => OpenSettingsCommand.Execute(null));
         yield return new CommandQuickOpenItem(Loc["NewConnection"], "Command", () => NewConnectionCommand.Execute(null));
+        yield return new CommandQuickOpenItem(Loc["ManageConnections"], "Command", () => ManageConnectionsCommand.Execute(null));
         yield return new CommandQuickOpenItem(Loc["Connect"], "Command", () => ConnectCommand.Execute(null));
         yield return new CommandQuickOpenItem(Loc["Disconnect"], "Command", () => DisconnectCommand.Execute(null));
         yield return new CommandQuickOpenItem(Loc["Run"], "Command", () => RunActiveDocumentCommand.Execute(null));
@@ -269,6 +270,17 @@ public partial class MainViewModel : ViewModelBase
 
     [RelayCommand]
     private void RunActiveDocumentAtCursor() => SelectedDocument?.RunAtCursorCommand.Execute(null);
+
+    // Window-level shortcut targets that forward to the active tab (Ctrl+S save, Ctrl+Shift+F format,
+    // Ctrl+W close). Same reasoning as F5/Ctrl+Enter: the keypress lands on the window, not a tab.
+    [RelayCommand]
+    private void SaveActiveDocument() => SelectedDocument?.SaveCommand.Execute(null);
+
+    [RelayCommand]
+    private void FormatActiveDocument() => SelectedDocument?.FormatCommand.Execute(null);
+
+    [RelayCommand]
+    private void CloseActiveTab() => CloseTab(SelectedDocument);
 
     // Fuzzy quick-open across every connection's cached snapshot (1.1): a table/view whose qualified
     // name or one of its columns matches. Connections without a snapshot yet (never connected, or
@@ -763,19 +775,25 @@ public partial class MainViewModel : ViewModelBase
         _ => null
     };
 
-    // Sidebar quick action (kept alongside the manager): delete the selected connection outright.
+    // Sidebar quick action (kept alongside the manager): delete the selected connection — after a
+    // confirm, since it's destructive and (unlike a drop) has no editable-SQL step to pause on.
     [RelayCommand]
-    private void DeleteConnection()
+    private async Task DeleteConnectionAsync()
     {
-        if (SelectedConnection is null)
+        if (SelectedConnection is not { } connection)
         {
             return;
         }
 
-        var id = SelectedConnection.Id;
-        _connections.Delete(id);
-        _schemaCache.Invalidate(id);
-        RemoveConnectionNode(id);
+        if (ConfirmRequested is not null
+            && !await ConfirmRequested(Loc["Delete"], string.Format(Loc["ConfirmDeleteConnection"], connection.Name)))
+        {
+            return;
+        }
+
+        _connections.Delete(connection.Id);
+        _schemaCache.Invalidate(connection.Id);
+        RemoveConnectionNode(connection.Id);
     }
 
     // DDL Create (host-API v12): "New Database…" on a connection root — no parent schema, and the
@@ -900,6 +918,49 @@ public partial class MainViewModel : ViewModelBase
     }
 
     [RelayCommand]
+    private async Task TruncateTableAsync()
+    {
+        if (SelectedNode is not { CanTruncate: true } node)
+        {
+            return;
+        }
+
+        await AlterObjectAsync(node, AlterKind.TruncateTable, node.DatabaseName, node.Name, node.SchemaName, node.Name);
+    }
+
+    // Context-menu "Collapse all": tidy up a container's expanded subtree without forcing lazy loads.
+    [RelayCommand]
+    private void CollapseAllNode() => SelectedNode?.CollapseAll();
+
+    // Context-menu "Test connection": a connectivity check that doesn't populate the tree.
+    [RelayCommand]
+    private async Task TestConnectionAsync()
+    {
+        if (SelectedNode is not { IsConnectionNode: true } node)
+        {
+            return;
+        }
+
+        try
+        {
+            var provider = _providers.Get(node.Connection.ProviderId);
+            var profile = _connections.Resolve(node.Connection);
+            if (await provider.TestConnectionAsync(profile, CancellationToken.None))
+            {
+                ReportInfo(node.Connection.Name, Loc["TestConnectionOk"]);
+            }
+            else
+            {
+                ReportError(node.Connection.Name, Loc["TestConnectionFailed"]);
+            }
+        }
+        catch (Exception ex)
+        {
+            ReportError(node.Connection.Name, ex.Message);
+        }
+    }
+
+    [RelayCommand]
     private async Task DropColumnAsync()
     {
         if (SelectedNode is not { CanDropColumn: true } node || node.TableName is not { } table)
@@ -922,10 +983,10 @@ public partial class MainViewModel : ViewModelBase
     }
 
     // Shared DROP/ALTER flow: open the confirmation dialog, run the (possibly user-edited) SQL it
-    // returns, then fully reload the connection's tree. A full reload (not just `node`) is needed here
-    // unlike CreateObjectAsync: a drop/rename can remove or rename the very node the action ran on, and
-    // there's no parent-pointer to refresh just the affected list — this also re-triggers the 1.1 schema
-    // cache rebuild for free, via the existing Connected-state wiring (OnConnectionNodeStateChanged).
+    // returns, then reload only the affected container so the rest of the tree keeps its expansion.
+    // Adding a column changes the table's own child list (refresh the node); a drop/rename changes the
+    // parent's list and may remove the node itself (refresh the parent). The schema cache is rebuilt
+    // explicitly afterwards since we no longer bounce the connection through the Connected state.
     private async Task AlterObjectAsync(
         TreeNodeViewModel node, AlterKind kind, string? database, string objectLabel, string? schema, string target,
         bool isView = false, string? existingColumn = null)
@@ -950,16 +1011,34 @@ public partial class MainViewModel : ViewModelBase
             var profile = _connections.Resolve(node.Connection, database);
             await provider.ExecuteDdlAsync(profile, sql, CancellationToken.None);
 
-            var root = FindConnectionNode(node.Connection.Id);
-            if (root is not null)
+            // Reload just the affected container, preserving the rest of the tree's expanded state.
+            var refreshTarget = kind == AlterKind.AddColumn ? node : node.Parent ?? FindConnectionNode(node.Connection.Id);
+            if (refreshTarget is not null)
             {
-                await root.RefreshAsync();
+                await refreshTarget.RefreshAsync();
             }
+
+            // Keep quick-open/autocomplete in sync (the old full-tree refresh did this via the state wiring).
+            RebuildSchemaCache(node.Connection);
         }
         catch (Exception ex)
         {
             ReportError(SelectedConnection?.Name, ex.Message);
         }
+    }
+
+    /// <summary>Context-menu "Refresh" on a container node — reload just its children (not the whole
+    /// connection) and refresh the schema cache, so a manual refresh keeps the rest of the tree expanded.</summary>
+    [RelayCommand]
+    private async Task RefreshNodeAsync()
+    {
+        if (SelectedNode is not { CanRefresh: true } node)
+        {
+            return;
+        }
+
+        await node.RefreshAsync();
+        RebuildSchemaCache(node.Connection);
     }
 
     // Tree-level "Export…": the document-tab Export button needs an open, populated grid, but exporting
@@ -1162,6 +1241,16 @@ public partial class MainViewModel : ViewModelBase
             return;
         }
 
+        // Remember closed query tabs so Ctrl+Shift+T can bring them back (browse tabs reopen from the tree).
+        if (document.IsQueryMode && document.Connection is { } connection)
+        {
+            _closedTabs.Push((connection, document.Sql));
+            if (_closedTabs.Count > ClosedTabHistory)
+            {
+                _closedTabs = new Stack<(SavedConnection, string)>(_closedTabs.Take(ClosedTabHistory).Reverse());
+            }
+        }
+
         var index = Documents.IndexOf(document);
         Documents.Remove(document);
 
@@ -1171,6 +1260,25 @@ public partial class MainViewModel : ViewModelBase
                 ? null
                 : Documents[Math.Min(index, Documents.Count - 1)];
         }
+    }
+
+    private const int ClosedTabHistory = 15;
+    private Stack<(SavedConnection Connection, string Sql)> _closedTabs = new();
+
+    // Ctrl+Shift+T: reopen the most recently closed query tab with its SQL and connection restored.
+    [RelayCommand]
+    private void ReopenClosedTab()
+    {
+        if (_closedTabs.Count == 0)
+        {
+            return;
+        }
+
+        var (connection, sql) = _closedTabs.Pop();
+        var document = NewDocument();
+        document.InitQuery(connection);
+        document.Sql = sql;
+        AddDocument(document);
     }
 
     // Copy a dialect-quoted identifier so it pastes straight into SQL — crucial on Postgres, where
@@ -1189,6 +1297,20 @@ public partial class MainViewModel : ViewModelBase
             : dialect.QuoteIdentifier(node.Name);
 
         await ClipboardRequested(text);
+    }
+
+    // "Copy qualified name" — the fully database-qualified identifier (SQL Server: [db].[schema].[table]),
+    // ready to paste into a query tab that has no database context of its own.
+    [RelayCommand]
+    private async Task CopyQualifiedNameAsync()
+    {
+        if (SelectedNode is not { IsTableOrView: true } node || SelectedConnection is null || ClipboardRequested is null)
+        {
+            return;
+        }
+
+        var dialect = _providers.Get(SelectedConnection.ProviderId).Dialect;
+        await ClipboardRequested(dialect.QualifyName(node.DatabaseName, node.SchemaName, node.Name));
     }
 
     // Generate a SQL template (SELECT/INSERT/UPDATE/…) for the selected table into a new query tab —
@@ -1212,6 +1334,7 @@ public partial class MainViewModel : ViewModelBase
             var sql = kind switch
             {
                 "Select" => $"SELECT * FROM {qualified};",
+                "SelectTop" => $"{dialect.Paginate($"SELECT * FROM {qualified}", 100, 0)};",
                 "Count" => $"SELECT COUNT(*) FROM {qualified};",
                 _ => SqlTemplateBuilder.Build(kind ?? "Select", qualified, dialect, await FetchColumnsAsync(connection, node.DatabaseName, qualified))
             };
@@ -1292,7 +1415,13 @@ public partial class MainViewModel : ViewModelBase
         }
     }
 
-    private DocumentViewModel NewDocument() => new(_providers, _connections, _formatter, _history, _schemaCache, _settingsStore, Loc);
+    private DocumentViewModel NewDocument()
+    {
+        var document = new DocumentViewModel(_providers, _connections, _formatter, _history, _schemaCache, _settingsStore, Loc);
+        // Surface query/browse errors in the shared banner too, not just the tab's status line.
+        document.ErrorOccurred += message => ReportError(document.Connection?.Name, message);
+        return document;
+    }
 
     private void AddDocument(DocumentViewModel document)
     {

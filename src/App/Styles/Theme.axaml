@@ -195,14 +195,26 @@
     <Setter Property="Background" Value="Transparent" />
     <Setter Property="Padding" Value="0" />
   </Style>
+  <!-- No border/divider around the tab strip or content. -->
+  <Style Selector="TabControl">
+    <Setter Property="BorderThickness" Value="0" />
+    <Setter Property="Background" Value="Transparent" />
+    <Setter Property="Padding" Value="0" />
+  </Style>
+  <!-- Document tabs read like the Result sub-tabs: flat text, no box, just an accent underline on the
+       selected one (mirrors DocumentView's Button.ResultTab style). -->
   <Style Selector="TabItem">
     <Setter Property="Foreground" Value="{DynamicResource CatTextSecondaryBrush}" />
     <Setter Property="FontSize" Value="13" />
     <Setter Property="MinHeight" Value="32" />
-    <Setter Property="Padding" Value="12,4" />
+    <Setter Property="Padding" Value="12,6" />
     <Setter Property="Margin" Value="0" />
-    <Setter Property="BorderBrush" Value="{DynamicResource CatHairlineBrush}" />
-    <Setter Property="BorderThickness" Value="0,0,1,0" />
+  </Style>
+  <Style Selector="TabItem /template/ Border#PART_LayoutRoot">
+    <Setter Property="Background" Value="Transparent" />
+    <Setter Property="BorderBrush" Value="Transparent" />
+    <Setter Property="BorderThickness" Value="0,0,0,2" />
+    <Setter Property="CornerRadius" Value="0" />
   </Style>
   <Style Selector="TabItem:pointerover /template/ Border#PART_LayoutRoot">
     <Setter Property="Background" Value="{DynamicResource CatHoverBgBrush}" />
@@ -211,9 +223,18 @@
     <Setter Property="Foreground" Value="{DynamicResource CatTextPrimaryBrush}" />
   </Style>
   <Style Selector="TabItem:selected /template/ Border#PART_LayoutRoot">
-    <Setter Property="Background" Value="{DynamicResource CatWindowBgBrush}" />
+    <Setter Property="Background" Value="Transparent" />
     <Setter Property="BorderBrush" Value="{DynamicResource CatAccentBrush}" />
-    <Setter Property="BorderThickness" Value="0,2,0,0" />
+    <Setter Property="BorderThickness" Value="0,0,0,2" />
+  </Style>
+  <!-- Hide Fluent's built-in selection pipe (the short line right under the text) — the accent underline
+       on PART_LayoutRoot above is the only selection indicator we want. Fluent turns the pipe on with a
+       :selected rule, so we must override that same state (equal specificity, loaded later = wins). -->
+  <Style Selector="TabItem /template/ Border#PART_SelectedPipe">
+    <Setter Property="IsVisible" Value="False" />
+  </Style>
+  <Style Selector="TabItem:selected /template/ Border#PART_SelectedPipe">
+    <Setter Property="IsVisible" Value="False" />
   </Style>
 
   <!-- DataGrid: horizontal-only rules, compact rows, themed header with a bottom hairline -->

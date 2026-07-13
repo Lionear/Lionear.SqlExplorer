@@ -105,6 +105,8 @@ public static class NodeIcons
         DbNodeKind.IndexFolder => Folder,
         DbNodeKind.SequenceFolder => Folder,
         DbNodeKind.Group => Folder,
+        DbNodeKind.DatabaseFolder => Folder,
+        DbNodeKind.ColumnFolder => Folder,
         DbNodeKind.Table => Table,
         DbNodeKind.View => View,
         DbNodeKind.Column => Column,

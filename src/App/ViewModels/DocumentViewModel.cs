@@ -88,6 +88,16 @@ public partial class DocumentViewModel : ViewModelBase
     [ObservableProperty]
     private string _sql = string.Empty;
 
+    /// <summary>Raised when a query/browse execution fails, so the host can surface it in the main error
+    /// banner (not just the tab's transient status line).</summary>
+    public event Action<string>? ErrorOccurred;
+
+    private void ReportFailure(string message)
+    {
+        Status = message;
+        ErrorOccurred?.Invoke(message);
+    }
+
     [ObservableProperty]
     private string _status = string.Empty;
 
@@ -259,6 +269,19 @@ public partial class DocumentViewModel : ViewModelBase
             ExportFormat.Markdown => ResultExporter.ToMarkdown(editable.Columns, raw),
             _ => string.Empty
         };
+    }
+
+    /// <summary>Tab-separated text for the plain "Copy"/"Copy with headers" grid actions.</summary>
+    public string BuildClipboardTsv(bool includeHeaders, IReadOnlyList<EditableRow>? rows = null)
+    {
+        if (Editable is not { } editable)
+        {
+            return string.Empty;
+        }
+
+        var source = rows ?? editable.Rows;
+        var raw = source.Select(r => Enumerable.Range(0, editable.Columns.Count).Select(r.CurrentAt).ToArray());
+        return ResultExporter.ToTsv(editable.Columns, raw, includeHeaders);
     }
 
     // A join/computed result has no single target table; fall back to a generic placeholder name
@@ -543,7 +566,7 @@ public partial class DocumentViewModel : ViewModelBase
             }
             catch (Exception ex)
             {
-                Status = ex.Message;
+                ReportFailure(ex.Message);
             }
         });
     }
@@ -587,7 +610,7 @@ public partial class DocumentViewModel : ViewModelBase
         catch (Exception ex)
         {
             stopwatch.Stop();
-            Status = ex.Message;
+            ReportFailure(ex.Message);
             if (IsQueryMode)
             {
                 AppendHistory(sql, QueryHistoryKind.Query, stopwatch.ElapsedMilliseconds, 0, success: false, error: ex.Message);
@@ -661,7 +684,7 @@ public partial class DocumentViewModel : ViewModelBase
         catch (Exception ex)
         {
             stopwatch.Stop();
-            Status = ex.Message;
+            ReportFailure(ex.Message);
             if (IsQueryMode)
             {
                 AppendHistory(sql, QueryHistoryKind.Query, stopwatch.ElapsedMilliseconds, 0, success: false, error: ex.Message);
@@ -942,7 +965,7 @@ public partial class DocumentViewModel : ViewModelBase
         catch (Exception ex)
         {
             stopwatch.Stop();
-            Status = ex.Message;
+            ReportFailure(ex.Message);
             AppendHistory(preview, QueryHistoryKind.Save, stopwatch.ElapsedMilliseconds, 0, success: false, error: ex.Message);
         }
     }

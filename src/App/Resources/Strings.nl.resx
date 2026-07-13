@@ -115,7 +115,7 @@
     <value>Query</value>
   </data>
   <data name="BrowseTable" xml:space="preserve">
-    <value>Rijen doorbladeren</value>
+    <value>Tabel bekijken</value>
   </data>
   <data name="PrevPage" xml:space="preserve">
     <value>‹ Vorige</value>
@@ -488,5 +488,47 @@
   </data>
   <data name="ToolDestructiveConfirm" xml:space="preserve">
     <value>Deze actie wijzigt de database en kan niet ongedaan worden gemaakt. Doorgaan?</value>
+  </data>
+  <data name="ToolSucceeded" xml:space="preserve">
+    <value>Succesvol voltooid.</value>
+  </data>
+  <data name="ToolFinish" xml:space="preserve">
+    <value>Voltooien</value>
+  </data>
+  <data name="Refresh" xml:space="preserve">
+    <value>Vernieuwen</value>
+  </data>
+  <data name="SelectTop100" xml:space="preserve">
+    <value>Selecteer top 100</value>
+  </data>
+  <data name="Copy" xml:space="preserve">
+    <value>Kopiëren</value>
+  </data>
+  <data name="CopyWithHeaders" xml:space="preserve">
+    <value>Kopiëren met kopregels</value>
+  </data>
+  <data name="CopyQualifiedName" xml:space="preserve">
+    <value>Volledige naam kopiëren</value>
+  </data>
+  <data name="TruncateTable" xml:space="preserve">
+    <value>Tabel leegmaken…</value>
+  </data>
+  <data name="CollapseAll" xml:space="preserve">
+    <value>Alles inklappen</value>
+  </data>
+  <data name="TestConnection" xml:space="preserve">
+    <value>Verbinding testen</value>
+  </data>
+  <data name="TestConnectionOk" xml:space="preserve">
+    <value>Verbinding geslaagd.</value>
+  </data>
+  <data name="TestConnectionFailed" xml:space="preserve">
+    <value>Verbinding mislukt.</value>
+  </data>
+  <data name="SetNull" xml:space="preserve">
+    <value>NULL instellen</value>
+  </data>
+  <data name="ConfirmDeleteConnection" xml:space="preserve">
+    <value>Connectie "{0}" verwijderen? Dit kan niet ongedaan worden gemaakt.</value>
   </data>
 </root>

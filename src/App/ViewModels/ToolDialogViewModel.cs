@@ -42,6 +42,10 @@ public partial class ToolDialogViewModel : ViewModelBase, IToolUiContext, IToolH
 
     public ILocalizer Loc { get; }
 
+    /// <summary>The tool's target — the selected node (database/table), else the connected database.
+    /// The view uses it to default a save-file name (e.g. "MyDatabase.lbak") instead of "backup.lbak".</summary>
+    public string? TargetName => _node?.Name ?? _profile?.Database;
+
     /// <summary>Set by the view: shows a save-file picker (suggestedName, extensions) → path or null.</summary>
     public Func<string, string[], Task<string?>>? SaveFilePicker { get; set; }
 
@@ -70,7 +74,26 @@ public partial class ToolDialogViewModel : ViewModelBase, IToolUiContext, IToolH
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(CanExecute))]
+    [NotifyPropertyChangedFor(nameof(InputsEnabled))]
     private bool _isRunning;
+
+    /// <summary>Set once the tool has finished successfully: the dialog switches to a done state (success
+    /// banner + Finish button) instead of letting the same backup/restore be run again.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(CanExecute))]
+    [NotifyPropertyChangedFor(nameof(InputsEnabled))]
+    private bool _isCompleted;
+
+    /// <summary>Inputs are editable only before a run and while not finished.</summary>
+    public bool InputsEnabled => !IsRunning && !IsCompleted;
+
+    /// <summary>0..1 determinate progress; ignored while <see cref="IsProgressIndeterminate"/> is true.</summary>
+    [ObservableProperty]
+    private double _progress;
+
+    /// <summary>True until a tool first reports a fraction — the bar spins ("busy") rather than filling.</summary>
+    [ObservableProperty]
+    private bool _isProgressIndeterminate = true;
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(HasPreview))]
@@ -89,7 +112,7 @@ public partial class ToolDialogViewModel : ViewModelBase, IToolUiContext, IToolH
 
     public bool HasFields => CustomView is null && Fields.Count > 0;
 
-    public bool CanExecute => !IsRunning && Fields.All(f => f.IsFilled);
+    public bool CanExecute => !IsRunning && !IsCompleted && Fields.All(f => f.IsFilled);
 
     /// <summary>Prepare the dialog for one tool run against the given connection/node.</summary>
     public void Configure(IToolPlugin tool, ConnectionProfile profile, DbNodeRef? node, IDbProvider provider, string providerId)
@@ -155,18 +178,29 @@ public partial class ToolDialogViewModel : ViewModelBase, IToolUiContext, IToolH
 
         _cts = new CancellationTokenSource();
         IsRunning = true;
+        Progress = 0;
+        IsProgressIndeterminate = true;
         Log.Clear();
 
         var inputs = HasCustomView
             ? _customValues
             : Fields.ToDictionary(f => f.Field.Key, f => f.Value);
         var context = new ToolExecutionContext(_profile, _node, _provider, _providerId, this);
-        var progress = new Progress<ToolProgress>(p => Log.Add(p.Message));
+        var progress = new Progress<ToolProgress>(p =>
+        {
+            Log.Add(p.Message);
+            if (p.Fraction is { } fraction)
+            {
+                IsProgressIndeterminate = false;
+                Progress = Math.Clamp(fraction, 0, 1);
+            }
+        });
 
         try
         {
             await _tool.ExecuteAsync(context, inputs, progress, _cts.Token);
             Log.Add(Loc["ToolDone"]);
+            IsCompleted = true; // success → switch the dialog to its done state
         }
         catch (OperationCanceledException)
         {

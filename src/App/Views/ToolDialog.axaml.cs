@@ -1,9 +1,12 @@
+using System.Collections;
+using System.Collections.Specialized;
 using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
 using Avalonia.Controls;
 using Avalonia.Interactivity;
 using Avalonia.Platform.Storage;
+using Avalonia.Threading;
 using Lionear.SqlExplorer.App.ViewModels;
 using Lionear.SqlExplorer.Sdk.Tools;
 
@@ -23,8 +26,21 @@ public partial class ToolDialog : Window
                 vm.OpenFilePicker = PickOpenFileAsync;
                 vm.ConfirmRequested = ShowConfirmAsync;
                 vm.CloseRequested = Close;
+
+                // Keep the log panel pinned to the newest line as the tool reports progress.
+                vm.Log.CollectionChanged -= OnLogChanged;
+                vm.Log.CollectionChanged += OnLogChanged;
             }
         };
+    }
+
+    private void OnLogChanged(object? sender, NotifyCollectionChangedEventArgs e)
+    {
+        if (sender is IList { Count: > 0 } list)
+        {
+            // Scroll after the item is realised — post to the dispatcher so the list has updated first.
+            Dispatcher.UIThread.Post(() => LogList.ScrollIntoView(list.Count - 1));
+        }
     }
 
     // Browse for a File tool-field: save or open picker per the field's SaveFile flag, via the VM host.
@@ -46,8 +62,21 @@ public partial class ToolDialog : Window
         }
     }
 
-    private static string SuggestedName(ToolFieldInput input) =>
-        input.Value is { Length: > 0 } value ? Path.GetFileName(value) : input.Field.Default ?? "backup";
+    private string SuggestedName(ToolFieldInput input)
+    {
+        // A path already typed/picked wins; otherwise default to the target's name (the selected
+        // database/table) so the save dialog pre-fills e.g. "MyDatabase" instead of a generic "backup".
+        if (input.Value is { Length: > 0 } value)
+        {
+            return Path.GetFileName(value);
+        }
+
+        var target = (DataContext as ToolDialogViewModel)?.TargetName;
+        return string.IsNullOrWhiteSpace(target) ? input.Field.Default ?? "backup" : Sanitize(target);
+    }
+
+    private static string Sanitize(string name) =>
+        string.Concat(name.Select(c => Path.GetInvalidFileNameChars().Contains(c) ? '_' : c));
 
     private async Task<string?> PickSaveFileAsync(string suggestedName, string[] extensions)
     {

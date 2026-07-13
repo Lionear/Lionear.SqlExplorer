@@ -62,6 +62,8 @@
                           IsVisible="{Binding SelectedNode.CanConnect, FallbackValue=False}" />
                 <MenuItem Header="{Binding Loc[Disconnect]}" Command="{Binding DisconnectCommand}"
                           IsVisible="{Binding SelectedNode.CanDisconnect, FallbackValue=False}" />
+                <MenuItem Header="{Binding Loc[TestConnection]}" Command="{Binding TestConnectionCommand}"
+                          IsVisible="{Binding SelectedNode.IsConnectionNode, FallbackValue=False}" />
                 <MenuItem Header="{Binding Loc[EditConnection]}" Command="{Binding EditConnectionCommand}"
                           IsVisible="{Binding SelectedNode.IsConnectionNode, FallbackValue=False}" />
                 <MenuItem Header="{Binding Loc[DuplicateConnection]}" Command="{Binding DuplicateConnectionCommand}"
@@ -78,6 +80,10 @@
                     </ControlTheme>
                   </MenuItem.ItemContainerTheme>
                 </MenuItem>
+                <MenuItem Header="{Binding Loc[Refresh]}" Command="{Binding RefreshNodeCommand}"
+                          IsVisible="{Binding SelectedNode.CanRefresh, FallbackValue=False}" />
+                <MenuItem Header="{Binding Loc[CollapseAll]}" Command="{Binding CollapseAllNodeCommand}"
+                          IsVisible="{Binding SelectedNode.CanCollapseAll, FallbackValue=False}" />
                 <MenuItem Header="{Binding Loc[NewDatabase]}" Command="{Binding NewDatabaseCommand}"
                           IsVisible="{Binding SelectedNode.CanCreateDatabase, FallbackValue=False}" />
                 <MenuItem Header="{Binding Loc[NewSchema]}" Command="{Binding NewSchemaCommand}"
@@ -89,6 +95,8 @@
                 <MenuItem Header="{Binding Loc[ImportCsv]}" Command="{Binding ImportCsvCommand}"
                           IsVisible="{Binding SelectedNode.CanImportCsv, FallbackValue=False}" />
                 <MenuItem Header="{Binding Loc[BrowseTable]}" Command="{Binding BrowseTableCommand}"
+                          IsVisible="{Binding SelectedNode.IsTableOrView, FallbackValue=False}" />
+                <MenuItem Header="{Binding Loc[SelectTop100]}" Command="{Binding GenerateSqlCommand}" CommandParameter="SelectTop"
                           IsVisible="{Binding SelectedNode.IsTableOrView, FallbackValue=False}" />
                 <MenuItem Header="{Binding Loc[Export]}" Command="{Binding ExportTableCommand}"
                           IsVisible="{Binding SelectedNode.IsTableOrView, FallbackValue=False}" />
@@ -103,10 +111,14 @@
                 </MenuItem>
                 <MenuItem Header="{Binding Loc[CopyName]}" Command="{Binding CopyNameCommand}"
                           IsVisible="{Binding SelectedNode.IsCopyable, FallbackValue=False}" />
+                <MenuItem Header="{Binding Loc[CopyQualifiedName]}" Command="{Binding CopyQualifiedNameCommand}"
+                          IsVisible="{Binding SelectedNode.IsTableOrView, FallbackValue=False}" />
                 <MenuItem Header="{Binding Loc[RenameColumn]}" Command="{Binding RenameColumnCommand}"
                           IsVisible="{Binding SelectedNode.CanRenameColumn, FallbackValue=False}" />
                 <MenuItem Header="{Binding Loc[DropColumn]}" Command="{Binding DropColumnCommand}"
                           IsVisible="{Binding SelectedNode.CanDropColumn, FallbackValue=False}" />
+                <MenuItem Header="{Binding Loc[TruncateTable]}" Command="{Binding TruncateTableCommand}"
+                          IsVisible="{Binding SelectedNode.CanTruncate, FallbackValue=False}" />
                 <MenuItem Header="{Binding Loc[DropTable]}" Command="{Binding DropTableCommand}"
                           IsVisible="{Binding SelectedNode.CanDropTable, FallbackValue=False}" />
                 <MenuItem Header="{Binding Loc[DropSchema]}" Command="{Binding DropSchemaCommand}"

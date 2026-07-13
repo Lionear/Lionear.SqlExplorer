@@ -115,7 +115,7 @@
     <value>Query</value>
   </data>
   <data name="BrowseTable" xml:space="preserve">
-    <value>Browse rows</value>
+    <value>Browse table</value>
   </data>
   <data name="PrevPage" xml:space="preserve">
     <value>‹ Prev</value>
@@ -488,5 +488,47 @@
   </data>
   <data name="ToolDestructiveConfirm" xml:space="preserve">
     <value>This action modifies the database and cannot be undone. Continue?</value>
+  </data>
+  <data name="ToolSucceeded" xml:space="preserve">
+    <value>Completed successfully.</value>
+  </data>
+  <data name="ToolFinish" xml:space="preserve">
+    <value>Finish</value>
+  </data>
+  <data name="Refresh" xml:space="preserve">
+    <value>Refresh</value>
+  </data>
+  <data name="SelectTop100" xml:space="preserve">
+    <value>Select top 100</value>
+  </data>
+  <data name="Copy" xml:space="preserve">
+    <value>Copy</value>
+  </data>
+  <data name="CopyWithHeaders" xml:space="preserve">
+    <value>Copy with headers</value>
+  </data>
+  <data name="CopyQualifiedName" xml:space="preserve">
+    <value>Copy qualified name</value>
+  </data>
+  <data name="TruncateTable" xml:space="preserve">
+    <value>Truncate table…</value>
+  </data>
+  <data name="CollapseAll" xml:space="preserve">
+    <value>Collapse all</value>
+  </data>
+  <data name="TestConnection" xml:space="preserve">
+    <value>Test connection</value>
+  </data>
+  <data name="TestConnectionOk" xml:space="preserve">
+    <value>Connection succeeded.</value>
+  </data>
+  <data name="TestConnectionFailed" xml:space="preserve">
+    <value>Connection failed.</value>
+  </data>
+  <data name="SetNull" xml:space="preserve">
+    <value>Set NULL</value>
+  </data>
+  <data name="ConfirmDeleteConnection" xml:space="preserve">
+    <value>Delete the connection "{0}"? This cannot be undone.</value>
   </data>
 </root>

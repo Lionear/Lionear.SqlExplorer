@@ -103,6 +103,10 @@ public partial class TreeNodeViewModel : ViewModelBase
     /// <summary>Null for the connection root; otherwise the kind of database object.</summary>
     public DbNodeKind? NodeKind { get; }
 
+    /// <summary>The node this one hangs under (null for a connection root/folder). Lets a targeted refresh
+    /// reload just the affected container after a drop/alter instead of collapsing the whole connection.</summary>
+    public TreeNodeViewModel? Parent { get; private set; }
+
     /// <summary>The object's own name (unqualified, without the display detail).</summary>
     public string Name { get; private set; }
 
@@ -148,8 +152,11 @@ public partial class TreeNodeViewModel : ViewModelBase
     /// <summary>DDL Create menu visibility (1-to-1 with the provider's declared <c>CreateCapabilities</c>):
     /// "New Database…" on a connection root, "New Schema…"/"New Table…" on the node kind the provider
     /// says each belongs under. False (never shown) for providers/positions with no such capability.</summary>
-    public bool CanCreateDatabase => _provider is not null && IsConnectionNode
-        && _provider.CreateCapabilities.Any(c => c.Kind == DbObjectKind.Database && c.ParentNode is null);
+    // "New Database…" appears where the provider says: on the connection root (ParentNode null, e.g.
+    // Postgres) or on a dedicated container like the SQL Server "Databases" folder (ParentNode == kind).
+    public bool CanCreateDatabase => _provider is not null
+        && _provider.CreateCapabilities.Any(c => c.Kind == DbObjectKind.Database
+            && (c.ParentNode is null ? IsConnectionNode : c.ParentNode == NodeKind));
 
     public bool CanCreateSchema => _provider is not null && NodeKind is { } kind
         && _provider.CreateCapabilities.Any(c => c.Kind == DbObjectKind.Schema && c.ParentNode == kind);
@@ -181,6 +188,19 @@ public partial class TreeNodeViewModel : ViewModelBase
 
     /// <summary>"Import CSV…" — any table the provider can also ALTER (i.e. a real writable table).</summary>
     public bool CanImportCsv => CanAddColumn;
+
+    /// <summary>"Truncate…" — a real writable table (not a view).</summary>
+    public bool CanTruncate => CanAddColumn;
+
+    /// <summary>"Collapse all" is offered on any expandable container, including the connection root.</summary>
+    public bool CanCollapseAll => HasChildren && (IsConnectionNode || CanRefresh);
+
+    /// <summary>"Refresh" is offered on container nodes (database, schema, and the folder groupings such as
+    /// Tables/Views) so their child list can be reloaded without collapsing the rest of the tree.</summary>
+    public bool CanRefresh => _load is not null && HasChildren && NodeKind is
+        DbNodeKind.Database or DbNodeKind.Schema or DbNodeKind.SchemaFolder or DbNodeKind.DatabaseFolder
+        or DbNodeKind.TableFolder or DbNodeKind.ViewFolder or DbNodeKind.SequenceFolder or DbNodeKind.ColumnFolder
+        or DbNodeKind.IndexFolder or DbNodeKind.ForeignKeyFolder or DbNodeKind.Group;
 
     /// <summary>Owning schema, if this node sits under one (null for schema-less engines like SQLite).</summary>
     public string? SchemaName => _pathToChildren.FirstOrDefault(r => r.Kind == DbNodeKind.Schema)?.Name;
@@ -218,6 +238,18 @@ public partial class TreeNodeViewModel : ViewModelBase
         OnPropertyChanged(nameof(Title));
         OnPropertyChanged(nameof(ConnectionColorBrush));
         OnPropertyChanged(nameof(HasConnectionColor));
+    }
+
+    /// <summary>Collapse this node and every already-loaded descendant. Doesn't force any lazy loads
+    /// (so it never hammers a big server), it just tidies up what's currently expanded.</summary>
+    public void CollapseAll()
+    {
+        foreach (var child in Children)
+        {
+            child.CollapseAll();
+        }
+
+        IsExpanded = false;
     }
 
     /// <summary>Reload this node's children from scratch (e.g. the Connect/Refresh action).</summary>
@@ -273,7 +305,7 @@ public partial class TreeNodeViewModel : ViewModelBase
                 var childPath = new List<DbNodeRef>(_pathToChildren) { new(child.Kind, child.Name) };
                 Children.Add(new TreeNodeViewModel(
                     Connection, _provider!, child.Kind, child.Name, title, child.HasChildren,
-                    NodeIcons.For(child.Kind), iconImage: null, childPath, _load));
+                    NodeIcons.For(child.Kind), iconImage: null, childPath, _load) { Parent = this });
             }
 
             // No children came back -> drop the expander so the node reads as a leaf.

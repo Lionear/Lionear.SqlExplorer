@@ -30,6 +30,7 @@ public partial class DocumentView : UserControl
     private DataGrid? _resultsGrid;
     private bool _syncingSql;
     private int _currentColumnIndex;
+    private EditableRow? _currentRow;
     private CompletionWindow? _completionWindow;
 
     public DocumentView()
@@ -40,6 +41,8 @@ public partial class DocumentView : UserControl
         if (_sqlEditor is not null)
         {
             _sqlEditor.SyntaxHighlighting = HighlightingManager.Instance.GetDefinition("TSQL");
+            ApplyEditorSyntaxTheme();
+            ActualThemeVariantChanged += (_, _) => ApplyEditorSyntaxTheme();
             _sqlEditor.TextChanged += OnEditorTextChanged;
             _sqlEditor.TextArea.TextEntered += OnSqlTextEntered;
             _sqlEditor.KeyDown += OnSqlEditorKeyDown;
@@ -87,6 +90,7 @@ public partial class DocumentView : UserControl
         {
             _viewModel.ShowCell(columnIndex, row.Cells[columnIndex].Value);
             _currentColumnIndex = columnIndex;
+            _currentRow = row;
             RecomputeAggregation();
         }
     }
@@ -205,6 +209,47 @@ public partial class DocumentView : UserControl
         await writer.WriteAsync(text);
     }
 
+    // Set the last-clicked column of each selected row to SQL NULL (a pending edit until Save).
+    private void OnSetNullClick(object? sender, RoutedEventArgs e)
+    {
+        if (_viewModel is not { IsResultEditable: true } || _resultsGrid is null)
+        {
+            return;
+        }
+
+        // Prefer the multi-row selection; fall back to the right-clicked cell's row when nothing's selected.
+        var rows = _resultsGrid.SelectedItems.OfType<EditableRow>().ToList();
+        if (rows.Count == 0 && _currentRow is not null)
+        {
+            rows.Add(_currentRow);
+        }
+
+        foreach (var row in rows)
+        {
+            row[_currentColumnIndex] = null;
+        }
+    }
+
+    private void OnCopyClick(object? sender, RoutedEventArgs e) => _ = CopyTsvAsync(includeHeaders: false);
+
+    private void OnCopyWithHeadersClick(object? sender, RoutedEventArgs e) => _ = CopyTsvAsync(includeHeaders: true);
+
+    // Plain tab-separated copy of the selected rows (or the whole result), the everyday clipboard action.
+    private async Task CopyTsvAsync(bool includeHeaders)
+    {
+        if (TopLevel.GetTopLevel(this) is not { Clipboard: { } clipboard } || _viewModel is null || _resultsGrid is null)
+        {
+            return;
+        }
+
+        var selected = _resultsGrid.SelectedItems.OfType<EditableRow>().ToList();
+        var text = _viewModel.BuildClipboardTsv(includeHeaders, selected.Count > 0 ? selected : null);
+        if (text.Length > 0)
+        {
+            await clipboard.SetTextAsync(text);
+        }
+    }
+
     private void OnCopyAsCsvClick(object? sender, RoutedEventArgs e) => _ = CopyResultAsync(ExportFormat.Csv);
 
     private void OnCopyAsMarkdownClick(object? sender, RoutedEventArgs e) => _ = CopyResultAsync(ExportFormat.Markdown);
@@ -300,13 +345,91 @@ public partial class DocumentView : UserControl
         }
     }
 
-    // Ctrl+Space explicitly requests completion anywhere in the query.
+    private void ApplyEditorSyntaxTheme()
+    {
+        if (_sqlEditor?.SyntaxHighlighting is { } definition)
+        {
+            SqlSyntaxTheme.Apply(definition, ActualThemeVariant == Avalonia.Styling.ThemeVariant.Dark);
+        }
+    }
+
+    // Ctrl+Space explicitly requests completion anywhere in the query; Ctrl+/ toggles line comments.
     private void OnSqlEditorKeyDown(object? sender, KeyEventArgs e)
     {
         if (e.Key == Key.Space && e.KeyModifiers == KeyModifiers.Control)
         {
             OpenCompletion();
             e.Handled = true;
+        }
+        else if (e.Key == Key.OemQuestion && e.KeyModifiers == KeyModifiers.Control)
+        {
+            ToggleLineComment();
+            e.Handled = true;
+        }
+    }
+
+    // Comment or uncomment the selected lines (or the caret line) with "-- ", DataGrip/VS Code style.
+    // If every non-blank line in range is already commented, it uncomments; otherwise it comments all.
+    private void ToggleLineComment()
+    {
+        if (_sqlEditor is null)
+        {
+            return;
+        }
+
+        var doc = _sqlEditor.Document;
+        var selection = _sqlEditor.TextArea.Selection;
+        int firstLine, lastLine;
+        if (!selection.IsEmpty && selection.SurroundingSegment is { } segment)
+        {
+            firstLine = doc.GetLineByOffset(segment.Offset).LineNumber;
+            lastLine = doc.GetLineByOffset(segment.EndOffset).LineNumber;
+        }
+        else
+        {
+            firstLine = lastLine = _sqlEditor.TextArea.Caret.Line;
+        }
+
+        var allCommented = true;
+        for (var n = firstLine; n <= lastLine; n++)
+        {
+            var line = doc.GetLineByNumber(n);
+            var content = doc.GetText(line.Offset, line.Length).TrimStart();
+            if (content.Length > 0 && !content.StartsWith("--", StringComparison.Ordinal))
+            {
+                allCommented = false;
+                break;
+            }
+        }
+
+        doc.BeginUpdate();
+        try
+        {
+            for (var n = firstLine; n <= lastLine; n++)
+            {
+                var line = doc.GetLineByNumber(n);
+                var lineText = doc.GetText(line.Offset, line.Length);
+                if (lineText.Trim().Length == 0)
+                {
+                    continue; // leave blank lines untouched
+                }
+
+                if (allCommented)
+                {
+                    var dashes = lineText.IndexOf("--", StringComparison.Ordinal);
+                    var remove = dashes + 2 < lineText.Length && lineText[dashes + 2] == ' ' ? 3 : 2;
+                    doc.Remove(line.Offset + dashes, remove);
+                }
+                else
+                {
+                    var indent = lineText.Length - lineText.TrimStart().Length;
+                    doc.Insert(line.Offset + indent, "-- ");
+                }
+            }
+        }
+        finally
+        {
+            doc.EndUpdate();
         }
     }
 
@@ -401,7 +524,9 @@ public partial class DocumentView : UserControl
                 VerticalAlignment = VerticalAlignment.Center,
                 Margin = new Thickness(12, 0, 12, 0)
             };
-            text.Bind(TextBlock.TextProperty, new Binding($"Cells[{index}].Value"));
+            // NULL shows as a faded "NULL" marker so it can't be confused with an empty string.
+            text.Bind(TextBlock.TextProperty, new Binding($"Cells[{index}].Value") { Converter = NullCellTextConverter.Instance });
+            text.Bind(Visual.OpacityProperty, new Binding($"Cells[{index}].Value") { Converter = NullCellOpacityConverter.Instance });
 
             var border = new Border { Child = text };
             border.Bind(Border.BackgroundProperty, new Binding($"Cells[{index}].IsModified")

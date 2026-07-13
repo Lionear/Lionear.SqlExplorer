@@ -1,11 +1,14 @@
 using System.ComponentModel;
 using System.IO;
 using System.Linq;
+using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Input.Platform;
+using Avalonia.Interactivity;
 using Avalonia.Platform.Storage;
 using Avalonia.Threading;
+using Avalonia.VisualTree;
 using Lionear.SqlExplorer.App.ViewModels;
 using Lionear.SqlExplorer.Core.Connections;
 using Lionear.SqlExplorer.Core.History;
@@ -24,6 +27,9 @@ public partial class MainView : UserControl
         if (schemaTree is not null)
         {
             schemaTree.DoubleTapped += OnTreeDoubleTapped;
+            // Right-click selects the node under the cursor first, so the context menu acts on it
+            // (Avalonia's TreeView doesn't select on right-press by default).
+            schemaTree.AddHandler(InputElement.PointerPressedEvent, OnTreePointerPressed, RoutingStrategies.Tunnel);
         }
 
         var historyList = this.FindControl<ListBox>("HistoryList");
@@ -59,21 +65,55 @@ public partial class MainView : UserControl
         }
     }
 
-    // Double-click: a connection root (re)connects; a table/view opens a browse tab.
+    // Handled in the tunnel (before the TreeViewItem), so we can act before its own selection/expand logic.
+    private void OnTreePointerPressed(object? sender, PointerPressedEventArgs e)
+    {
+        if (_viewModel is null
+            || e.Source is not Visual source
+            || source.FindAncestorOfType<TreeViewItem>() is not { } item
+            || item.DataContext is not TreeNodeViewModel node)
+        {
+            return;
+        }
+
+        var props = e.GetCurrentPoint(sender as Visual).Properties;
+
+        // Right-click selects the node under the cursor so the context menu targets it.
+        if (props.IsRightButtonPressed)
+        {
+            item.IsSelected = true;
+            return;
+        }
+
+        // Double left-click on a table/view browses it — and we swallow the press so the TreeViewItem
+        // doesn't also toggle its column list open (the default double-click-to-expand).
+        if (props.IsLeftButtonPressed && e.ClickCount == 2 && node.IsTableOrView)
+        {
+            _viewModel.SelectedNode = node;
+            if (_viewModel.BrowseTableCommand.CanExecute(null))
+            {
+                _viewModel.BrowseTableCommand.Execute(null);
+            }
+
+            e.Handled = true;
+        }
+    }
+
+    // Double-click a connection root: (re)connect. (Table/view browse is handled on pointer-press above,
+    // so the default expand can be suppressed there.)
     private void OnTreeDoubleTapped(object? sender, TappedEventArgs e)
     {
-        if (_viewModel?.SelectedNode is not { } node)
+        if (_viewModel is null
+            || e.Source is not Visual source
+            || source.FindAncestorOfType<TreeViewItem>()?.DataContext is not TreeNodeViewModel node)
         {
             return;
         }
 
         if (node.IsConnectionNode && _viewModel.ConnectCommand.CanExecute(null))
         {
+            _viewModel.SelectedNode = node;
             _viewModel.ConnectCommand.Execute(null);
-        }
-        else if (node.IsTableOrView && _viewModel.BrowseTableCommand.CanExecute(null))
-        {
-            _viewModel.BrowseTableCommand.Execute(null);
         }
     }
 

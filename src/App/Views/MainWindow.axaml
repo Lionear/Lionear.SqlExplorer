@@ -11,6 +11,11 @@
     <KeyBinding Gesture="Ctrl+K" Command="{Binding ToggleSearchCommand}" />
     <KeyBinding Gesture="F5" Command="{Binding RunActiveDocumentCommand}" />
     <KeyBinding Gesture="Ctrl+Enter" Command="{Binding RunActiveDocumentAtCursorCommand}" />
+    <KeyBinding Gesture="Ctrl+T" Command="{Binding NewQueryTabCommand}" />
+    <KeyBinding Gesture="Ctrl+W" Command="{Binding CloseActiveTabCommand}" />
+    <KeyBinding Gesture="Ctrl+S" Command="{Binding SaveActiveDocumentCommand}" />
+    <KeyBinding Gesture="Ctrl+Shift+F" Command="{Binding FormatActiveDocumentCommand}" />
+    <KeyBinding Gesture="Ctrl+Shift+T" Command="{Binding ReopenClosedTabCommand}" />
   </Window.KeyBindings>
 
   <!-- macOS gets its menu bar from NativeMenu.Menu below (native, always active regardless of OS —

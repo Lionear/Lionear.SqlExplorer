@@ -12,6 +12,7 @@ public enum AlterKind
     DropDatabase,
     DropSchema,
     DropTable,
+    TruncateTable,
     AddColumn,
     DropColumn,
     RenameColumn
@@ -72,6 +73,7 @@ public partial class AlterObjectDialogViewModel : ViewModelBase
         AlterKind.DropDatabase => Loc["DropDatabase"],
         AlterKind.DropSchema => Loc["DropSchema"],
         AlterKind.DropTable => Loc["DropTable"],
+        AlterKind.TruncateTable => Loc["TruncateTable"],
         AlterKind.AddColumn => Loc["AddColumnTitle"],
         AlterKind.DropColumn => Loc["DropColumn"],
         _ => Loc["RenameColumn"]
@@ -136,6 +138,7 @@ public partial class AlterObjectDialogViewModel : ViewModelBase
                 AlterKind.DropDatabase => AlterStatementBuilder.DropDatabase(_dialect, _target),
                 AlterKind.DropSchema => AlterStatementBuilder.DropSchema(_dialect, _target),
                 AlterKind.DropTable => AlterStatementBuilder.DropTable(_dialect, _schema, _target, _isView),
+                AlterKind.TruncateTable => AlterStatementBuilder.Truncate(_providerId, _dialect, _schema, _target),
                 AlterKind.AddColumn => AlterStatementBuilder.AddColumn(_dialect, _schema, _target, NewColumnName, NewColumnType, NewColumnNullable),
                 AlterKind.DropColumn => AlterStatementBuilder.DropColumn(_dialect, _schema, _target, _existingColumn),
                 AlterKind.RenameColumn => AlterStatementBuilder.RenameColumn(_providerId, _dialect, _schema, _target, _existingColumn, NewColumnName),

@@ -143,8 +143,8 @@
                                VerticalAlignment="Center" />
                     <Border Background="{DynamicResource CatToolbarBgBrush}" CornerRadius="9" Padding="7,2"
                             VerticalAlignment="Center">
-                      <TextBlock Text="{Binding RouteLabel}" FontSize="10"
-                                 Foreground="{DynamicResource CatTextSecondaryBrush}" />
+                      <!-- <TextBlock Text="{Binding RouteLabel}" FontSize="10" -->
+                      <!--            Foreground="{DynamicResource CatTextSecondaryBrush}" /> -->
                     </Border>
                   </StackPanel>
 

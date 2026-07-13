@@ -156,6 +156,11 @@
           <!-- Copies the current selection, or the whole result set if nothing is selected — same
                source/fallback as the "Export…" button, just to the clipboard instead of a file. -->
           <ContextMenu>
+            <MenuItem Header="{Binding Loc[SetNull]}" Click="OnSetNullClick"
+                      IsVisible="{Binding IsResultEditable}" />
+            <MenuItem Header="{Binding Loc[Copy]}" Click="OnCopyClick" />
+            <MenuItem Header="{Binding Loc[CopyWithHeaders]}" Click="OnCopyWithHeadersClick" />
+            <Separator />
             <MenuItem Header="{Binding Loc[CopyAsCsv]}" Click="OnCopyAsCsvClick" />
             <MenuItem Header="{Binding Loc[CopyAsMarkdown]}" Click="OnCopyAsMarkdownClick" />
             <MenuItem Header="{Binding Loc[CopyAsInsert]}" Click="OnCopyAsInsertClick" />
