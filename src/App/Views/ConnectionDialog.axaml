@@ -59,7 +59,12 @@
     <!-- Advanced/driver-specific settings tuck away until asked for; only shown if the provider has any. -->
     <Expander Header="{Binding Loc[AdvancedSettings]}" IsVisible="{Binding HasAdvancedFields}"
               IsExpanded="{Binding IsAdvancedExpanded}" Margin="0,4,0,0">
-      <ItemsControl ItemsSource="{Binding AdvancedFields}" ItemTemplate="{StaticResource FieldTemplate}" />
+      <StackPanel>
+        <!-- Route B: a provider's own view, when it supplies one; otherwise the host-generated form. -->
+        <ContentControl Content="{Binding CustomAdvancedView}" IsVisible="{Binding HasCustomAdvancedView}" />
+        <ItemsControl ItemsSource="{Binding AdvancedFields}" ItemTemplate="{StaticResource FieldTemplate}"
+                      IsVisible="{Binding !HasCustomAdvancedView}" />
+      </StackPanel>
     </Expander>
 
     <!-- Colour flag (prod = red) + safe read-only mode. -->

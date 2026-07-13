@@ -13,6 +13,9 @@
 
   <ItemGroup>
     <ProjectReference Include="..\Provider.Sdk\Lionear.SqlExplorer.Provider.Sdk.csproj" />
+    <!-- Route B (Notes §4.4): host renders a provider's own advanced-connection view when it implements
+         ICustomConnectionUi. Shared with plugins across the ALC boundary (see ProviderLoadContext). -->
+    <ProjectReference Include="..\Provider.Sdk.Ui\Lionear.SqlExplorer.Provider.Sdk.Ui.csproj" />
     <ProjectReference Include="..\Core\Lionear.SqlExplorer.Core.csproj" />
     <ProjectReference Include="..\Infrastructure\Lionear.SqlExplorer.Infrastructure.csproj" />
     <!-- Providers are loaded at runtime as plugins, not linked. ReferenceOutputAssembly=false

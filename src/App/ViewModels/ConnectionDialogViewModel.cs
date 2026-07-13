@@ -1,9 +1,11 @@
 using System.Collections.ObjectModel;
 using System.ComponentModel;
+using Avalonia.Controls;
 using Lionear.SqlExplorer.Core.Connections;
 using Lionear.SqlExplorer.Core.Localization;
 using Lionear.SqlExplorer.Core.Providers;
 using Lionear.SqlExplorer.Sdk;
+using Lionear.SqlExplorer.Sdk.Ui;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 
@@ -106,6 +108,15 @@ public partial class ConnectionDialogViewModel : ViewModelBase
     [ObservableProperty]
     private bool _isAdvancedExpanded;
 
+    /// <summary>A provider-supplied Avalonia view for the Advanced section (Route B), or null to use the
+    /// host-generated field form. Set when the selected provider implements <see cref="ICustomConnectionUi"/>.</summary>
+    [ObservableProperty]
+    private Control? _customAdvancedView;
+
+    /// <summary>Whether a provider custom view drives the Advanced section (hides the generated form).</summary>
+    [ObservableProperty]
+    private bool _hasCustomAdvancedView;
+
     public string DialogTitle => IsEditing ? Loc["EditConnection"] : Loc["NewConnection"];
 
     /// <summary>Save is allowed once there is a name, a provider, and every required field is filled.</summary>
@@ -153,13 +164,16 @@ public partial class ConnectionDialogViewModel : ViewModelBase
         Fields.Clear();
         BasicFields.Clear();
         AdvancedFields.Clear();
+        CustomAdvancedView = null;
+        HasCustomAdvancedView = false;
         if (SelectedProvider is null)
         {
             HasAdvancedFields = false;
             return;
         }
 
-        foreach (var field in _providers.Get(SelectedProvider.Id).ConnectionFields)
+        var provider = _providers.Get(SelectedProvider.Id);
+        foreach (var field in provider.ConnectionFields)
         {
             var input = new ConnectionFieldInput(field);
             input.PropertyChanged += OnFieldChanged;
@@ -167,7 +181,15 @@ public partial class ConnectionDialogViewModel : ViewModelBase
             (field.Advanced ? AdvancedFields : BasicFields).Add(input);
         }
 
-        HasAdvancedFields = AdvancedFields.Count > 0;
+        // Route B: a provider may render the Advanced section itself. Its view reads/writes the same
+        // declared field values through the context, so save/import/BuildConnectionString are unaffected.
+        if (provider is ICustomConnectionUi customUi)
+        {
+            CustomAdvancedView = customUi.CreateAdvancedView(new FieldValuesContext(this));
+            HasCustomAdvancedView = CustomAdvancedView is not null;
+        }
+
+        HasAdvancedFields = AdvancedFields.Count > 0 || HasCustomAdvancedView;
         // Empty string parses to a (possibly empty) map for supporters, null for providers that don't
         // implement it — a cheap capability probe with no side effects.
         SupportsImport = TryParse(SelectedProvider.Id, string.Empty) is not null;
@@ -262,6 +284,22 @@ public partial class ConnectionDialogViewModel : ViewModelBase
 
     /// <summary>Persist and return the saved connection (secrets go to the keychain).</summary>
     public SavedConnection Save() => _connections.Save(_id, Name, SelectedProvider!.Id, Values(), Color, ReadOnly);
+
+    /// <summary>Bridges a provider's custom advanced view (Route B) to the dialog's field inputs by key,
+    /// so its edits land in the same values the host saves and passes to BuildConnectionString.</summary>
+    private sealed class FieldValuesContext(ConnectionDialogViewModel owner) : IConnectionUiContext
+    {
+        public string? GetValue(string key) =>
+            owner.Fields.FirstOrDefault(f => f.Field.Key == key)?.Value;
+
+        public void SetValue(string key, string? value)
+        {
+            if (owner.Fields.FirstOrDefault(f => f.Field.Key == key) is { } field)
+            {
+                field.Value = value;
+            }
+        }
+    }
 }
 
 /// <summary>A selectable provider in the connection dialog: the manifest id plus its friendly label.</summary>
