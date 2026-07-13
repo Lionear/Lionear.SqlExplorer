@@ -153,6 +153,12 @@
   <data name="Stop" xml:space="preserve">
     <value>Stoppen</value>
   </data>
+  <data name="Folder" xml:space="preserve">
+    <value>Map</value>
+  </data>
+  <data name="FolderHint" xml:space="preserve">
+    <value>Optioneel — connecties groeperen (bijv. Productie)</value>
+  </data>
   <data name="QueryCancelled" xml:space="preserve">
     <value>Query geannuleerd.</value>
   </data>

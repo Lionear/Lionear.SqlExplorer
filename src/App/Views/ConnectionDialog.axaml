@@ -37,6 +37,9 @@
     <TextBlock Text="{Binding Loc[ConnectionName]}" />
     <TextBox Text="{Binding Name}" />
 
+    <TextBlock Text="{Binding Loc[Folder]}" />
+    <TextBox Text="{Binding Folder}" PlaceholderText="{Binding Loc[FolderHint]}" />
+
     <TextBlock Text="{Binding Loc[Provider]}" />
     <ComboBox ItemsSource="{Binding AvailableProviders}"
               SelectedItem="{Binding SelectedProvider}"

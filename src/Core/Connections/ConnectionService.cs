@@ -26,7 +26,7 @@ public sealed class ConnectionService
     /// <summary>Persist a connection: secrets to the keychain, the rest to the config file.</summary>
     public SavedConnection Save(
         string id, string name, string providerId, IReadOnlyDictionary<string, string?> values,
-        string? color = null, bool readOnly = false)
+        string? color = null, bool readOnly = false, string? folder = null)
     {
         var fields = _providers.Get(providerId).ConnectionFields;
         var secretKeys = fields.Where(f => f.IsSecret).Select(f => f.Key).ToHashSet();
@@ -51,7 +51,8 @@ public sealed class ConnectionService
 
         var connection = new SavedConnection
         {
-            Id = id, Name = name, ProviderId = providerId, Color = color, ReadOnly = readOnly, Values = nonSecret
+            Id = id, Name = name, ProviderId = providerId, Color = color, ReadOnly = readOnly,
+            Folder = string.IsNullOrWhiteSpace(folder) ? null : folder.Trim(), Values = nonSecret
         };
         _store.Save(connection);
         return connection;
@@ -68,7 +69,7 @@ public sealed class ConnectionService
 
         // WithSecrets pulls the password back from the keychain so the copy is fully usable.
         var values = WithSecrets(original);
-        return Save(Guid.NewGuid().ToString("N"), newName, original.ProviderId, values, original.Color, original.ReadOnly);
+        return Save(Guid.NewGuid().ToString("N"), newName, original.ProviderId, values, original.Color, original.ReadOnly, original.Folder);
     }
 
     public void Delete(string id)

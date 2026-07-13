@@ -51,6 +51,10 @@ public partial class ConnectionDialogViewModel : ViewModelBase
     [ObservableProperty]
     private bool _readOnly;
 
+    /// <summary>Optional sidebar folder to group this connection under (blank = ungrouped).</summary>
+    [ObservableProperty]
+    private string? _folder;
+
     // A small fixed palette + "none"; enough to flag prod/staging without a full colour picker.
     private static readonly string?[] Palette =
         [null, "#E5484D", "#F76B15", "#FFB224", "#30A46C", "#3574F0", "#8E4EC6"];
@@ -133,6 +137,7 @@ public partial class ConnectionDialogViewModel : ViewModelBase
         Name = connection.Name;
         Color = connection.Color;
         ReadOnly = connection.ReadOnly;
+        Folder = connection.Folder;
         SelectedProvider = AvailableProviders.FirstOrDefault(o => o.Id == connection.ProviderId) ?? SelectedProvider;
 
         // Ensure fields match the provider even if SelectedProvider didn't change, then overlay stored values
@@ -295,7 +300,7 @@ public partial class ConnectionDialogViewModel : ViewModelBase
     }
 
     /// <summary>Persist and return the saved connection (secrets go to the keychain).</summary>
-    public SavedConnection Save() => _connections.Save(_id, Name, SelectedProvider!.Id, Values(), Color, ReadOnly);
+    public SavedConnection Save() => _connections.Save(_id, Name, SelectedProvider!.Id, Values(), Color, ReadOnly, Folder);
 
     /// <summary>Bridges a provider's custom advanced view (Route B) to the dialog's field inputs by key,
     /// so its edits land in the same values the host saves and passes to BuildConnectionString.</summary>

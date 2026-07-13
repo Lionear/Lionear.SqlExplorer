@@ -21,5 +21,9 @@ public sealed record SavedConnection
     /// (e.g. on a production connection). Absent = false.</summary>
     public bool ReadOnly { get; init; }
 
+    /// <summary>Optional sidebar folder to group this connection under (e.g. "Production", per client).
+    /// Null/blank = ungrouped (shown at the tree root). Purely organisational.</summary>
+    public string? Folder { get; init; }
+
     public required IReadOnlyDictionary<string, string?> Values { get; init; }
 }

@@ -72,6 +72,25 @@ public partial class TreeNodeViewModel : ViewModelBase
         _pathToChildren = [];
     }
 
+    // Folder grouping node (FR-6): holds connection roots, has no connection/provider/lazy load of its own.
+    private TreeNodeViewModel(string folderName, Geometry icon)
+    {
+        Connection = null!;
+        Name = folderName;
+        Title = folderName;
+        IsFolder = true;
+        IconGeometry = icon;
+        HasChildren = true;
+        _pathToChildren = [];
+        IsExpanded = true;
+    }
+
+    /// <summary>A sidebar folder that groups connection roots (FR-6). Add connection nodes to <see cref="Children"/>.</summary>
+    public static TreeNodeViewModel ForFolder(string name) => new(name, NodeIcons.Folder);
+
+    /// <summary>True for a folder grouping node (not a connection, not a database object).</summary>
+    public bool IsFolder { get; }
+
     /// <summary>The saved connection this node belongs to (inherited down the whole subtree).</summary>
     public SavedConnection Connection { get; private set; }
 
@@ -95,7 +114,7 @@ public partial class TreeNodeViewModel : ViewModelBase
 
     public bool HasChildren { get; private set; }
 
-    public bool IsConnectionNode => NodeKind is null && !IsPlaceholder;
+    public bool IsConnectionNode => NodeKind is null && !IsPlaceholder && !IsFolder;
 
     /// <summary>Accent brush for a colour-flagged connection root (prod = red); null when unset/invalid.</summary>
     public IBrush? ConnectionColorBrush =>

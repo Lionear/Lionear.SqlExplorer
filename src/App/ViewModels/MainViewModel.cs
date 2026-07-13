@@ -389,9 +389,10 @@ public partial class MainViewModel : ViewModelBase
     private void RefreshConnections()
     {
         ConnectionNodes.Clear();
-        foreach (var connection in _connections.List())
+        // Ungrouped first (Folder null sorts before names), then folder groups, each alphabetical.
+        foreach (var connection in _connections.List().OrderBy(c => c.Folder ?? string.Empty).ThenBy(c => c.Name))
         {
-            ConnectionNodes.Add(BuildConnectionNode(connection));
+            PlaceConnectionNode(BuildConnectionNode(connection));
         }
     }
 
@@ -442,47 +443,80 @@ public partial class MainViewModel : ViewModelBase
     // connection parameters may have changed — but the rest of the tree stays exactly as it was.
     private void UpsertConnectionNode(SavedConnection saved)
     {
-        var node = BuildConnectionNode(saved);
-        var index = IndexOfConnection(saved.Id);
-        if (index >= 0)
+        if (FindConnectionNode(saved.Id) is { } current)
         {
-            ConnectionNodes[index] = node;
-        }
-        else
-        {
-            ConnectionNodes.Add(node);
+            DetachConnectionNode(current);
         }
 
+        var node = BuildConnectionNode(saved);
+        PlaceConnectionNode(node);
         SelectedNode = node;
     }
 
     private void RemoveConnectionNode(string id)
     {
-        var index = IndexOfConnection(id);
-        if (index < 0)
+        if (FindConnectionNode(id) is not { } node)
         {
             return;
         }
 
-        if (SelectedNode == ConnectionNodes[index])
+        if (SelectedNode == node)
         {
             SelectedNode = null;
         }
 
-        ConnectionNodes.RemoveAt(index);
+        DetachConnectionNode(node);
     }
 
-    private int IndexOfConnection(string id)
+    // --- Folder grouping (FR-6): ConnectionNodes holds folder nodes + ungrouped connection roots. ---
+
+    /// <summary>Every connection root, whether at the tree root or inside a folder.</summary>
+    private IEnumerable<TreeNodeViewModel> AllConnectionNodes() =>
+        ConnectionNodes.SelectMany(n => n.IsFolder ? n.Children : (IEnumerable<TreeNodeViewModel>)[n]);
+
+    private TreeNodeViewModel? FindConnectionNode(string id) =>
+        AllConnectionNodes().FirstOrDefault(n => n.Connection.Id == id);
+
+    // Put a connection node under its folder (created on demand), or at the root when it has none.
+    private void PlaceConnectionNode(TreeNodeViewModel node)
     {
-        for (var i = 0; i < ConnectionNodes.Count; i++)
+        var folderName = node.Connection.Folder;
+        if (string.IsNullOrWhiteSpace(folderName))
         {
-            if (ConnectionNodes[i].Connection.Id == id)
-            {
-                return i;
-            }
+            ConnectionNodes.Add(node);
+            return;
         }
 
-        return -1;
+        var folder = ConnectionNodes.FirstOrDefault(n => n.IsFolder && n.Name == folderName);
+        if (folder is null)
+        {
+            folder = TreeNodeViewModel.ForFolder(folderName);
+            ConnectionNodes.Add(folder);
+        }
+
+        folder.Children.Add(node);
+    }
+
+    // Remove a connection node from wherever it lives; drop its folder if that leaves it empty.
+    private void DetachConnectionNode(TreeNodeViewModel node)
+    {
+        if (ConnectionNodes.Remove(node))
+        {
+            return;
+        }
+
+        foreach (var folder in ConnectionNodes.Where(n => n.IsFolder).ToList())
+        {
+            if (folder.Children.Remove(node))
+            {
+                if (folder.Children.Count == 0)
+                {
+                    ConnectionNodes.Remove(folder);
+                }
+
+                return;
+            }
+        }
     }
 
     // A provider may ship a brand image and/or a glyph. We render the image when the host can decode
@@ -579,7 +613,7 @@ public partial class MainViewModel : ViewModelBase
             return;
         }
 
-        var existing = ConnectionNodes.FirstOrDefault(n => n.Connection.Id == saved.Id);
+        var existing = FindConnectionNode(saved.Id);
 
         // A provider swap changes the whole node shape (icon, capabilities, tree) — rebuild it.
         // Otherwise keep the node so an open/expanded (possibly connected) subtree stays put.
@@ -590,8 +624,17 @@ public partial class MainViewModel : ViewModelBase
         }
 
         var wasConnected = existing.State == ConnectionState.Connected;
+        var folderChanged = !string.Equals(existing.Connection.Folder, saved.Folder, StringComparison.Ordinal);
         existing.UpdateConnection(saved);
         SelectedConnection = saved;
+
+        // Moved to another folder: relocate the SAME node instance so its open subtree is preserved.
+        if (folderChanged)
+        {
+            DetachConnectionNode(existing);
+            PlaceConnectionNode(existing);
+            SelectedNode = existing;
+        }
 
         // The live connection still uses the old parameters; only a reconnect applies the edits.
         if (wasConnected)
@@ -795,7 +838,7 @@ public partial class MainViewModel : ViewModelBase
             var profile = _connections.Resolve(node.Connection, database);
             await provider.ExecuteDdlAsync(profile, sql, CancellationToken.None);
 
-            var root = ConnectionNodes.FirstOrDefault(n => n.Connection.Id == node.Connection.Id);
+            var root = FindConnectionNode(node.Connection.Id);
             if (root is not null)
             {
                 await root.RefreshAsync();
@@ -901,7 +944,7 @@ public partial class MainViewModel : ViewModelBase
             var affected = await provider.ExecuteBatchAsync(profile, statements, CancellationToken.None);
             ReportInfo(SelectedConnection?.Name, Loc.Get("ImportOk", affected));
 
-            var root = ConnectionNodes.FirstOrDefault(n => n.Connection.Id == connection.Id);
+            var root = FindConnectionNode(connection.Id);
             if (root is not null)
             {
                 await root.RefreshAsync();
@@ -935,7 +978,7 @@ public partial class MainViewModel : ViewModelBase
             return;
         }
 
-        var root = ConnectionNodes.FirstOrDefault(n => n.Connection.Id == SelectedConnection.Id);
+        var root = FindConnectionNode(SelectedConnection.Id);
         if (root is not null)
         {
             await root.RefreshAsync();
@@ -951,7 +994,7 @@ public partial class MainViewModel : ViewModelBase
             return;
         }
 
-        var root = ConnectionNodes.FirstOrDefault(n => n.Connection.Id == SelectedConnection.Id);
+        var root = FindConnectionNode(SelectedConnection.Id);
         root?.Disconnect();
     }
 
