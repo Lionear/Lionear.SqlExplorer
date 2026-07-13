@@ -25,6 +25,7 @@
           <NativeMenu>
             <NativeMenuItem Header="{Binding Loc[NewQueryTab]}" Command="{Binding NewQueryTabCommand}" />
             <NativeMenuItem Header="{Binding Loc[NewConnectionMenu]}" Command="{Binding NewConnectionCommand}" />
+            <NativeMenuItem Header="{Binding Loc[ManageConnections]}" Command="{Binding ManageConnectionsCommand}" />
             <NativeMenuItemSeparator />
             <NativeMenuItem Header="{Binding Loc[Exit]}" Command="{Binding ExitCommand}" />
           </NativeMenu>
@@ -52,6 +53,7 @@
       <MenuItem Header="{Binding Loc[MenuFile]}">
         <MenuItem Header="{Binding Loc[NewQueryTab]}" Command="{Binding NewQueryTabCommand}" />
         <MenuItem Header="{Binding Loc[NewConnectionMenu]}" Command="{Binding NewConnectionCommand}" />
+        <MenuItem Header="{Binding Loc[ManageConnections]}" Command="{Binding ManageConnectionsCommand}" />
         <Separator />
         <MenuItem Header="{Binding Loc[Exit]}" Command="{Binding ExitCommand}" />
       </MenuItem>

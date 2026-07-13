@@ -72,24 +72,30 @@ public partial class TreeNodeViewModel : ViewModelBase
         _pathToChildren = [];
     }
 
-    // Folder grouping node (FR-6): holds connection roots, has no connection/provider/lazy load of its own.
-    private TreeNodeViewModel(string folderName, Geometry icon)
+    // Folder grouping node (FR-6, nested per Connection Manager): holds sub-folders and/or connection
+    // roots, has no connection/provider/lazy load of its own. FolderPath is the full /-joined path.
+    private TreeNodeViewModel(string folderName, string folderPath, Geometry icon)
     {
         Connection = null!;
         Name = folderName;
         Title = folderName;
         IsFolder = true;
+        FolderPath = folderPath;
         IconGeometry = icon;
         HasChildren = true;
         _pathToChildren = [];
         IsExpanded = true;
     }
 
-    /// <summary>A sidebar folder that groups connection roots (FR-6). Add connection nodes to <see cref="Children"/>.</summary>
-    public static TreeNodeViewModel ForFolder(string name) => new(name, NodeIcons.Folder);
+    /// <summary>A sidebar folder that groups connection roots (FR-6). <paramref name="fullPath"/> is the
+    /// full /-joined path to this folder (e.g. "Klanten/Klant A"); nested folders live in <see cref="Children"/>.</summary>
+    public static TreeNodeViewModel ForFolder(string name, string fullPath) => new(name, fullPath, NodeIcons.Folder);
 
     /// <summary>True for a folder grouping node (not a connection, not a database object).</summary>
     public bool IsFolder { get; }
+
+    /// <summary>Full /-joined path of a folder node (e.g. "Klanten/Klant A"); null for non-folders.</summary>
+    public string? FolderPath { get; }
 
     /// <summary>The saved connection this node belongs to (inherited down the whole subtree).</summary>
     public SavedConnection Connection { get; private set; }

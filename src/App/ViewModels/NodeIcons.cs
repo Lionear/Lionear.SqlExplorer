@@ -9,7 +9,7 @@ namespace Lionear.SqlExplorer.App.ViewModels;
 /// (Linux/Avalonia has no colour-emoji fallback, so emoji show as tofu boxes). Coordinates sit
 /// in a 16x16 box.
 /// </summary>
-internal static class NodeIcons
+public static class NodeIcons
 {
     // Two stacked rack units → a server/connection.
     public static readonly Geometry Connection =
@@ -53,6 +53,25 @@ internal static class NodeIcons
     // Diamond → a generic provider-defined object (user, role, login, job, …).
     public static readonly Geometry Object =
         Parse("M8,3 L13,8 L8,13 L3,8 Z");
+
+    // --- Toolbar action glyphs (Connection Manager). Same stroked 16x16 style as the node icons. ---
+
+    // Plus → new connection.
+    public static readonly Geometry Plus =
+        Parse("M8,3.5 V12.5 M3.5,8 H12.5");
+
+    // Folder with a plus → new folder.
+    public static readonly Geometry FolderPlus =
+        Parse("M2.5,5 H6 L7.2,6.4 H13.5 V12.5 H2.5 Z M8,8.4 V11 M6.7,9.7 H9.3");
+
+    // Two overlapping sheets → duplicate.
+    public static readonly Geometry Duplicate =
+        Parse("M5.5,5.5 H12.5 V12.5 H5.5 Z M3.5,10.5 V3.5 H10.5");
+
+    // Bin with a lid → delete.
+    public static readonly Geometry Trash =
+        Parse("M3.5,4.7 H12.5 M6.2,4.7 V3.3 H9.8 V4.7 M4.8,4.7 L5.4,12.8 H10.6 L11.2,4.7 " +
+              "M6.9,6.7 V10.8 M9.1,6.7 V10.8");
 
     public static Geometry For(DbNodeKind kind) => kind switch
     {

@@ -423,4 +423,40 @@
   <data name="CopyAsInsert" xml:space="preserve">
     <value>Kopiëren als INSERT</value>
   </data>
+  <data name="ManageConnections" xml:space="preserve">
+    <value>Connecties beheren…</value>
+  </data>
+  <data name="FilterConnections" xml:space="preserve">
+    <value>Filter connecties…</value>
+  </data>
+  <data name="NewFolder" xml:space="preserve">
+    <value>Nieuwe map</value>
+  </data>
+  <data name="NewFolderName" xml:space="preserve">
+    <value>Nieuwe map</value>
+  </data>
+  <data name="FolderName" xml:space="preserve">
+    <value>Mapnaam</value>
+  </data>
+  <data name="RenameFolder" xml:space="preserve">
+    <value>Hernoemen</value>
+  </data>
+  <data name="DeleteFolder" xml:space="preserve">
+    <value>Map verwijderen</value>
+  </data>
+  <data name="FolderDeleteNote" xml:space="preserve">
+    <value>Een niet-lege map verwijderen verplaatst alle connecties eronder (inclusief submappen) naar "ongegroepeerd" — connecties worden nooit verwijderd. Een map hernoemen herschrijft het pad-prefix van elke connectie eronder.</value>
+  </data>
+  <data name="ManagerEmptyHint" xml:space="preserve">
+    <value>Selecteer een connectie of map, of voeg er een toe.</value>
+  </data>
+  <data name="ManagerSummary" xml:space="preserve">
+    <value>{0} connecties · {1} mappen</value>
+  </data>
+  <data name="DeleteConnectionConfirm" xml:space="preserve">
+    <value>Connectie "{0}" verwijderen?</value>
+  </data>
+  <data name="DeleteFolderConfirm" xml:space="preserve">
+    <value>{0} connectie(s) naar ongegroepeerd verplaatsen en deze map verwijderen?</value>
+  </data>
 </root>

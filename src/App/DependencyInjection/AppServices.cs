@@ -61,8 +61,15 @@ public static class AppServices
         // connect. Powers object-search and schema-aware completion.
         services.AddSingleton<ISchemaCache, SchemaCache>();
 
+        // The connection form VM — now embedded as the Connection Manager's detail panel (the standalone
+        // modal it used to back was retired), so it's resolved per-connection via this factory.
         services.AddTransient<ConnectionDialogViewModel>();
         services.AddSingleton<Func<ConnectionDialogViewModel>>(sp => sp.GetRequiredService<ConnectionDialogViewModel>);
+
+        // Connection Manager window (master-detail): opened from the sidebar/menu, same factory-delegate
+        // pattern as the dialogs. Reuses the connection-form factory above for its detail panel.
+        services.AddTransient<ConnectionManagerViewModel>();
+        services.AddSingleton<Func<ConnectionManagerViewModel>>(sp => sp.GetRequiredService<ConnectionManagerViewModel>);
 
         // DDL Create dialog ("New Database…"/"New Schema…"/"New Table…"): reconfigured per open via
         // Configure(...), same factory-delegate pattern as ConnectionDialogViewModel.

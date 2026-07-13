@@ -72,6 +72,18 @@ public sealed class ConnectionService
         return Save(Guid.NewGuid().ToString("N"), newName, original.ProviderId, values, original.Color, original.ReadOnly, original.Folder);
     }
 
+    /// <summary>
+    /// Move a connection to another folder (or ungroup it) without touching its secrets. Only the
+    /// non-secret <see cref="SavedConnection.Folder"/> path changes, so the keychain is left alone —
+    /// used by the Connection Manager's drag &amp; drop and folder rename/delete.
+    /// </summary>
+    public SavedConnection SetFolder(SavedConnection connection, string? folder)
+    {
+        var updated = connection with { Folder = string.IsNullOrWhiteSpace(folder) ? null : folder.Trim() };
+        _store.Save(updated);
+        return updated;
+    }
+
     public void Delete(string id)
     {
         var connection = _store.GetAll().FirstOrDefault(c => c.Id == id);

@@ -56,6 +56,8 @@
             </TreeView.Styles>
             <TreeView.ContextMenu>
               <ContextMenu>
+                <MenuItem Header="{Binding Loc[ManageConnections]}" Command="{Binding ManageConnectionsCommand}" />
+                <Separator />
                 <MenuItem Header="{Binding Loc[Connect]}" Command="{Binding ConnectCommand}"
                           IsVisible="{Binding SelectedNode.CanConnect, FallbackValue=False}" />
                 <MenuItem Header="{Binding Loc[Disconnect]}" Command="{Binding DisconnectCommand}"

@@ -35,7 +35,7 @@ public partial class MainViewModel : ViewModelBase
     private readonly ConnectionService _connections;
     private readonly IQueryHistoryStore _history;
     private readonly ISchemaCache _schemaCache;
-    private readonly Func<ConnectionDialogViewModel> _dialogFactory;
+    private readonly Func<ConnectionManagerViewModel> _connectionManagerFactory;
     private readonly Func<CreateObjectDialogViewModel> _createDialogFactory;
     private readonly Func<AlterObjectDialogViewModel> _alterDialogFactory;
     private readonly Func<ImportCsvDialogViewModel> _importCsvDialogFactory;
@@ -83,7 +83,7 @@ public partial class MainViewModel : ViewModelBase
         ConnectionService connections,
         IQueryHistoryStore history,
         ISchemaCache schemaCache,
-        Func<ConnectionDialogViewModel> dialogFactory,
+        Func<ConnectionManagerViewModel> connectionManagerFactory,
         Func<CreateObjectDialogViewModel> createDialogFactory,
         Func<AlterObjectDialogViewModel> alterDialogFactory,
         Func<ImportCsvDialogViewModel> importCsvDialogFactory,
@@ -96,7 +96,7 @@ public partial class MainViewModel : ViewModelBase
         _connections = connections;
         _history = history;
         _schemaCache = schemaCache;
-        _dialogFactory = dialogFactory;
+        _connectionManagerFactory = connectionManagerFactory;
         _createDialogFactory = createDialogFactory;
         _alterDialogFactory = alterDialogFactory;
         _importCsvDialogFactory = importCsvDialogFactory;
@@ -350,8 +350,9 @@ public partial class MainViewModel : ViewModelBase
     /// <summary>Open editor tabs (query panes and table-browse panes).</summary>
     public ObservableCollection<DocumentViewModel> Documents { get; } = [];
 
-    /// <summary>Set by the view so the VM can request a modal connection dialog.</summary>
-    public Func<ConnectionDialogViewModel, Task<SavedConnection?>>? ConnectionDialogRequested { get; set; }
+    /// <summary>Set by the view so the VM can open the Connection Manager window (master-detail). Replaces
+    /// the old per-connection modal — one window covers add/edit/delete/duplicate/group.</summary>
+    public Func<ConnectionManagerViewModel, Task>? ConnectionManagerRequested { get; set; }
 
     /// <summary>Set by the view so the VM can request the DDL Create dialog; returns the confirmed
     /// (possibly user-edited) SQL to run, or null on cancel.</summary>
@@ -441,7 +442,7 @@ public partial class MainViewModel : ViewModelBase
     // Add a new connection node, or replace an edited one in place, leaving every OTHER node's
     // expand/loaded state untouched. A replaced (edited) node resets its own subtree, since its
     // connection parameters may have changed — but the rest of the tree stays exactly as it was.
-    private void UpsertConnectionNode(SavedConnection saved)
+    private void UpsertConnectionNode(SavedConnection saved, bool select = true)
     {
         if (FindConnectionNode(saved.Id) is { } current)
         {
@@ -450,7 +451,10 @@ public partial class MainViewModel : ViewModelBase
 
         var node = BuildConnectionNode(saved);
         PlaceConnectionNode(node);
-        SelectedNode = node;
+        if (select)
+        {
+            SelectedNode = node;
+        }
     }
 
     private void RemoveConnectionNode(string id)
@@ -468,55 +472,135 @@ public partial class MainViewModel : ViewModelBase
         DetachConnectionNode(node);
     }
 
-    // --- Folder grouping (FR-6): ConnectionNodes holds folder nodes + ungrouped connection roots. ---
+    // --- Folder grouping (FR-6, nested): ConnectionNodes holds folder nodes + ungrouped connection
+    // roots. SavedConnection.Folder is a /-joined path (e.g. "Klanten/Klant A"); the host splits it and
+    // builds nested folder nodes on demand, pruning empty ones back out. Single-segment names (the
+    // original FR-6 shape) still work — they're just a one-deep path. ---
 
-    /// <summary>Every connection root, whether at the tree root or inside a folder.</summary>
-    private IEnumerable<TreeNodeViewModel> AllConnectionNodes() =>
-        ConnectionNodes.SelectMany(n => n.IsFolder ? n.Children : (IEnumerable<TreeNodeViewModel>)[n]);
+    /// <summary>Every connection root, whether at the tree root or nested inside folders.</summary>
+    private IEnumerable<TreeNodeViewModel> AllConnectionNodes() => FlattenConnections(ConnectionNodes);
+
+    // Recurse into folder nodes only; a connection root's own children are schema nodes, not connections.
+    private static IEnumerable<TreeNodeViewModel> FlattenConnections(IEnumerable<TreeNodeViewModel> nodes)
+    {
+        foreach (var node in nodes)
+        {
+            if (node.IsFolder)
+            {
+                foreach (var nested in FlattenConnections(node.Children))
+                {
+                    yield return nested;
+                }
+            }
+            else
+            {
+                yield return node;
+            }
+        }
+    }
 
     private TreeNodeViewModel? FindConnectionNode(string id) =>
         AllConnectionNodes().FirstOrDefault(n => n.Connection.Id == id);
 
-    // Put a connection node under its folder (created on demand), or at the root when it has none.
-    private void PlaceConnectionNode(TreeNodeViewModel node)
+    // Put a connection node under its (nested) folder, or at the root when it has none.
+    private void PlaceConnectionNode(TreeNodeViewModel node) =>
+        ResolveFolderChildren(node.Connection.Folder).Add(node);
+
+    // Walk the /-path segment by segment, creating folder nodes as needed, and return the child
+    // collection the connection should live in (ConnectionNodes itself when ungrouped).
+    private ObservableCollection<TreeNodeViewModel> ResolveFolderChildren(string? folderPath)
     {
-        var folderName = node.Connection.Folder;
-        if (string.IsNullOrWhiteSpace(folderName))
+        var segments = SplitFolderPath(folderPath);
+        var current = ConnectionNodes;
+        var pathSoFar = string.Empty;
+        foreach (var segment in segments)
         {
-            ConnectionNodes.Add(node);
-            return;
+            pathSoFar = pathSoFar.Length == 0 ? segment : $"{pathSoFar}/{segment}";
+            var folder = current.FirstOrDefault(n => n.IsFolder && n.Name == segment);
+            if (folder is null)
+            {
+                folder = TreeNodeViewModel.ForFolder(segment, pathSoFar);
+                current.Add(folder);
+            }
+
+            current = folder.Children;
         }
 
-        var folder = ConnectionNodes.FirstOrDefault(n => n.IsFolder && n.Name == folderName);
-        if (folder is null)
-        {
-            folder = TreeNodeViewModel.ForFolder(folderName);
-            ConnectionNodes.Add(folder);
-        }
-
-        folder.Children.Add(node);
+        return current;
     }
 
-    // Remove a connection node from wherever it lives; drop its folder if that leaves it empty.
-    private void DetachConnectionNode(TreeNodeViewModel node)
+    // Empty/whitespace segments ("A//B", leading/trailing slashes) are ignored rather than becoming
+    // blank folders, so a malformed path degrades gracefully instead of crashing.
+    private static string[] SplitFolderPath(string? folderPath) =>
+        string.IsNullOrWhiteSpace(folderPath)
+            ? []
+            : folderPath.Split('/', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+
+    // Remove a connection node from wherever it lives; drop any folders left empty up the chain.
+    private void DetachConnectionNode(TreeNodeViewModel node) => DetachFrom(ConnectionNodes, node);
+
+    private static bool DetachFrom(ObservableCollection<TreeNodeViewModel> container, TreeNodeViewModel node)
     {
-        if (ConnectionNodes.Remove(node))
+        if (container.Remove(node))
         {
-            return;
+            return true;
         }
 
-        foreach (var folder in ConnectionNodes.Where(n => n.IsFolder).ToList())
+        foreach (var folder in container.Where(n => n.IsFolder).ToList())
         {
-            if (folder.Children.Remove(node))
+            if (DetachFrom(folder.Children, node))
             {
                 if (folder.Children.Count == 0)
                 {
-                    ConnectionNodes.Remove(folder);
+                    container.Remove(folder);
                 }
 
-                return;
+                return true;
             }
         }
+
+        return false;
+    }
+
+    /// <summary>
+    /// Reconcile the sidebar tree against the connection store after the Connection Manager closes:
+    /// remove nodes for deleted connections, add new ones, and update the rest in place so an open
+    /// (connected) subtree survives — only a provider swap or folder move relocates/rebuilds a node.
+    /// </summary>
+    public void SyncConnectionsFromStore()
+    {
+        var saved = _connections.List();
+        var savedIds = saved.Select(c => c.Id).ToHashSet();
+
+        foreach (var node in AllConnectionNodes().ToList())
+        {
+            if (!savedIds.Contains(node.Connection.Id))
+            {
+                _schemaCache.Invalidate(node.Connection.Id);
+                RemoveConnectionNode(node.Connection.Id);
+            }
+        }
+
+        foreach (var connection in saved)
+        {
+            var existing = FindConnectionNode(connection.Id);
+            if (existing is null || existing.Connection.ProviderId != connection.ProviderId)
+            {
+                UpsertConnectionNode(connection, select: false);
+                continue;
+            }
+
+            var folderChanged = !string.Equals(existing.Connection.Folder, connection.Folder, StringComparison.Ordinal);
+            existing.UpdateConnection(connection);
+            if (folderChanged)
+            {
+                DetachConnectionNode(existing);
+                PlaceConnectionNode(existing);
+            }
+        }
+
+        // The selected connection may have been edited or removed; refresh the status-bar binding.
+        SelectedConnection = SelectedNode?.Connection;
     }
 
     // A provider may ship a brand image and/or a glyph. We render the image when the host can decode
@@ -581,77 +665,51 @@ public partial class MainViewModel : ViewModelBase
         }
     }
 
+    // The sidebar "+" / File ▸ New Connection: open the manager on a fresh draft (prefilled with the
+    // selected folder, if a folder — or a grouped connection — is highlighted).
     [RelayCommand]
-    private async Task NewConnectionAsync()
+    private Task NewConnectionAsync() => OpenConnectionManagerAsync(manager => manager.StartNewConnection(SelectedFolderPath()));
+
+    // Right-click "Edit…" on a connection root: open the manager with that connection selected.
+    [RelayCommand]
+    private Task EditConnectionAsync()
     {
-        if (ConnectionDialogRequested is null)
+        if (SelectedConnection is not { } connection)
         {
-            return;
+            return Task.CompletedTask;
         }
 
-        var saved = await ConnectionDialogRequested(_dialogFactory());
-        if (saved is not null)
-        {
-            UpsertConnectionNode(saved);
-        }
+        return OpenConnectionManagerAsync(manager => manager.SelectConnection(connection.Id));
     }
 
+    /// <summary>Open the Connection Manager window, optionally pre-positioned, then reconcile the tree
+    /// with whatever changed while it was open (add/edit/delete/move) — see <see cref="SyncConnectionsFromStore"/>.</summary>
     [RelayCommand]
-    private async Task EditConnectionAsync()
+    private Task ManageConnectionsAsync() => OpenConnectionManagerAsync(null);
+
+    private async Task OpenConnectionManagerAsync(Action<ConnectionManagerViewModel>? position)
     {
-        if (SelectedConnection is null || ConnectionDialogRequested is null)
+        if (ConnectionManagerRequested is null)
         {
             return;
         }
 
-        var dialog = _dialogFactory();
-        dialog.LoadForEdit(SelectedConnection);
-
-        var saved = await ConnectionDialogRequested(dialog);
-        if (saved is null)
-        {
-            return;
-        }
-
-        var existing = FindConnectionNode(saved.Id);
-
-        // A provider swap changes the whole node shape (icon, capabilities, tree) — rebuild it.
-        // Otherwise keep the node so an open/expanded (possibly connected) subtree stays put.
-        if (existing is null || existing.Connection.ProviderId != saved.ProviderId)
-        {
-            UpsertConnectionNode(saved);
-            return;
-        }
-
-        var wasConnected = existing.State == ConnectionState.Connected;
-        var folderChanged = !string.Equals(existing.Connection.Folder, saved.Folder, StringComparison.Ordinal);
-        existing.UpdateConnection(saved);
-        SelectedConnection = saved;
-
-        // Moved to another folder: relocate the SAME node instance so its open subtree is preserved.
-        if (folderChanged)
-        {
-            DetachConnectionNode(existing);
-            PlaceConnectionNode(existing);
-            SelectedNode = existing;
-        }
-
-        // The live connection still uses the old parameters; only a reconnect applies the edits.
-        if (wasConnected)
-        {
-            var reconnect = ConfirmRequested is not null
-                && await ConfirmRequested(Loc["ReconnectTitle"], Loc["ReconnectMessage"]);
-            if (reconnect)
-            {
-                await existing.RefreshAsync();
-            }
-            else
-            {
-                ReportInfo(saved.Name, Loc["ChangesOnReconnect"]);
-            }
-        }
+        var manager = _connectionManagerFactory();
+        position?.Invoke(manager);
+        await ConnectionManagerRequested(manager);
+        SyncConnectionsFromStore();
     }
 
+    // The folder path to prefill a new connection with: the selected folder itself, or the folder the
+    // selected connection lives in (null = ungrouped / nothing folder-ish selected).
+    private string? SelectedFolderPath() => SelectedNode switch
+    {
+        { IsFolder: true, FolderPath: var path } => path,
+        { IsConnectionNode: true, Connection.Folder: var folder } => folder,
+        _ => null
+    };
+
+    // Sidebar quick action (kept alongside the manager): delete the selected connection outright.
     [RelayCommand]
     private void DeleteConnection()
     {

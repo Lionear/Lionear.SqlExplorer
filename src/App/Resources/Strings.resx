@@ -423,4 +423,40 @@
   <data name="CopyAsInsert" xml:space="preserve">
     <value>Copy as INSERT</value>
   </data>
+  <data name="ManageConnections" xml:space="preserve">
+    <value>Manage Connections…</value>
+  </data>
+  <data name="FilterConnections" xml:space="preserve">
+    <value>Filter connections…</value>
+  </data>
+  <data name="NewFolder" xml:space="preserve">
+    <value>New folder</value>
+  </data>
+  <data name="NewFolderName" xml:space="preserve">
+    <value>New folder</value>
+  </data>
+  <data name="FolderName" xml:space="preserve">
+    <value>Folder name</value>
+  </data>
+  <data name="RenameFolder" xml:space="preserve">
+    <value>Rename</value>
+  </data>
+  <data name="DeleteFolder" xml:space="preserve">
+    <value>Delete folder</value>
+  </data>
+  <data name="FolderDeleteNote" xml:space="preserve">
+    <value>Deleting a non-empty folder moves every connection under it (including sub-folders) to "ungrouped" — connections are never deleted. Renaming a folder rewrites the path prefix of every connection beneath it.</value>
+  </data>
+  <data name="ManagerEmptyHint" xml:space="preserve">
+    <value>Select a connection or folder, or add a new one.</value>
+  </data>
+  <data name="ManagerSummary" xml:space="preserve">
+    <value>{0} connections · {1} folders</value>
+  </data>
+  <data name="DeleteConnectionConfirm" xml:space="preserve">
+    <value>Delete connection "{0}"?</value>
+  </data>
+  <data name="DeleteFolderConfirm" xml:space="preserve">
+    <value>Move {0} connection(s) to ungrouped and delete this folder?</value>
+  </data>
 </root>

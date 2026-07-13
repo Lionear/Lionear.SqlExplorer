@@ -133,7 +133,7 @@ public partial class MainView : UserControl
         _viewModel = DataContext as MainViewModel;
         if (_viewModel is not null)
         {
-            _viewModel.ConnectionDialogRequested = ShowConnectionDialogAsync;
+            _viewModel.ConnectionManagerRequested = ShowConnectionManagerAsync;
             _viewModel.CreateObjectDialogRequested = ShowCreateObjectDialogAsync;
             _viewModel.AlterObjectDialogRequested = ShowAlterObjectDialogAsync;
             _viewModel.ClipboardRequested = CopyToClipboardAsync;
@@ -158,16 +158,16 @@ public partial class MainView : UserControl
         }
     }
 
-    // The VM asks; the view owns the window, so it creates and shows the modal dialog.
-    private async Task<SavedConnection?> ShowConnectionDialogAsync(ConnectionDialogViewModel dialogViewModel)
+    // The VM asks; the view owns the window, so it creates and shows the Connection Manager (modal).
+    private async Task ShowConnectionManagerAsync(ConnectionManagerViewModel managerViewModel)
     {
         if (TopLevel.GetTopLevel(this) is not Window owner)
         {
-            return null;
+            return;
         }
 
-        var dialog = new ConnectionDialog { DataContext = dialogViewModel };
-        return await dialog.ShowDialog<SavedConnection?>(owner);
+        var window = new ConnectionManagerWindow { DataContext = managerViewModel };
+        await window.ShowDialog(owner);
     }
 
     // Yes/no confirmation (e.g. "reconnect now?"). Yes → true, No/closed → false.
