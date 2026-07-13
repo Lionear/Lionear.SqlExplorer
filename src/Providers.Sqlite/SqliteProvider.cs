@@ -27,6 +27,15 @@ public sealed class SqliteProvider : IDbProvider
         return new SqliteConnectionStringBuilder { DataSource = path }.ConnectionString;
     }
 
+    // Inverse of BuildConnectionString: the only field is the database file path.
+    public IReadOnlyDictionary<string, string?>? ParseConnectionString(string connectionString)
+    {
+        var b = new SqliteConnectionStringBuilder(connectionString);
+        var result = new Dictionary<string, string?>();
+        if (b.ContainsKey("Data Source")) result["path"] = b.DataSource;
+        return result;
+    }
+
     public async Task<bool> TestConnectionAsync(ConnectionProfile profile, CancellationToken ct)
     {
         await using var connection = new SqliteConnection(profile.ConnectionString);

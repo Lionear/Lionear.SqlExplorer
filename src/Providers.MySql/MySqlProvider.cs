@@ -45,6 +45,21 @@ public sealed class MySqlProvider : IDbProvider
     private static string? Value(IReadOnlyDictionary<string, string?> values, string key) =>
         values.TryGetValue(key, out var v) && !string.IsNullOrWhiteSpace(v) ? v : null;
 
+    // Inverse of BuildConnectionString: map only the keys the pasted string actually set.
+    public IReadOnlyDictionary<string, string?>? ParseConnectionString(string connectionString)
+    {
+        var b = new MySqlConnectionStringBuilder(connectionString);
+        var result = new Dictionary<string, string?>();
+
+        if (b.ContainsKey("Server")) result["host"] = b.Server;
+        if (b.ContainsKey("Port")) result["port"] = b.Port.ToString();
+        if (b.ContainsKey("Database")) result["database"] = b.Database;
+        if (b.ContainsKey("User ID")) result["username"] = b.UserID;
+        if (b.ContainsKey("Password")) result["password"] = b.Password;
+
+        return result;
+    }
+
     public async Task<bool> TestConnectionAsync(ConnectionProfile profile, CancellationToken ct)
     {
         await using var connection = await OpenAsync(profile, ct);

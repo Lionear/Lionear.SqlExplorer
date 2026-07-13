@@ -30,6 +30,16 @@ public interface IDbProvider
     /// </summary>
     string BuildConnectionString(IReadOnlyDictionary<string, string?> values);
 
+    /// <summary>
+    /// Inverse of <see cref="BuildConnectionString"/>: parse a pasted connection string into field
+    /// values (keyed by <see cref="ConnectionField.Key"/>) so the dialog can prefill itself — the
+    /// "import from connection string" flow. Each provider uses its own
+    /// <see cref="System.Data.Common.DbConnectionStringBuilder"/> to map keys back to its fields.
+    /// Returns <c>null</c> when the provider does not support import (the default); an empty map means
+    /// "supported, but nothing recognised". Unknown keys are simply dropped.
+    /// </summary>
+    IReadOnlyDictionary<string, string?>? ParseConnectionString(string connectionString) => null;
+
     Task<bool> TestConnectionAsync(ConnectionProfile profile, CancellationToken ct);
 
     /// <summary>

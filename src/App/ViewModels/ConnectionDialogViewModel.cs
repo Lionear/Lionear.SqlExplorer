@@ -29,6 +29,14 @@ public partial class ConnectionDialogViewModel : ViewModelBase
     [ObservableProperty]
     private string _testResult = string.Empty;
 
+    /// <summary>A connection string the user pasted to prefill the fields (import flow, FR-1).</summary>
+    [ObservableProperty]
+    private string _importConnectionString = string.Empty;
+
+    /// <summary>Whether the selected provider can parse a connection string (hides the import row if not).</summary>
+    [ObservableProperty]
+    private bool _supportsImport;
+
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(DialogTitle))]
     private bool _isEditing;
@@ -94,6 +102,10 @@ public partial class ConnectionDialogViewModel : ViewModelBase
     [ObservableProperty]
     private bool _hasAdvancedFields;
 
+    /// <summary>Whether the Advanced section is expanded (auto-opens when an import fills a hidden field).</summary>
+    [ObservableProperty]
+    private bool _isAdvancedExpanded;
+
     public string DialogTitle => IsEditing ? Loc["EditConnection"] : Loc["NewConnection"];
 
     /// <summary>Save is allowed once there is a name, a provider, and every required field is filled.</summary>
@@ -156,6 +168,64 @@ public partial class ConnectionDialogViewModel : ViewModelBase
         }
 
         HasAdvancedFields = AdvancedFields.Count > 0;
+        // Empty string parses to a (possibly empty) map for supporters, null for providers that don't
+        // implement it — a cheap capability probe with no side effects.
+        SupportsImport = TryParse(SelectedProvider.Id, string.Empty) is not null;
+    }
+
+    private IReadOnlyDictionary<string, string?>? TryParse(string providerId, string connectionString)
+    {
+        try
+        {
+            return _providers.Get(providerId).ParseConnectionString(connectionString);
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    /// <summary>Prefill the fields from the pasted connection string (import flow).</summary>
+    [RelayCommand]
+    private void ImportFromConnectionString()
+    {
+        if (SelectedProvider is not { } option || string.IsNullOrWhiteSpace(ImportConnectionString))
+        {
+            return;
+        }
+
+        IReadOnlyDictionary<string, string?>? parsed;
+        try
+        {
+            parsed = _providers.Get(option.Id).ParseConnectionString(ImportConnectionString);
+        }
+        catch (Exception ex)
+        {
+            TestResult = ex.Message;
+            return;
+        }
+
+        if (parsed is null)
+        {
+            TestResult = Loc["ImportNotSupported"];
+            return;
+        }
+
+        foreach (var field in Fields)
+        {
+            if (parsed.TryGetValue(field.Field.Key, out var value))
+            {
+                field.Value = value;
+            }
+        }
+
+        // Reveal Advanced if the paste populated anything hidden, so the user sees what was imported.
+        if (AdvancedFields.Any(f => parsed.ContainsKey(f.Field.Key)))
+        {
+            IsAdvancedExpanded = true;
+        }
+
+        TestResult = Loc["ImportDone"];
     }
 
     // A field's value changed -> the required-fields check may flip, so re-evaluate the Save gate.

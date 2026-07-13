@@ -88,6 +88,53 @@ public sealed class MsSqlProvider : IDbProvider
     private static bool Bool(IReadOnlyDictionary<string, string?> values, string key, bool fallback) =>
         Value(values, key) is { } v ? bool.TryParse(v, out var b) ? b : fallback : fallback;
 
+    // Inverse of BuildConnectionString: only map keys the pasted string actually set (ContainsKey),
+    // so we never overwrite a field with a builder default. DataSource splits back into host[,port].
+    public IReadOnlyDictionary<string, string?>? ParseConnectionString(string connectionString)
+    {
+        var b = new SqlConnectionStringBuilder(connectionString);
+        var result = new Dictionary<string, string?>();
+
+        if (b.ContainsKey("Data Source"))
+        {
+            var ds = b.DataSource;
+            if (ds.StartsWith("tcp:", StringComparison.OrdinalIgnoreCase))
+            {
+                ds = ds[4..];
+            }
+
+            var comma = ds.LastIndexOf(',');
+            if (comma >= 0)
+            {
+                result["host"] = ds[..comma];
+                result["port"] = ds[(comma + 1)..];
+            }
+            else
+            {
+                result["host"] = ds;
+            }
+        }
+
+        if (b.ContainsKey("Initial Catalog")) result["database"] = b.InitialCatalog;
+        if (b.ContainsKey("User ID")) result["username"] = b.UserID;
+        if (b.ContainsKey("Password")) result["password"] = b.Password;
+        if (b.ContainsKey("Encrypt"))
+        {
+            // ToString round-trips to legacy "True"/"False" on older builders; normalise both forms.
+            var enc = b.Encrypt.ToString();
+            result["encrypt"] = enc.Equals("Strict", StringComparison.OrdinalIgnoreCase) ? "Strict"
+                : enc.Equals("Mandatory", StringComparison.OrdinalIgnoreCase) || enc.Equals("True", StringComparison.OrdinalIgnoreCase) ? "Mandatory"
+                : "Optional";
+        }
+
+        if (b.ContainsKey("Trust Server Certificate")) result["trustServerCertificate"] = b.TrustServerCertificate ? "true" : "false";
+        if (b.ContainsKey("Application Name")) result["applicationName"] = b.ApplicationName;
+        if (b.ContainsKey("Connect Timeout")) result["connectTimeout"] = b.ConnectTimeout.ToString();
+        if (b.ContainsKey("Multiple Active Result Sets")) result["multipleActiveResultSets"] = b.MultipleActiveResultSets ? "true" : "false";
+
+        return result;
+    }
+
     public async Task<bool> TestConnectionAsync(ConnectionProfile profile, CancellationToken ct)
     {
         await using var connection = await OpenAsync(profile, ct);

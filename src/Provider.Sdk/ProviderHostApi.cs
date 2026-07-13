@@ -43,6 +43,8 @@ public static class ProviderHostApi
     //                   (dropdown, values in ConnectionField.Choices) so providers can declare a rich,
     //                   grouped "Advanced" connection section the host renders (Notes §4.4, FR-2/4/4b).
     //                   MSSQL no longer hardcodes TrustServerCertificate — it is a field now (FR-3).
+    //                   Also IDbProvider.ParseConnectionString (default null) — inverse of
+    //                   BuildConnectionString, prefills the dialog from a pasted string (FR-1).
     public const int Version = 15;
 
     /// <summary>True when this host can load a plugin built for <paramref name="pluginVersion"/>.</summary>

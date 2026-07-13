@@ -147,6 +147,18 @@
   <data name="AdvancedSettings" xml:space="preserve">
     <value>Advanced</value>
   </data>
+  <data name="ImportConnectionString" xml:space="preserve">
+    <value>Import from connection string</value>
+  </data>
+  <data name="ImportConnectionStringHint" xml:space="preserve">
+    <value>Paste a connection string to fill the fields…</value>
+  </data>
+  <data name="ImportDone" xml:space="preserve">
+    <value>Fields filled from the connection string.</value>
+  </data>
+  <data name="ImportNotSupported" xml:space="preserve">
+    <value>This provider cannot import a connection string.</value>
+  </data>
   <data name="ConnectionColor" xml:space="preserve">
     <value>Colour</value>
   </data>

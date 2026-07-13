@@ -55,6 +55,32 @@ public sealed class PostgresProvider : IDbProvider
     private static string? Value(IReadOnlyDictionary<string, string?> values, string key) =>
         values.TryGetValue(key, out var v) && !string.IsNullOrWhiteSpace(v) ? v : null;
 
+    // Inverse of BuildConnectionString. Unlike SqlClient/MySqlConnector, NpgsqlConnectionStringBuilder
+    // reports ContainsKey == true for every known keyword (all defaulted), so it can't tell "set" from
+    // "default". Guard on a non-empty value instead so a partial paste never blanks host/db/credentials.
+    public IReadOnlyDictionary<string, string?>? ParseConnectionString(string connectionString)
+    {
+        var b = new NpgsqlConnectionStringBuilder(connectionString);
+        var result = new Dictionary<string, string?>();
+
+        void Put(string key, string? value)
+        {
+            if (!string.IsNullOrEmpty(value))
+            {
+                result[key] = value;
+            }
+        }
+
+        Put("host", b.Host);
+        Put("port", b.Port.ToString());
+        Put("database", b.Database);
+        Put("username", b.Username);
+        Put("password", b.Password);
+        Put("sslMode", b.SslMode.ToString());
+
+        return result;
+    }
+
     public async Task<bool> TestConnectionAsync(ConnectionProfile profile, CancellationToken ct)
     {
         await using var connection = await OpenAsync(profile, ct);

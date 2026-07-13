@@ -147,6 +147,18 @@
   <data name="AdvancedSettings" xml:space="preserve">
     <value>Geavanceerd</value>
   </data>
+  <data name="ImportConnectionString" xml:space="preserve">
+    <value>Importeren uit connectiestring</value>
+  </data>
+  <data name="ImportConnectionStringHint" xml:space="preserve">
+    <value>Plak een connectiestring om de velden te vullen…</value>
+  </data>
+  <data name="ImportDone" xml:space="preserve">
+    <value>Velden gevuld uit de connectiestring.</value>
+  </data>
+  <data name="ImportNotSupported" xml:space="preserve">
+    <value>Deze provider kan geen connectiestring importeren.</value>
+  </data>
   <data name="ConnectionColor" xml:space="preserve">
     <value>Kleur</value>
   </data>

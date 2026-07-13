@@ -42,11 +42,23 @@
               SelectedItem="{Binding SelectedProvider}"
               HorizontalAlignment="Stretch" />
 
+    <!-- Import from a pasted connection string (FR-1); hidden for providers that can't parse one. -->
+    <StackPanel Spacing="2" Margin="0,4,0,0" IsVisible="{Binding SupportsImport}">
+      <TextBlock Text="{Binding Loc[ImportConnectionString]}" />
+      <Grid ColumnDefinitions="*,Auto">
+        <TextBox Grid.Column="0" Text="{Binding ImportConnectionString}"
+                 PlaceholderText="{Binding Loc[ImportConnectionStringHint]}" />
+        <Button Grid.Column="1" Margin="6,0,0,0" Content="{Binding Loc[Import]}"
+                Command="{Binding ImportFromConnectionStringCommand}" />
+      </Grid>
+    </StackPanel>
+
     <!-- Provider-driven fields: basics always visible, one control per declared ConnectionField. -->
     <ItemsControl ItemsSource="{Binding BasicFields}" ItemTemplate="{StaticResource FieldTemplate}" />
 
     <!-- Advanced/driver-specific settings tuck away until asked for; only shown if the provider has any. -->
-    <Expander Header="{Binding Loc[AdvancedSettings]}" IsVisible="{Binding HasAdvancedFields}" Margin="0,4,0,0">
+    <Expander Header="{Binding Loc[AdvancedSettings]}" IsVisible="{Binding HasAdvancedFields}"
+              IsExpanded="{Binding IsAdvancedExpanded}" Margin="0,4,0,0">
       <ItemsControl ItemsSource="{Binding AdvancedFields}" ItemTemplate="{StaticResource FieldTemplate}" />
     </Expander>
 
