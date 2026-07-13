@@ -238,7 +238,8 @@ public sealed class SqliteProvider : IDbProvider
             DbNodeKind.ViewFolder => await LoadObjectsAsync(profile, isView: true, ct),
             DbNodeKind.SequenceFolder => await LoadSequencesAsync(profile, ct),
             // Tables carry extra "Indexes"/"Foreign Keys" folders; views have neither.
-            DbNodeKind.Table => [.. await LoadColumnsAsync(profile, ancestors[^1].Name, ct), IndexFolder(), ForeignKeyFolder()],
+            DbNodeKind.Table => [ColumnFolder(), IndexFolder(), ForeignKeyFolder()],
+            DbNodeKind.ColumnFolder => await LoadColumnsAsync(profile, Name(ancestors, DbNodeKind.Table), ct),
             DbNodeKind.View => await LoadColumnsAsync(profile, ancestors[^1].Name, ct),
             DbNodeKind.IndexFolder => await LoadIndexesAsync(profile, Name(ancestors, DbNodeKind.Table), ct),
             DbNodeKind.ForeignKeyFolder => await LoadForeignKeysAsync(profile, Name(ancestors, DbNodeKind.Table), ct),
@@ -253,6 +254,9 @@ public sealed class SqliteProvider : IDbProvider
         new() { Kind = DbNodeKind.ViewFolder, Name = "Views", HasChildren = true },
         new() { Kind = DbNodeKind.SequenceFolder, Name = "Sequences", HasChildren = true }
     ];
+
+    private static DbTreeNode ColumnFolder() =>
+        new() { Kind = DbNodeKind.ColumnFolder, Name = "Columns", HasChildren = true };
 
     private static DbTreeNode IndexFolder() =>
         new() { Kind = DbNodeKind.IndexFolder, Name = "Indexes", HasChildren = true };

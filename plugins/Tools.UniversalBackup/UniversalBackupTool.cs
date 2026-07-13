@@ -51,41 +51,50 @@ public sealed class UniversalBackupTool : IToolPlugin, IPluginSettings
         var tableRefs = await SchemaReader.CollectTablesAsync(context.Provider, context.Profile, context.Node, ct);
         progress.Report(new ToolProgress($"Found {tableRefs.Count} table(s)."));
 
-        var dialect = context.Provider.Dialect;
-        var tables = new List<BackupTable>();
-        for (var i = 0; i < tableRefs.Count; i++)
-        {
-            ct.ThrowIfCancellationRequested();
-            var tableRef = tableRefs[i];
-
-            var columns = await SchemaReader.ReadColumnsAsync(context.Provider, context.Profile, tableRef.Path, ct);
-            if (columns.Count == 0)
-            {
-                progress.Report(new ToolProgress($"Skipped {tableRef.Table} (no readable columns)."));
-                continue;
-            }
-
-            var qualified = dialect.QualifyName(null, tableRef.Schema, tableRef.Table);
-            var columnList = string.Join(", ", columns.Select(c => dialect.QuoteIdentifier(c.Name)));
-            var result = await context.Provider.ExecuteQueryAsync(context.Profile, $"SELECT {columnList} FROM {qualified}", ct);
-
-            tables.Add(new BackupTable(tableRef.Schema ?? string.Empty, tableRef.Table, columns, result.Rows));
-            progress.Report(new ToolProgress($"Table {i + 1}/{tableRefs.Count}: {tableRef.Table} — {result.Rows.Count} row(s)"));
-        }
-
         var meta = new LbakMeta(
             context.ProviderId,
             context.Provider.DisplayName,
             databaseName,
             DateTime.UtcNow.ToString("o"),
             AppVersion: "1.0.0",
-            tables.Count,
+            tableRefs.Count,
             Encrypted: !string.IsNullOrEmpty(passphrase),
-            FormatVersion: 1);
+            FormatVersion: 2);
 
-        progress.Report(new ToolProgress(string.IsNullOrEmpty(passphrase) ? "Writing backup…" : "Encrypting + writing backup…"));
-        await LbakFormat.WriteAsync(filePath, meta, tables, passphrase, ct);
-        progress.Report(new ToolProgress($"Saved {tables.Count} table(s) to {filePath}"));
+        // The write pipeline (gzip + chunked-GCM + file) does synchronous CPU/IO work; run it off the UI
+        // thread while the DB reader feeds it. Streaming means a huge LOB cell never has to fit in memory.
+        var dialect = context.Provider.Dialect;
+        var written = await Task.Run(async () =>
+        {
+            using var writer = LbakFormat.CreateWriter(filePath, meta, passphrase);
+            var tablesWritten = 0;
+            for (var i = 0; i < tableRefs.Count; i++)
+            {
+                ct.ThrowIfCancellationRequested();
+                var tableRef = tableRefs[i];
+                var fraction = (double)(i + 1) / tableRefs.Count;
+
+                var columns = await SchemaReader.ReadColumnsAsync(context.Provider, context.Profile, tableRef.Path, ct);
+                if (columns.Count == 0)
+                {
+                    progress.Report(new ToolProgress($"Skipped {tableRef.Table} (no readable columns).", fraction));
+                    continue;
+                }
+
+                writer.BeginTable(tableRef.Schema ?? string.Empty, tableRef.Table, columns);
+                var qualified = dialect.QualifyName(null, tableRef.Schema, tableRef.Table);
+                var columnList = string.Join(", ", columns.Select(c => dialect.QuoteIdentifier(c.Name)));
+                var visitor = new BackupRowVisitor(writer);
+                await context.Provider.StreamQueryAsync(context.Profile, $"SELECT {columnList} FROM {qualified}", visitor, ct);
+
+                tablesWritten++;
+                progress.Report(new ToolProgress($"Table {i + 1}/{tableRefs.Count}: {tableRef.Table} — {visitor.RowCount} row(s)", fraction));
+            }
+
+            return tablesWritten;
+        }, ct);
+
+        progress.Report(new ToolProgress($"Saved {written} table(s) to {filePath}", 1.0));
     }
 
     // Use the chosen file, or fall back to "<defaultFolder>/<database>-<timestamp>.lbak" from the setting.

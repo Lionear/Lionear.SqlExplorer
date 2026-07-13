@@ -62,6 +62,57 @@ public interface IDbProvider
     Task<QueryResult> ExecuteQueryAsync(ConnectionProfile profile, string sql, CancellationToken ct);
 
     /// <summary>
+    /// Stream a result set row-by-row into <paramref name="visitor"/> instead of materialising every
+    /// row (and every cell) up front — the read half of the streaming backup. LOB cells are exposed as
+    /// forward-only streams so a multi-gigabyte value never has to fit in a single .NET array.
+    /// The default implementation replays <see cref="ExecuteQueryAsync"/>'s materialised rows, so
+    /// providers keep working unchanged; only engines that can genuinely stream (e.g. SQL Server via
+    /// <c>SequentialAccess</c>) override it.
+    /// </summary>
+    async Task StreamQueryAsync(ConnectionProfile profile, string sql, IQueryRowVisitor visitor, CancellationToken ct)
+    {
+        var result = await ExecuteQueryAsync(profile, sql, ct);
+        await visitor.OnColumnsAsync(result.Columns, ct);
+        foreach (var row in result.Rows)
+        {
+            ct.ThrowIfCancellationRequested();
+            await visitor.OnRowAsync(new MaterializedStreamedRow(row), ct);
+        }
+    }
+
+    /// <summary>
+    /// Run one INSERT whose parameters may be streams (the write half of the streaming restore), so a
+    /// huge cell can be pushed from the backup file straight into the database without buffering it.
+    /// The default implementation drains any streams into materialised values and defers to
+    /// <see cref="ExecuteBatchAsync"/>; only providers with true parameter streaming override it.
+    /// </summary>
+    async Task InsertStreamingAsync(ConnectionProfile profile, string insertSql, IReadOnlyList<StreamingParam> parameters, CancellationToken ct)
+    {
+        var bound = new List<SqlParam>(parameters.Count);
+        foreach (var p in parameters)
+        {
+            object? value = p.Value.Kind switch
+            {
+                StreamingValue.ValueKind.Null => null,
+                StreamingValue.ValueKind.Scalar => p.Value.Scalar,
+                StreamingValue.ValueKind.ByteStream => await ReadAllBytesAsync(p.Value.ByteStream!, ct),
+                StreamingValue.ValueKind.TextStream => await p.Value.TextReader!.ReadToEndAsync(ct),
+                _ => null
+            };
+            bound.Add(new SqlParam(p.Name, value));
+        }
+
+        await ExecuteBatchAsync(profile, [new SqlStatement(insertSql, bound)], ct);
+    }
+
+    private static async Task<byte[]> ReadAllBytesAsync(Stream stream, CancellationToken ct)
+    {
+        using var ms = new MemoryStream();
+        await stream.CopyToAsync(ms, ct);
+        return ms.ToArray();
+    }
+
+    /// <summary>
     /// Run a batch of parameterised statements inside a single transaction and return the
     /// total number of affected rows. Any failure rolls the whole batch back — this is the
     /// commit step of the editable-grid save-flow (see Notes.md §8). The host generates the

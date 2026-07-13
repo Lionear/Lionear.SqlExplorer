@@ -45,7 +45,15 @@ public enum DbNodeKind
     Object,
 
     /// <summary>A provider-defined cosmetic grouping folder (e.g. SQL Server "Security"/"Administration").</summary>
-    Group
+    Group,
+
+    /// <summary>A grouping node that holds a server's databases (SQL Server "Databases" folder). Distinct
+    /// from a plain <see cref="Group"/> so "New Database…" can be offered on it.</summary>
+    DatabaseFolder,
+
+    /// <summary>A grouping node under a table that holds its columns (SSMS/DBeaver-style "Columns" folder),
+    /// so a table's columns don't sit alongside its Indexes/Foreign Keys folders.</summary>
+    ColumnFolder
 }
 
 /// <summary>

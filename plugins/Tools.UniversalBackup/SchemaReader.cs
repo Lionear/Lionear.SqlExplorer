@@ -52,6 +52,14 @@ public static class SchemaReader
         IDbProvider provider, ConnectionProfile profile, IReadOnlyList<DbNodeRef> tablePath, CancellationToken ct)
     {
         var children = await provider.GetChildNodesAsync(profile, tablePath, ct);
+
+        // Columns live under a "Columns" folder (next to Indexes/Foreign Keys); descend into it when present.
+        if (children.FirstOrDefault(c => c.Kind == DbNodeKind.ColumnFolder) is { } folder)
+        {
+            var folderPath = new List<DbNodeRef>(tablePath) { new(folder.Kind, folder.Name) };
+            children = await provider.GetChildNodesAsync(profile, folderPath, ct);
+        }
+
         var columns = new List<BackupColumn>();
         foreach (var child in children.Where(c => c.Kind == DbNodeKind.Column))
         {

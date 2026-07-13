@@ -25,6 +25,12 @@ public static class AlterStatementBuilder
     public static string DropTable(ISqlDialect dialect, string? schema, string table, bool isView) =>
         $"DROP {(isView ? "VIEW" : "TABLE")} {Qualify(dialect, schema, table)}";
 
+    // SQLite has no TRUNCATE — an unqualified DELETE is its optimised equivalent; the rest share TRUNCATE.
+    public static string Truncate(string providerId, ISqlDialect dialect, string? schema, string table) =>
+        providerId == "sqlite"
+            ? $"DELETE FROM {Qualify(dialect, schema, table)}"
+            : $"TRUNCATE TABLE {Qualify(dialect, schema, table)}";
+
     public static string AddColumn(ISqlDialect dialect, string? schema, string table, string column, string type, bool nullable) =>
         $"ALTER TABLE {Qualify(dialect, schema, table)} ADD {dialect.QuoteIdentifier(column)} {type}{(nullable ? "" : " NOT NULL")}";
 

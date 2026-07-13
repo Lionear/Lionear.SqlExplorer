@@ -163,6 +163,70 @@ public sealed class MsSqlProvider : IDbProvider, ICustomConnectionUi
         return await ReadResultAsync(reader, stopwatch, ct);
     }
 
+    // Streaming read (backup): SequentialAccess lets LOB columns be pulled as forward-only streams, so a
+    // varbinary(max)/nvarchar(max) value larger than a .NET array never has to be materialised (the bug
+    // that motivated .lbak v2). No KeyInfo here — a backup doesn't need base-table/key metadata.
+    public async Task StreamQueryAsync(ConnectionProfile profile, string sql, IQueryRowVisitor visitor, CancellationToken ct)
+    {
+        await using var connection = await OpenAsync(profile, ct);
+        await using var command = new SqlCommand(sql, connection) { CommandTimeout = 0 }; // streaming a huge table can take a while
+        await using var reader = await command.ExecuteReaderAsync(CommandBehavior.SequentialAccess, ct);
+
+        var schema = reader.GetColumnSchema();
+        var columns = new List<ResultColumn>(reader.FieldCount);
+        var isLob = new bool[reader.FieldCount];
+        for (var i = 0; i < reader.FieldCount; i++)
+        {
+            columns.Add(new ResultColumn(reader.GetName(i), reader.GetFieldType(i)));
+            // SqlClient reports (n)varchar(max)/varbinary(max)/text/ntext/image/xml as ColumnSize int.MaxValue.
+            isLob[i] = schema[i].ColumnSize == int.MaxValue;
+        }
+
+        await visitor.OnColumnsAsync(columns, ct);
+
+        var row = new StreamedSqlRow(reader, isLob);
+        while (await reader.ReadAsync(ct))
+        {
+            ct.ThrowIfCancellationRequested();
+            await visitor.OnRowAsync(row, ct);
+        }
+    }
+
+    // Streaming write (restore): bind stream/reader parameters so a huge cell flows from the backup file
+    // straight into a varbinary(max)/nvarchar(max) column without being buffered into one array.
+    public async Task InsertStreamingAsync(ConnectionProfile profile, string insertSql, IReadOnlyList<StreamingParam> parameters, CancellationToken ct)
+    {
+        await using var connection = await OpenAsync(profile, ct);
+        await using var command = new SqlCommand(insertSql, connection) { CommandTimeout = 0 }; // a multi-GB stream can outlast the 30s default
+        foreach (var p in parameters)
+        {
+            switch (p.Value.Kind)
+            {
+                case StreamingValue.ValueKind.ByteStream:
+                    command.Parameters.Add(new SqlParameter(p.Name, SqlDbType.VarBinary, -1) { Value = p.Value.ByteStream });
+                    break;
+                case StreamingValue.ValueKind.TextStream:
+                    command.Parameters.Add(new SqlParameter(p.Name, SqlDbType.NVarChar, -1) { Value = p.Value.TextReader });
+                    break;
+                default: // Null / Scalar — datetime2-aware
+                    command.Parameters.Add(BuildParam(p.Name, p.Value.Scalar));
+                    break;
+            }
+        }
+
+        await command.ExecuteNonQueryAsync(ct);
+    }
+
+    private sealed class StreamedSqlRow(SqlDataReader reader, bool[] isLob) : IStreamedRow
+    {
+        public int FieldCount => reader.FieldCount;
+        public bool IsNull(int i) => reader.IsDBNull(i);
+        public bool IsLob(int i) => isLob[i];
+        public object? GetValue(int i) => reader.GetValue(i) is var v && v is DBNull ? null : v;
+        public Stream GetStream(int i) => reader.GetStream(i);
+        public TextReader GetTextReader(int i) => reader.GetTextReader(i);
+    }
+
     public async Task<IReadOnlyList<QueryResult>> ExecuteScriptAsync(ConnectionProfile profile, string sql, CancellationToken ct)
     {
         var stopwatch = Stopwatch.StartNew();
@@ -244,7 +308,7 @@ public sealed class MsSqlProvider : IDbProvider, ICustomConnectionUi
             await using var command = new SqlCommand(statement.Text, connection, transaction);
             foreach (var parameter in statement.Parameters)
             {
-                command.Parameters.AddWithValue(parameter.Name, parameter.Value ?? DBNull.Value);
+                command.Parameters.Add(BuildParam(parameter.Name, parameter.Value));
             }
 
             affected += await command.ExecuteNonQueryAsync(ct);
@@ -253,6 +317,14 @@ public sealed class MsSqlProvider : IDbProvider, ICustomConnectionUi
         await transaction.CommitAsync(ct);
         return affected;
     }
+
+    // Bind a scalar parameter. A .NET DateTime otherwise infers the legacy `datetime` type (range
+    // 1753–9999); binding it as datetime2 covers the full 0001–9999 range so restoring a datetime2
+    // value before 1753 doesn't throw "SqlDateTime overflow".
+    private static SqlParameter BuildParam(string name, object? value) =>
+        value is DateTime dt
+            ? new SqlParameter(name, SqlDbType.DateTime2) { Value = dt }
+            : new SqlParameter(name, value ?? DBNull.Value);
 
     // SQL Server exposes Database → Schema → (Tables|Views folder) → Table|View → Column, like Postgres.
     // information_schema is per-database, so introspecting a database means connecting to it.
@@ -267,6 +339,8 @@ public sealed class MsSqlProvider : IDbProvider, ICustomConnectionUi
         {
             // The connection root is a server: Databases sits alongside SSMS-style server folders.
             null => RootFolders(),
+            // The "Databases" folder has its own kind so "New Database…" can be offered on it.
+            DbNodeKind.DatabaseFolder => await LoadDatabasesAsync(profile, ct),
             // Every cosmetic folder shares the Group kind, so route Group nodes by their name.
             DbNodeKind.Group => await LoadGroupAsync(profile, ancestors, ct),
             DbNodeKind.Database => DatabaseChildren(),
@@ -276,7 +350,8 @@ public sealed class MsSqlProvider : IDbProvider, ICustomConnectionUi
             DbNodeKind.ViewFolder => await LoadRelationsAsync(profile, ancestors, isView: true, ct),
             DbNodeKind.SequenceFolder => await LoadSequencesAsync(profile, ancestors, ct),
             // Tables carry extra "Indexes"/"Foreign Keys" folders; views have neither.
-            DbNodeKind.Table => [.. await LoadColumnsAsync(profile, ancestors, ct), IndexFolder(), ForeignKeyFolder()],
+            DbNodeKind.Table => [ColumnFolder(), IndexFolder(), ForeignKeyFolder()],
+            DbNodeKind.ColumnFolder => await LoadColumnsAsync(profile, ancestors.Take(ancestors.Count - 1).ToList(), ct),
             DbNodeKind.View => await LoadColumnsAsync(profile, ancestors, ct),
             DbNodeKind.IndexFolder => await LoadIndexesAsync(profile, ancestors, ct),
             DbNodeKind.ForeignKeyFolder => await LoadForeignKeysAsync(profile, ancestors, ct),
@@ -294,7 +369,7 @@ public sealed class MsSqlProvider : IDbProvider, ICustomConnectionUi
 
     private static IReadOnlyList<DbTreeNode> RootFolders() =>
     [
-        new() { Kind = DbNodeKind.Group, Name = Databases, HasChildren = true },
+        new() { Kind = DbNodeKind.DatabaseFolder, Name = Databases, HasChildren = true },
         new() { Kind = DbNodeKind.Group, Name = Security, HasChildren = true },
         new() { Kind = DbNodeKind.Group, Name = Administration, HasChildren = true }
     ];
@@ -306,7 +381,6 @@ public sealed class MsSqlProvider : IDbProvider, ICustomConnectionUi
         CancellationToken ct) =>
         ancestors[^1].Name switch
         {
-            Databases => await LoadDatabasesAsync(profile, ct),
             Security =>
             [
                 new() { Kind = DbNodeKind.Group, Name = Logins, HasChildren = true },
@@ -372,6 +446,9 @@ public sealed class MsSqlProvider : IDbProvider, ICustomConnectionUi
 
         return nodes;
     }
+
+    private static DbTreeNode ColumnFolder() =>
+        new() { Kind = DbNodeKind.ColumnFolder, Name = "Columns", HasChildren = true };
 
     private static DbTreeNode IndexFolder() =>
         new() { Kind = DbNodeKind.IndexFolder, Name = "Indexes", HasChildren = true };
@@ -641,11 +718,11 @@ public sealed class MsSqlProvider : IDbProvider, ICustomConnectionUi
     private static string Name(IReadOnlyList<DbNodeRef> ancestors, DbNodeKind kind) =>
         ancestors.First(a => a.Kind == kind).Name;
 
-    // Database creation has no schema/table parent in the tree — CreateCapability.ParentNode is null
-    // for "the connection root" (same convention TreeNodeViewModel.NodeKind already uses).
+    // SQL Server nests databases under a "Databases" folder, so "New Database…" is offered there
+    // (ParentNode = DatabaseFolder) rather than on the server root the way schema-less engines do.
     public IReadOnlyList<CreateCapability> CreateCapabilities { get; } =
     [
-        new(DbObjectKind.Database, null),
+        new(DbObjectKind.Database, DbNodeKind.DatabaseFolder),
         new(DbObjectKind.Schema, DbNodeKind.SchemaFolder),
         new(DbObjectKind.Table, DbNodeKind.TableFolder)
     ];

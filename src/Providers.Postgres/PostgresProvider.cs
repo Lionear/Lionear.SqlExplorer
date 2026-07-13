@@ -214,7 +214,8 @@ public sealed class PostgresProvider : IDbProvider
             DbNodeKind.ViewFolder => await LoadRelationsAsync(profile, ancestors, isView: true, ct),
             DbNodeKind.SequenceFolder => await LoadSequencesAsync(profile, ancestors, ct),
             // Tables carry extra "Indexes"/"Foreign Keys" folders; views have neither.
-            DbNodeKind.Table => [.. await LoadColumnsAsync(profile, ancestors, ct), IndexFolder(), ForeignKeyFolder()],
+            DbNodeKind.Table => [ColumnFolder(), IndexFolder(), ForeignKeyFolder()],
+            DbNodeKind.ColumnFolder => await LoadColumnsAsync(profile, ancestors.Take(ancestors.Count - 1).ToList(), ct),
             DbNodeKind.View => await LoadColumnsAsync(profile, ancestors, ct),
             DbNodeKind.IndexFolder => await LoadIndexesAsync(profile, ancestors, ct),
             DbNodeKind.ForeignKeyFolder => await LoadForeignKeysAsync(profile, ancestors, ct),
@@ -225,6 +226,9 @@ public sealed class PostgresProvider : IDbProvider
     // A database groups its schemas under a "Schemas" node (DataGrip-style).
     private static DbTreeNode SchemaFolder() =>
         new() { Kind = DbNodeKind.SchemaFolder, Name = "Schemas", HasChildren = true };
+
+    private static DbTreeNode ColumnFolder() =>
+        new() { Kind = DbNodeKind.ColumnFolder, Name = "Columns", HasChildren = true };
 
     private static DbTreeNode IndexFolder() =>
         new() { Kind = DbNodeKind.IndexFolder, Name = "Indexes", HasChildren = true };

@@ -187,7 +187,8 @@ public sealed class MySqlProvider : IDbProvider
             DbNodeKind.TableFolder => await LoadRelationsAsync(profile, ancestors, isView: false, ct),
             DbNodeKind.ViewFolder => await LoadRelationsAsync(profile, ancestors, isView: true, ct),
             // Tables carry extra "Indexes"/"Foreign Keys" folders; views have neither.
-            DbNodeKind.Table => [.. await LoadColumnsAsync(profile, ancestors, ct), IndexFolder(), ForeignKeyFolder()],
+            DbNodeKind.Table => [ColumnFolder(), IndexFolder(), ForeignKeyFolder()],
+            DbNodeKind.ColumnFolder => await LoadColumnsAsync(profile, ancestors.Take(ancestors.Count - 1).ToList(), ct),
             DbNodeKind.View => await LoadColumnsAsync(profile, ancestors, ct),
             DbNodeKind.IndexFolder => await LoadIndexesAsync(profile, ancestors, ct),
             DbNodeKind.ForeignKeyFolder => await LoadForeignKeysAsync(profile, ancestors, ct),
@@ -200,6 +201,9 @@ public sealed class MySqlProvider : IDbProvider
         new() { Kind = DbNodeKind.TableFolder, Name = "Tables", HasChildren = true },
         new() { Kind = DbNodeKind.ViewFolder, Name = "Views", HasChildren = true }
     ];
+
+    private static DbTreeNode ColumnFolder() =>
+        new() { Kind = DbNodeKind.ColumnFolder, Name = "Columns", HasChildren = true };
 
     private static DbTreeNode IndexFolder() =>
         new() { Kind = DbNodeKind.IndexFolder, Name = "Indexes", HasChildren = true };

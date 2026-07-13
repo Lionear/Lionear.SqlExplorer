@@ -137,13 +137,20 @@ public sealed class SchemaCache(IDbProviderRegistry providers, ConnectionService
         try
         {
             children = await provider.GetChildNodesAsync(profile, tablePath, ct);
+
+            // Providers group a table's columns under a "Columns" folder (alongside Indexes/Foreign Keys);
+            // descend into it. Views still expose their columns directly, so handle both layouts.
+            if (children.FirstOrDefault(n => n.Kind == DbNodeKind.ColumnFolder) is { } folder)
+            {
+                var folderPath = new List<DbNodeRef>(tablePath) { new(folder.Kind, folder.Name) };
+                children = await provider.GetChildNodesAsync(profile, folderPath, ct);
+            }
         }
         catch
         {
             return [];
         }
 
-        // A table's children may also hold an index folder; keep only the columns.
         return children
             .Where(node => node.Kind == DbNodeKind.Column)
             .Select(node => new SchemaColumn(node.Name, node.Detail))
@@ -158,5 +165,5 @@ public sealed class SchemaCache(IDbProviderRegistry providers, ConnectionService
 
     private static bool IsContainer(DbNodeKind kind) => kind is
         DbNodeKind.Database or DbNodeKind.SchemaFolder or DbNodeKind.Schema or
-        DbNodeKind.TableFolder or DbNodeKind.ViewFolder or DbNodeKind.Group;
+        DbNodeKind.TableFolder or DbNodeKind.ViewFolder or DbNodeKind.Group or DbNodeKind.DatabaseFolder;
 }

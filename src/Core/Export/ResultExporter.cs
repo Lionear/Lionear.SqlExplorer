@@ -30,6 +30,28 @@ public static class ResultExporter
         return needsQuoting ? $"\"{value.Replace("\"", "\"\"")}\"" : value;
     }
 
+    /// <summary>Tab-separated values for the clipboard (the everyday "Copy" — pastes cleanly into a
+    /// spreadsheet). Tabs/newlines inside a cell are flattened to spaces so the grid stays intact.</summary>
+    public static string ToTsv(IReadOnlyList<ResultColumn> columns, IEnumerable<object?[]> rows, bool includeHeaders)
+    {
+        var sb = new StringBuilder();
+        if (includeHeaders)
+        {
+            sb.AppendLine(string.Join('\t', columns.Select(c => TsvField(c.Name))));
+        }
+
+        foreach (var row in rows)
+        {
+            sb.AppendLine(string.Join('\t', row.Select(v =>
+                TsvField(v is null or DBNull ? "" : Convert.ToString(v, System.Globalization.CultureInfo.InvariantCulture)))));
+        }
+
+        return sb.ToString().TrimEnd('\r', '\n');
+    }
+
+    private static string TsvField(string? value) =>
+        (value ?? "").Replace('\t', ' ').Replace('\r', ' ').Replace('\n', ' ');
+
     public static string ToJson(IReadOnlyList<ResultColumn> columns, IEnumerable<object?[]> rows)
     {
         using var stream = new MemoryStream();
