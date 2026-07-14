@@ -44,6 +44,7 @@ public partial class MainViewModel : ViewModelBase
     private readonly Func<ImportCsvDialogViewModel> _importCsvDialogFactory;
     private readonly Func<SettingsViewModel> _settingsDialogFactory;
     private readonly Func<PluginStoreViewModel> _pluginStoreFactory;
+    private readonly Core.Plugins.PluginCatalogService _pluginCatalog;
     private readonly IToolRegistry _tools;
     private readonly Func<ToolDialogViewModel> _toolDialogFactory;
     private readonly IAppSettingsStore _settingsStore;
@@ -97,6 +98,7 @@ public partial class MainViewModel : ViewModelBase
         IToolRegistry tools,
         Func<ToolDialogViewModel> toolDialogFactory,
         Func<PluginStoreViewModel> pluginStoreFactory,
+        Core.Plugins.PluginCatalogService pluginCatalog,
         IAppSettingsStore settingsStore,
         ILocalizer localizer)
     {
@@ -113,11 +115,32 @@ public partial class MainViewModel : ViewModelBase
         _tools = tools;
         _toolDialogFactory = toolDialogFactory;
         _pluginStoreFactory = pluginStoreFactory;
+        _pluginCatalog = pluginCatalog;
         _settingsStore = settingsStore;
         Loc = localizer;
 
         _history.Changed += OnHistoryChanged;
         RefreshConnections();
+        EvaluatePluginRestart();
+    }
+
+    /// <summary>True when the Plugin Store has staged changes that need a restart — shows a main-window banner.</summary>
+    [ObservableProperty]
+    private bool _pluginRestartRequired;
+
+    /// <summary>Re-check whether staged plugin changes need a restart (called at startup and after the store closes).</summary>
+    public void EvaluatePluginRestart() => PluginRestartRequired = _pluginCatalog.HasPendingChanges;
+
+    /// <summary>Set by the view to relaunch the app (applies staged plugin changes).</summary>
+    public Func<Task>? RestartRequested { get; set; }
+
+    [RelayCommand]
+    private async Task RestartApp()
+    {
+        if (RestartRequested is not null)
+        {
+            await RestartRequested();
+        }
     }
 
     /// <summary>Query-history rows shown in the (toggleable) history panel, newest first.</summary>
@@ -1437,6 +1460,9 @@ public partial class MainViewModel : ViewModelBase
         }
 
         await PluginStoreRequested(_pluginStoreFactory());
+
+        // The store may have staged installs/removes/toggles — refresh the main-window banner.
+        EvaluatePluginRestart();
     }
 
     /// <summary>Set by the view so the VM can show the About window.</summary>

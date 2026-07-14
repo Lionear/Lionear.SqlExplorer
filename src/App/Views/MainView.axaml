@@ -6,21 +6,33 @@
              x:Class="Lionear.SqlExplorer.App.Views.MainView">
   <Grid RowDefinitions="Auto,*,Auto,Auto">
 
-    <!-- Top toolbar: new query tab + quick actions. Language/theme live in the menu bar now;
-         connection actions live in the sidebar. -->
-    <Border Grid.Row="0" Background="{DynamicResource CatToolbarBgBrush}"
-            BorderBrush="{DynamicResource CatHairlineBrush}" BorderThickness="0,0,0,1">
-      <StackPanel Orientation="Horizontal" Spacing="8" Margin="8,6">
-        <Button Classes="Accent"
-                Content="{Binding Loc[NewQueryTab]}" Command="{Binding NewQueryTabCommand}" />
-        <Button Classes="Subtle"
-                Content="{Binding Loc[GoToObject]}" ToolTip.Tip="Ctrl+K" Command="{Binding ToggleSearchCommand}" />
-        <Button Classes="Subtle"
-                Content="{Binding Loc[History]}" Command="{Binding ToggleHistoryCommand}" />
-        <Button Classes="Subtle"
-                Content="{Binding Loc[Output]}" Command="{Binding ToggleOutputCommand}" />
-      </StackPanel>
-    </Border>
+    <StackPanel Grid.Row="0">
+      <!-- Plugin "restart needed" banner (amber) — shown when the Store staged install/enable/remove changes. -->
+      <Border IsVisible="{Binding PluginRestartRequired}" Background="#1FE0A33E"
+              BorderBrush="#59E0A33E" BorderThickness="0,0,0,1" Padding="12,7">
+        <StackPanel Orientation="Horizontal" Spacing="12">
+          <TextBlock Text="{Binding Loc[MainPluginRestartBanner]}" Foreground="{DynamicResource CatStatusWaitingBrush}"
+                     FontSize="12" VerticalAlignment="Center" />
+          <Button Classes="Subtle" Content="{Binding Loc[MainRestartNow]}" Command="{Binding RestartAppCommand}" />
+        </StackPanel>
+      </Border>
+
+      <!-- Top toolbar: new query tab + quick actions. Language/theme live in the menu bar now;
+           connection actions live in the sidebar. -->
+      <Border Background="{DynamicResource CatToolbarBgBrush}"
+              BorderBrush="{DynamicResource CatHairlineBrush}" BorderThickness="0,0,0,1">
+        <StackPanel Orientation="Horizontal" Spacing="8" Margin="8,6">
+          <Button Classes="Accent"
+                  Content="{Binding Loc[NewQueryTab]}" Command="{Binding NewQueryTabCommand}" />
+          <Button Classes="Subtle"
+                  Content="{Binding Loc[GoToObject]}" ToolTip.Tip="Ctrl+K" Command="{Binding ToggleSearchCommand}" />
+          <Button Classes="Subtle"
+                  Content="{Binding Loc[History]}" Command="{Binding ToggleHistoryCommand}" />
+          <Button Classes="Subtle"
+                  Content="{Binding Loc[Output]}" Command="{Binding ToggleOutputCommand}" />
+        </StackPanel>
+      </Border>
+    </StackPanel>
 
     <!-- Body: connection sidebar | editor tabs | (optional) history panel -->
     <Grid Grid.Row="1" x:Name="BodyGrid">

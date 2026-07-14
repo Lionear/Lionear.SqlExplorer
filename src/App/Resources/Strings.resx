@@ -643,7 +643,7 @@
     <value>This plugin requests the following capabilities:</value>
   </data>
   <data name="StoreConsentApprove" xml:space="preserve">
-    <value>Install</value>
+    <value>Trust and install</value>
   </data>
   <data name="StoreDisabled" xml:space="preserve">
     <value>Disabled</value>
@@ -704,5 +704,44 @@
   </data>
   <data name="StoreIncompatMin" xml:space="preserve">
     <value>Requires host API {0}+; this build is {1}.</value>
+  </data>
+  <data name="StoreUpdateAll" xml:space="preserve">
+    <value>Update all ({0})</value>
+  </data>
+  <data name="StoreUpdateTo" xml:space="preserve">
+    <value>Update → {0}</value>
+  </data>
+  <data name="StoreRestartApp" xml:space="preserve">
+    <value>Restart app</value>
+  </data>
+  <data name="StoreBundleSub" xml:space="preserve">
+    <value>bundle · {0} plugins</value>
+  </data>
+  <data name="StoreInstalledCount" xml:space="preserve">
+    <value>{0} plugins installed</value>
+  </data>
+  <data name="StoreManualHint" xml:space="preserve">
+    <value>For stores not (yet) in Discovery — private, internal, or intentionally unregistered. Fully self-managed.</value>
+  </data>
+  <data name="StoreReadOnly" xml:space="preserve">
+    <value>read-only</value>
+  </data>
+  <data name="StoreContains" xml:space="preserve">
+    <value>Contains</value>
+  </data>
+  <data name="StoreVersionLabel" xml:space="preserve">
+    <value>Version</value>
+  </data>
+  <data name="StoreRollbackTo" xml:space="preserve">
+    <value>Back to {0}</value>
+  </data>
+  <data name="StoreConsentChecksum" xml:space="preserve">
+    <value>Pinned SHA-256</value>
+  </data>
+  <data name="MainPluginRestartBanner" xml:space="preserve">
+    <value>Plugin changes are pending — restart to apply them.</value>
+  </data>
+  <data name="MainRestartNow" xml:space="preserve">
+    <value>Restart now</value>
   </data>
 </root>

@@ -52,7 +52,7 @@ public sealed class HttpStoreCatalog(
                     }
                 }
 
-                statuses.Add(new SourceStatus(source.Url, source.Name, source.IsDiscovery, Ok: true, Error: null));
+                statuses.Add(new SourceStatus(source.Url, source.Name, source.IsDiscovery, Ok: true, Error: null, source.IconUrl));
                 anyOk = true;
             }
             catch (OperationCanceledException) when (ct.IsCancellationRequested)
@@ -61,7 +61,7 @@ public sealed class HttpStoreCatalog(
             }
             catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException or InvalidDataException or FormatException)
             {
-                statuses.Add(new SourceStatus(source.Url, source.Name, source.IsDiscovery, Ok: false, Error: ex.Message));
+                statuses.Add(new SourceStatus(source.Url, source.Name, source.IsDiscovery, Ok: false, Error: ex.Message, source.IconUrl));
             }
         }
 
@@ -86,7 +86,7 @@ public sealed class HttpStoreCatalog(
         {
             if (seenUrls.Add(store.IndexUrl))
             {
-                resolved.Add(new ResolvedSource(store.IndexUrl, store.Name, IsDiscovery: true));
+                resolved.Add(new ResolvedSource(store.IndexUrl, store.Name, IsDiscovery: true, store.IconUrl));
             }
         }
 
@@ -94,12 +94,12 @@ public sealed class HttpStoreCatalog(
         {
             if (seenUrls.Add(url))
             {
-                resolved.Add(new ResolvedSource(url, Name: null, IsDiscovery: false));
+                resolved.Add(new ResolvedSource(url, Name: null, IsDiscovery: false, IconUrl: null));
             }
         }
 
         return resolved;
     }
 
-    private sealed record ResolvedSource(string Url, string? Name, bool IsDiscovery);
+    private sealed record ResolvedSource(string Url, string? Name, bool IsDiscovery, string? IconUrl);
 }

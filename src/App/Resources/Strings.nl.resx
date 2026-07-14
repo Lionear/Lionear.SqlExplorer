@@ -643,7 +643,7 @@
     <value>Deze plugin vraagt de volgende rechten:</value>
   </data>
   <data name="StoreConsentApprove" xml:space="preserve">
-    <value>Installeren</value>
+    <value>Vertrouwen en installeren</value>
   </data>
   <data name="StoreDisabled" xml:space="preserve">
     <value>Uitgeschakeld</value>
@@ -704,5 +704,44 @@
   </data>
   <data name="StoreIncompatMin" xml:space="preserve">
     <value>Vereist host-API {0}+; deze build is {1}.</value>
+  </data>
+  <data name="StoreUpdateAll" xml:space="preserve">
+    <value>Alles bijwerken ({0})</value>
+  </data>
+  <data name="StoreUpdateTo" xml:space="preserve">
+    <value>Bijwerken → {0}</value>
+  </data>
+  <data name="StoreRestartApp" xml:space="preserve">
+    <value>App herstarten</value>
+  </data>
+  <data name="StoreBundleSub" xml:space="preserve">
+    <value>bundel · {0} plugins</value>
+  </data>
+  <data name="StoreInstalledCount" xml:space="preserve">
+    <value>{0} plugins geïnstalleerd</value>
+  </data>
+  <data name="StoreManualHint" xml:space="preserve">
+    <value>Voor stores die (nog) niet in Discovery staan — privé, intern of bewust niet geregistreerd. Volledig zelf te beheren.</value>
+  </data>
+  <data name="StoreReadOnly" xml:space="preserve">
+    <value>alleen-lezen</value>
+  </data>
+  <data name="StoreContains" xml:space="preserve">
+    <value>Bevat</value>
+  </data>
+  <data name="StoreVersionLabel" xml:space="preserve">
+    <value>Versie</value>
+  </data>
+  <data name="StoreRollbackTo" xml:space="preserve">
+    <value>Terug naar {0}</value>
+  </data>
+  <data name="StoreConsentChecksum" xml:space="preserve">
+    <value>Gepinde SHA-256</value>
+  </data>
+  <data name="MainPluginRestartBanner" xml:space="preserve">
+    <value>Er staan plugin-wijzigingen klaar — herstart om ze toe te passen.</value>
+  </data>
+  <data name="MainRestartNow" xml:space="preserve">
+    <value>Nu herstarten</value>
   </data>
 </root>

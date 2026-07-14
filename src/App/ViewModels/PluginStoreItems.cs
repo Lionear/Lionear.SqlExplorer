@@ -30,10 +30,27 @@ public sealed partial class StoreListItem : ObservableObject
     public string? Description { get; }
     public string? Homepage { get; }
     public string? SourceName { get; }
+    public string? SourceUrl { get; }
+    public string? IconUrl { get; }
+    public string SubLine { get; }
     public bool IsBundle => Bundle is not null;
+
+    /// <summary>Plugin icon, downloaded lazily from <see cref="IconUrl"/>; null falls back to a vector glyph.</summary>
+    [ObservableProperty]
+    private Avalonia.Media.IImage? _icon;
+
+    /// <summary>True for the card shown in the detail pane — drives the selected-card highlight.</summary>
+    [ObservableProperty]
+    private bool _isSelected;
     public IReadOnlyList<string> Capabilities { get; }
     public IReadOnlyList<string> BundlePluginIds { get; }
+    public IReadOnlyList<BundleChild> BundleChildren { get; }
+    public bool HasSource => !string.IsNullOrEmpty(SourceName);
     public ObservableCollection<StoreVersion> Versions { get; } = [];
+
+    /// <summary>"SHA-256 8f3a… · 4.8 MB · source: …" for the selected version (plugin cards only).</summary>
+    [ObservableProperty]
+    private string? _provenanceLine;
 
     [ObservableProperty]
     private StoreVersion? _selectedVersion;
@@ -54,7 +71,7 @@ public sealed partial class StoreListItem : ObservableObject
     private bool _isStaged;
 
     // Plugin card
-    public StoreListItem(StoreEntry entry, string? sourceName, string? installedVersion, int hostApiVersion, ILocalizer loc)
+    public StoreListItem(StoreEntry entry, string? sourceName, string? sourceUrl, string? installedVersion, int hostApiVersion, ILocalizer loc)
     {
         Entry = entry;
         _hostApiVersion = hostApiVersion;
@@ -65,8 +82,11 @@ public sealed partial class StoreListItem : ObservableObject
         Description = entry.Description;
         Homepage = entry.Homepage;
         SourceName = sourceName;
+        SourceUrl = sourceUrl;
+        IconUrl = entry.IconUrl;
         Capabilities = entry.Capabilities;
         BundlePluginIds = [];
+        BundleChildren = [];
         foreach (var v in entry.Versions.OrderByDescending(v => v.Version, Comparer<string?>.Create(SemVer.Compare)))
         {
             Versions.Add(v);
@@ -74,11 +94,13 @@ public sealed partial class StoreListItem : ObservableObject
 
         _installedVersion = installedVersion;
         _selectedVersion = entry.HighestCompatibleVersion(hostApiVersion) ?? Versions.FirstOrDefault();
+        var top = Versions.FirstOrDefault()?.Version;
+        SubLine = string.IsNullOrEmpty(Author) ? $"v{top}" : $"v{top} · {Author}";
         Recompute();
     }
 
     // Bundle card
-    public StoreListItem(StoreBundle bundle, string? sourceName, ILocalizer loc)
+    public StoreListItem(StoreBundle bundle, string? sourceName, string? sourceUrl, IReadOnlyList<BundleChild> children, ILocalizer loc)
     {
         Bundle = bundle;
         _loc = loc;
@@ -86,8 +108,11 @@ public sealed partial class StoreListItem : ObservableObject
         Name = bundle.Name;
         Description = bundle.Description;
         SourceName = sourceName;
+        SourceUrl = sourceUrl;
         Capabilities = [];
         BundlePluginIds = bundle.PluginIds;
+        BundleChildren = children;
+        SubLine = loc.Get("StoreBundleSub", bundle.PluginIds.Count);
         _actionLabel = loc["StoreInstallAll"];
         _canInstall = true;
     }
@@ -107,6 +132,10 @@ public sealed partial class StoreListItem : ObservableObject
         {
             return;
         }
+
+        ProvenanceLine = SelectedVersion is { } v
+            ? $"SHA-256 {Shorten(v.Sha256)} · {FormatSize(v.Size)} · {SourceUrl}"
+            : null;
 
         if (SelectedVersion is not { } version)
         {
@@ -136,7 +165,16 @@ public sealed partial class StoreListItem : ObservableObject
                 _ => _loc["StoreReinstall"]
             };
     }
+
+    private static string Shorten(string sha) => sha.Length > 8 ? sha[..8] + "…" : sha;
+
+    private static string FormatSize(long bytes) => bytes >= 1024 * 1024
+        ? $"{bytes / (1024.0 * 1024.0):0.0} MB"
+        : $"{bytes / 1024.0:0} KB";
 }
+
+/// <summary>One child plugin of a bundle, for the detail pane's "Contains" list.</summary>
+public sealed record BundleChild(string Name, string? Version);
 
 /// <summary>An Installed-tab row: an <see cref="InstalledPlugin"/> plus store-derived update/rollback state.</summary>
 public sealed partial class InstalledListItem : ObservableObject
@@ -164,11 +202,24 @@ public sealed partial class InstalledListItem : ObservableObject
     [ObservableProperty]
     private string? _updateTargetVersion;
 
+    /// <summary>Localized "Update → x.y.z" label for the row's update button.</summary>
+    [ObservableProperty]
+    private string? _updateLabel;
+
     [ObservableProperty]
     private bool _hasRollback;
 
+    /// <summary>Localized "Back to x.y.z" (falls back to a generic "Roll back") for the rollback button.</summary>
+    [ObservableProperty]
+    private string? _rollbackLabel;
+
+    /// <summary>Plugin icon, downloaded lazily from the matched catalog entry; null falls back to a glyph.</summary>
+    [ObservableProperty]
+    private Avalonia.Media.IImage? _icon;
+
     public StoreEntry? CatalogEntry { get; set; }
     public StoreVersion? UpdateTarget { get; set; }
+    public string? IconUrl { get; set; }
 
     public bool HasLoadError => !Loaded && LoadError is not null;
 
@@ -194,6 +245,7 @@ public sealed partial class SourceRow : ObservableObject
     public string Url { get; }
     public string? Name { get; }
     public bool IsDiscovery { get; }
+    public string? IconUrl { get; }
 
     [ObservableProperty]
     private bool _ok;
@@ -201,12 +253,17 @@ public sealed partial class SourceRow : ObservableObject
     [ObservableProperty]
     private string? _error;
 
-    public SourceRow(string url, string? name, bool isDiscovery, bool ok, string? error)
+    /// <summary>The store's icon, downloaded lazily from <see cref="IconUrl"/> (Discovery sources only).</summary>
+    [ObservableProperty]
+    private Avalonia.Media.IImage? _icon;
+
+    public SourceRow(string url, string? name, bool isDiscovery, bool ok, string? error, string? iconUrl)
     {
         Url = url;
         Name = name;
         IsDiscovery = isDiscovery;
         _ok = ok;
         _error = error;
+        IconUrl = iconUrl;
     }
 }

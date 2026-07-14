@@ -26,11 +26,13 @@ public sealed partial class PluginStoreViewModel : ViewModelBase
     private readonly PluginCatalogService _installed;
     private readonly PluginUpdateService _updates;
     private readonly IStoreSourcesStore _sources;
+    private readonly HttpClient _http;
     private readonly Progress<InstallProgress> _progress;
 
     private readonly List<StoreListItem> _allBrowse = [];
     private StoreCatalog? _lastCatalog;
     private TaskCompletionSource<bool>? _consent;
+    private InstallPhase? _lastPhase;
 
     [ObservableProperty]
     private string _selectedTab = "Browse";
@@ -69,6 +71,9 @@ public sealed partial class PluginStoreViewModel : ViewModelBase
     private string? _consentPluginName;
 
     [ObservableProperty]
+    private string? _consentChecksum;
+
+    [ObservableProperty]
     private string? _newSourceUrl;
 
     public PluginStoreViewModel(
@@ -77,6 +82,7 @@ public sealed partial class PluginStoreViewModel : ViewModelBase
         PluginCatalogService installed,
         PluginUpdateService updates,
         IStoreSourcesStore sources,
+        HttpClient http,
         ILocalizer localizer)
     {
         _catalog = catalog;
@@ -84,6 +90,7 @@ public sealed partial class PluginStoreViewModel : ViewModelBase
         _installed = installed;
         _updates = updates;
         _sources = sources;
+        _http = http;
         Loc = localizer;
         _progress = new Progress<InstallProgress>(OnProgress);
     }
@@ -97,10 +104,17 @@ public sealed partial class PluginStoreViewModel : ViewModelBase
     public ObservableCollection<SourceRow> ManualSources { get; } = [];
     public ObservableCollection<string> ConsentCapabilities { get; } = [];
 
+    /// <summary>One line per install phase entered (Downloading/Verifying/…) — the mini install log.</summary>
+    public ObservableCollection<string> ProgressLog { get; } = [];
+
     public bool HasBrowseItems => BrowseItems.Count > 0;
     public bool HasUserPlugins => UserPlugins.Count > 0;
     public int UpdateCount => UserPlugins.Count(p => p.UpdateAvailable);
     public bool HasUpdates => UpdateCount > 0;
+    public string UpdateAllLabel => Loc.Get("StoreUpdateAll", UpdateCount);
+    public int InstalledCount => BundledPlugins.Count + UserPlugins.Count;
+    public int SourcesCount => DiscoverySources.Count + ManualSources.Count;
+    public string InstalledCountLabel => Loc.Get("StoreInstalledCount", InstalledCount);
 
     /// <summary>Set by the view: pick a local .zip to install; returns null if cancelled.</summary>
     public Func<Task<string?>>? InstallFromFileRequested { get; set; }
@@ -108,11 +122,17 @@ public sealed partial class PluginStoreViewModel : ViewModelBase
     /// <summary>Set by the view to close the window.</summary>
     public Action? CloseRequested { get; set; }
 
+    /// <summary>Set by the view to relaunch the app (applies the staged install/enable/remove changes).</summary>
+    public Action? RestartRequested { get; set; }
+
     [RelayCommand]
     private void SelectTab(string tab) => SelectedTab = tab;
 
     [RelayCommand]
     private void Close() => CloseRequested?.Invoke();
+
+    [RelayCommand]
+    private void RestartApp() => RestartRequested?.Invoke();
 
     /// <summary>Full (re)load: fetch the catalog, then rebuild all three tabs. Called on open and refresh.</summary>
     [RelayCommand]
@@ -148,14 +168,20 @@ public sealed partial class PluginStoreViewModel : ViewModelBase
 
         foreach (var plugin in _installed.Installed.OrderBy(p => p.Name ?? p.Id, StringComparer.OrdinalIgnoreCase))
         {
-            var hasRollback = plugin.CanManage
-                && Directory.Exists(PluginPaths.UserPluginDir(plugin.Id) + ".prev");
+            var prevVersion = plugin.CanManage && Directory.Exists(PluginPaths.UserPluginDir(plugin.Id) + ".prev")
+                ? ReadPrevVersion(plugin.Id)
+                : null;
+
+            // Only offer rollback when the kept previous version actually differs from what's installed —
+            // a same-version reinstall keeps a same-version backup, and rolling back to it is a no-op.
+            var hasRollback = prevVersion is not null && prevVersion != plugin.Version;
             var row = new InstalledListItem(plugin, hasRollback);
 
             if (updates.TryGetValue(plugin.Id, out var update))
             {
                 row.UpdateAvailable = true;
                 row.UpdateTargetVersion = update.Target.Version;
+                row.UpdateLabel = Loc.Get("StoreUpdateTo", update.Target.Version);
                 row.UpdateTarget = update.Target;
                 row.CatalogEntry = update.Entry;
             }
@@ -164,12 +190,43 @@ public sealed partial class PluginStoreViewModel : ViewModelBase
                 row.CatalogEntry = entry;
             }
 
+            row.IconUrl = row.CatalogEntry?.IconUrl;
+            row.RollbackLabel = hasRollback ? Loc.Get("StoreRollbackTo", prevVersion!) : Loc["StoreRollback"];
+
             (plugin.Origin == PluginOrigin.Bundled ? BundledPlugins : UserPlugins).Add(row);
         }
 
         OnPropertyChanged(nameof(HasUserPlugins));
         OnPropertyChanged(nameof(HasUpdates));
         OnPropertyChanged(nameof(UpdateCount));
+        OnPropertyChanged(nameof(UpdateAllLabel));
+        OnPropertyChanged(nameof(InstalledCount));
+        OnPropertyChanged(nameof(InstalledCountLabel));
+
+        foreach (var row in BundledPlugins.Concat(UserPlugins))
+        {
+            _ = LoadIconAsync(row.IconUrl, image => row.Icon = image);
+        }
+
+        // Reopening the store starts a fresh VM, so re-derive "restart needed" from what's already staged.
+        if (_installed.HasPendingChanges)
+        {
+            RestartRequired = true;
+        }
+    }
+
+    // Best-effort read of the kept previous version's manifest, to label the rollback button.
+    private static string? ReadPrevVersion(string id)
+    {
+        try
+        {
+            var manifest = Path.Combine(PluginPaths.UserPluginDir(id) + ".prev", "plugin.json");
+            return File.Exists(manifest) ? PluginManifest.Load(manifest).Version : null;
+        }
+        catch (Exception)
+        {
+            return null;
+        }
     }
 
     private void BuildBrowse(StoreCatalog catalog)
@@ -178,22 +235,48 @@ public sealed partial class PluginStoreViewModel : ViewModelBase
 
         var installedById = _installed.Installed.ToDictionary(p => p.Id, p => p.Version, StringComparer.Ordinal);
 
+        var entriesById = catalog.Entries.ToDictionary(e => e.Entry.Id, e => e.Entry, StringComparer.Ordinal);
+
         foreach (var bundle in catalog.Bundles)
         {
-            _allBrowse.Add(new StoreListItem(bundle.Bundle, bundle.SourceName, Loc));
+            var children = bundle.Bundle.PluginIds
+                .Select(id => entriesById.TryGetValue(id, out var e)
+                    ? new BundleChild(e.Name, e.HighestCompatibleVersion(HostApiVersions.For(e.Type))?.Version ?? e.Versions.FirstOrDefault()?.Version)
+                    : new BundleChild(id, null))
+                .ToList();
+            _allBrowse.Add(new StoreListItem(bundle.Bundle, bundle.SourceName, bundle.SourceUrl, children, Loc));
         }
 
         foreach (var entry in catalog.Entries)
         {
             var installedVersion = installedById.GetValueOrDefault(entry.Entry.Id);
-            _allBrowse.Add(new StoreListItem(entry.Entry, entry.SourceName, installedVersion,
+            _allBrowse.Add(new StoreListItem(entry.Entry, entry.SourceName, entry.SourceUrl, installedVersion,
                 HostApiVersions.For(entry.Entry.Type), Loc));
         }
 
         ApplyBrowseFilter();
+
+        foreach (var item in _allBrowse)
+        {
+            _ = LoadIconAsync(item.IconUrl, image => item.Icon = image);
+        }
     }
 
     partial void OnSearchTextChanged(string? value) => ApplyBrowseFilter();
+
+    // Keep the selected-card highlight in sync (ItemsControl has no built-in selection).
+    partial void OnSelectedBrowseItemChanged(StoreListItem? oldValue, StoreListItem? newValue)
+    {
+        if (oldValue is not null)
+        {
+            oldValue.IsSelected = false;
+        }
+
+        if (newValue is not null)
+        {
+            newValue.IsSelected = true;
+        }
+    }
 
     private void ApplyBrowseFilter()
     {
@@ -212,7 +295,19 @@ public sealed partial class PluginStoreViewModel : ViewModelBase
             BrowseItems.Add(item);
         }
 
-        SelectedBrowseItem ??= BrowseItems.FirstOrDefault();
+        // Default to the first card, and keep it selected if the current one was filtered out.
+        if (SelectedBrowseItem is null || !BrowseItems.Contains(SelectedBrowseItem))
+        {
+            SelectedBrowseItem = BrowseItems.FirstOrDefault();
+        }
+
+        // Sync the highlight flag explicitly: the default selection is set before the card containers
+        // exist, so the change-hook alone can leave the first card un-highlighted.
+        foreach (var item in _allBrowse)
+        {
+            item.IsSelected = ReferenceEquals(item, SelectedBrowseItem);
+        }
+
         OnPropertyChanged(nameof(HasBrowseItems));
     }
 
@@ -225,14 +320,41 @@ public sealed partial class PluginStoreViewModel : ViewModelBase
 
         foreach (var source in catalog.Sources.Where(s => s.IsDiscovery))
         {
-            DiscoverySources.Add(new SourceRow(source.Url, source.Name, isDiscovery: true, source.Ok, source.Error));
+            DiscoverySources.Add(new SourceRow(source.Url, source.Name, isDiscovery: true, source.Ok, source.Error, source.IconUrl));
         }
 
         foreach (var url in _sources.GetManualSources())
         {
             var ok = statusByUrl.TryGetValue(url, out var status) && status.Ok;
             var error = status?.Error;
-            ManualSources.Add(new SourceRow(url, name: null, isDiscovery: false, ok, error));
+            ManualSources.Add(new SourceRow(url, name: null, isDiscovery: false, ok, error, iconUrl: null));
+        }
+
+        OnPropertyChanged(nameof(SourcesCount));
+
+        foreach (var row in DiscoverySources)
+        {
+            _ = LoadIconAsync(row.IconUrl, image => row.Icon = image);
+        }
+    }
+
+    // Icons load lazily and best-effort from a remote URL — any failure (offline, 404, not an image)
+    // just leaves the item icon-less, falling back to a vector glyph in the view.
+    private async Task LoadIconAsync(string? url, Action<Avalonia.Media.IImage> set)
+    {
+        if (string.IsNullOrEmpty(url))
+        {
+            return;
+        }
+
+        try
+        {
+            var bytes = await _http.GetByteArrayAsync(url);
+            using var stream = new MemoryStream(bytes);
+            set(new Avalonia.Media.Imaging.Bitmap(stream));
+        }
+        catch (Exception)
+        {
         }
     }
 
@@ -252,7 +374,7 @@ public sealed partial class PluginStoreViewModel : ViewModelBase
             return;
         }
 
-        if (!await ConfirmConsentAsync(entry.Name, entry.Capabilities))
+        if (!await ConfirmConsentAsync(entry.Name, entry.Capabilities, version.Sha256))
         {
             return;
         }
@@ -279,10 +401,12 @@ public sealed partial class PluginStoreViewModel : ViewModelBase
         }
 
         var caps = children.SelectMany(c => c.Entry.Capabilities).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
-        if (!await ConfirmConsentAsync(bundleItem.Name, caps))
+        if (!await ConfirmConsentAsync(bundleItem.Name, caps, checksum: null))
         {
             return;
         }
+
+        StartProgress();
 
         IsBusy = true;
         ErrorText = null;
@@ -335,6 +459,7 @@ public sealed partial class PluginStoreViewModel : ViewModelBase
             item.Pending = PluginPendingAction.Install;
             OnPropertyChanged(nameof(HasUpdates));
             OnPropertyChanged(nameof(UpdateCount));
+            OnPropertyChanged(nameof(UpdateAllLabel));
         }
     }
 
@@ -351,6 +476,8 @@ public sealed partial class PluginStoreViewModel : ViewModelBase
         {
             return;
         }
+
+        StartProgress();
 
         IsBusy = true;
         ErrorText = null;
@@ -451,7 +578,7 @@ public sealed partial class PluginStoreViewModel : ViewModelBase
 
     // --- Capability consent overlay ----------------------------------------------------------------
 
-    private Task<bool> ConfirmConsentAsync(string pluginName, IReadOnlyList<string> capabilities)
+    private Task<bool> ConfirmConsentAsync(string pluginName, IReadOnlyList<string> capabilities, string? checksum)
     {
         if (capabilities.Count == 0)
         {
@@ -459,6 +586,7 @@ public sealed partial class PluginStoreViewModel : ViewModelBase
         }
 
         ConsentPluginName = pluginName;
+        ConsentChecksum = checksum;
         ConsentCapabilities.Clear();
         foreach (var capability in capabilities)
         {
@@ -488,6 +616,7 @@ public sealed partial class PluginStoreViewModel : ViewModelBase
 
     private async Task<InstallOutcome> RunInstallAsync(Func<Task<InstallOutcome>> install)
     {
+        StartProgress();
         IsBusy = true;
         ErrorText = null;
         ProgressIndeterminate = true;
@@ -511,6 +640,14 @@ public sealed partial class PluginStoreViewModel : ViewModelBase
         }
     }
 
+    private void StartProgress()
+    {
+        ProgressLog.Clear();
+        _lastPhase = null;
+        ProgressValue = 0;
+        ProgressIndeterminate = true;
+    }
+
     private void OnProgress(InstallProgress progress)
     {
         BusyText = progress.Phase switch
@@ -521,6 +658,13 @@ public sealed partial class PluginStoreViewModel : ViewModelBase
             InstallPhase.Staging => Loc["StoreStaging"],
             _ => Loc["StoreInstalling"]
         };
+
+        // One log line each time a new phase begins (not per download tick), optionally per plugin.
+        if (_lastPhase != progress.Phase)
+        {
+            _lastPhase = progress.Phase;
+            ProgressLog.Add(string.IsNullOrEmpty(progress.PluginId) ? BusyText! : $"{progress.PluginId} — {BusyText}");
+        }
 
         if (progress is { Phase: InstallPhase.Downloading, TotalBytes: > 0 })
         {

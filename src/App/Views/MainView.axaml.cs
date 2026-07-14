@@ -184,6 +184,7 @@ public partial class MainView : UserControl
             _viewModel.SettingsDialogRequested = ShowSettingsDialogAsync;
             _viewModel.ToolDialogRequested = ShowToolDialogAsync;
             _viewModel.PluginStoreRequested = ShowPluginStoreAsync;
+            _viewModel.RestartRequested = () => { AppRestart.Restart(); return Task.CompletedTask; };
             _viewModel.ConfirmRequested = ShowConfirmAsync;
             _viewModel.PropertyChanged += OnViewModelPropertyChanged;
         }

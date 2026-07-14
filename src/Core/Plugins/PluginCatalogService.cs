@@ -38,6 +38,15 @@ public sealed class PluginCatalogService(
 
     public IReadOnlyList<InstalledPlugin> Installed => _plugins;
 
+    /// <summary>
+    /// True when something is staged that a restart would apply: a pending install/remove, or a user
+    /// plugin whose enabled-state no longer matches how it actually loaded this run (enabled-but-not-loaded
+    /// or disabled-but-still-loaded). Drives the "restart needed" banner in both the Store and the main window.
+    /// </summary>
+    public bool HasPendingChanges => _plugins.Any(p =>
+        p.Pending != PluginPendingAction.None
+        || (p.CanManage && p.LoadError is null && p.Enabled != p.Loaded));
+
     /// <summary>Stage a disable (user plugins only); applied on next startup.</summary>
     public void RequestDisable(string id) => SetEnabled(id, enabled: false);
 

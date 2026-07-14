@@ -8,8 +8,8 @@ public sealed record CatalogEntry(StoreEntry Entry, string SourceUrl, string? So
 public sealed record CatalogBundle(StoreBundle Bundle, string SourceUrl, string? SourceName);
 
 /// <summary>How one source fared during a fetch — drives the Sources tab's per-source status and the
-/// offline/error empty-states.</summary>
-public sealed record SourceStatus(string Url, string? Name, bool IsDiscovery, bool Ok, string? Error);
+/// offline/error empty-states. <see cref="IconUrl"/> is the store's icon (Discovery sources only).</summary>
+public sealed record SourceStatus(string Url, string? Name, bool IsDiscovery, bool Ok, string? Error, string? IconUrl = null);
 
 /// <summary>
 /// The merged result of fetching every source (Discovery ∪ manual). Deduped by id — the first source

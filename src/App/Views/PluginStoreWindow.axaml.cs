@@ -17,6 +17,7 @@ public partial class PluginStoreWindow : Window
             if (DataContext is PluginStoreViewModel vm)
             {
                 vm.CloseRequested = Close;
+                vm.RestartRequested = AppRestart.Restart;
                 vm.InstallFromFileRequested = PickPluginZipAsync;
             }
         };
