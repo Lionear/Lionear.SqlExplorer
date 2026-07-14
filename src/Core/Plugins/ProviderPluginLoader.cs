@@ -19,40 +19,44 @@ public sealed record ProviderLoadResult(string PluginDirectory, string? Id, IDbP
 /// </summary>
 public sealed class ProviderPluginLoader
 {
-    public IReadOnlyList<ProviderLoadResult> Load(string pluginsRoot)
-    {
-        if (!Directory.Exists(pluginsRoot))
-        {
-            return [];
-        }
+    /// <summary>Single-root scan (bundled-only). Kept for callers that don't dedup across roots.</summary>
+    public IReadOnlyList<ProviderLoadResult> Load(string pluginsRoot) =>
+        Load(PluginDiscovery.Discover(pluginsRoot, string.Empty));
 
+    /// <summary>
+    /// Loads already-discovered plugins (deduped across the bundled + user roots by
+    /// <see cref="PluginDiscovery"/>). A folder whose manifest failed to parse becomes a failed result
+    /// rather than being silently dropped, so the catalog can show it.
+    /// </summary>
+    public IReadOnlyList<ProviderLoadResult> Load(IEnumerable<DiscoveredPlugin> plugins)
+    {
         var results = new List<ProviderLoadResult>();
-        foreach (var dir in Directory.EnumerateDirectories(pluginsRoot).OrderBy(d => d))
+        foreach (var plugin in plugins)
         {
-            var manifestPath = Path.Combine(dir, "plugin.json");
-            if (!File.Exists(manifestPath))
+            if (plugin.Manifest is not { } manifest)
+            {
+                results.Add(new ProviderLoadResult(plugin.Directory, null, null,
+                    plugin.ManifestError ?? "Manifest could not be read."));
+                continue;
+            }
+
+            // Only provider manifests are ours to load; tool/other types are skipped quietly here
+            // (the tool loader picks those up) so the console isn't spammed for every tool plugin.
+            if (manifest.Type != PluginManifest.Types.Provider)
             {
                 continue;
             }
 
-            results.Add(LoadOne(dir, manifestPath));
+            results.Add(LoadOne(plugin.Directory, manifest));
         }
 
         return results;
     }
 
-    private static ProviderLoadResult LoadOne(string dir, string manifestPath)
+    private static ProviderLoadResult LoadOne(string dir, PluginManifest manifest)
     {
         try
         {
-            var manifest = PluginManifest.Load(manifestPath);
-
-            if (manifest.Type != PluginManifest.Types.Provider)
-            {
-                return new ProviderLoadResult(dir, manifest.Id, null,
-                    $"Plugin '{manifest.Id}' is type '{manifest.Type}', not a provider — skipped.");
-            }
-
             if (!ProviderHostApi.IsCompatible(manifest.HostApiVersion))
             {
                 return new ProviderLoadResult(dir, manifest.Id, null,

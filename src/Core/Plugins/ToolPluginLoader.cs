@@ -17,42 +17,32 @@ public sealed record ToolLoadResult(string PluginDirectory, string? Id, IReadOnl
 /// </summary>
 public sealed class ToolPluginLoader
 {
-    public IReadOnlyList<ToolLoadResult> Load(string pluginsRoot)
-    {
-        if (!Directory.Exists(pluginsRoot))
-        {
-            return [];
-        }
+    /// <summary>Single-root scan (bundled-only). Kept for callers that don't dedup across roots.</summary>
+    public IReadOnlyList<ToolLoadResult> Load(string pluginsRoot) =>
+        Load(PluginDiscovery.Discover(pluginsRoot, string.Empty));
 
+    /// <summary>Loads the <c>type: "tool"</c> plugins out of an already-discovered, deduped set.</summary>
+    public IReadOnlyList<ToolLoadResult> Load(IEnumerable<DiscoveredPlugin> plugins)
+    {
         var results = new List<ToolLoadResult>();
-        foreach (var dir in Directory.EnumerateDirectories(pluginsRoot).OrderBy(d => d))
+        foreach (var plugin in plugins)
         {
-            var manifestPath = Path.Combine(dir, "plugin.json");
-            if (!File.Exists(manifestPath))
+            // Skip non-tool and unreadable folders quietly — the provider loader / catalog own those.
+            if (plugin.Manifest is not { Type: PluginManifest.Types.Tool } manifest)
             {
                 continue;
             }
 
-            if (LoadOne(dir, manifestPath) is { } result)
-            {
-                results.Add(result);
-            }
+            results.Add(LoadOne(plugin.Directory, manifest));
         }
 
         return results;
     }
 
-    // Returns null for a non-tool plugin (the provider loader handles those); otherwise a load result.
-    private static ToolLoadResult? LoadOne(string dir, string manifestPath)
+    private static ToolLoadResult LoadOne(string dir, PluginManifest manifest)
     {
         try
         {
-            var manifest = PluginManifest.Load(manifestPath);
-            if (manifest.Type != PluginManifest.Types.Tool)
-            {
-                return null;
-            }
-
             if (!ToolHostApi.IsCompatible(manifest.HostApiVersion))
             {
                 return new ToolLoadResult(dir, manifest.Id, [],

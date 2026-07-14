@@ -28,12 +28,26 @@ public static class AppServices
         services.AddSingleton<ISqlFormatter, BasicSqlFormatter>();
         services.AddSingleton<ILocalizer, ResxLocalizer>();
 
-        // Providers are discovered as plugins from plugins/ (staged there at build time),
-        // loaded in isolated AssemblyLoadContexts — the same path a third party would use.
+        // Plugins live in two roots: the read-only bundled folder staged beside the exe at build time,
+        // and the writable per-user folder the Plugin Store installs into (user wins on id conflict).
+        // Apply any install/remove the Store staged last run *before* loading, then discover both roots.
+        var stateStore = new JsonPluginStateStore();
+        PluginMaintenance.ApplyPending(stateStore, PluginPaths.UserRoot);
+
+        var discovered = PluginDiscovery.Discover(PluginPaths.BundledRoot, PluginPaths.UserRoot);
+        var state = stateStore.GetAll();
+
+        // Disabled plugins are known to the catalog (Installed tab) but never handed to a loader.
+        // A folder with an unreadable manifest has no id and defaults to enabled so its failure surfaces.
+        var enabled = discovered
+            .Where(p => p.Id is not { } id || !state.TryGetValue(id, out var s) || s.Enabled)
+            .ToList();
+
+        // Providers load in isolated AssemblyLoadContexts — the same path a third party would use.
         // Each provider's engine identity is its manifest id, paired with the instance here.
-        var pluginsDir = Path.Combine(AppContext.BaseDirectory, "plugins");
+        var providerResults = new ProviderPluginLoader().Load(enabled);
         var registrations = new List<ProviderRegistration>();
-        foreach (var result in new ProviderPluginLoader().Load(pluginsDir))
+        foreach (var result in providerResults)
         {
             if (result is { Succeeded: true, Id: { } id })
             {
@@ -47,9 +61,10 @@ public static class AppServices
 
         services.AddSingleton<IDbProviderRegistry>(new DbProviderRegistry(registrations));
 
-        // Tool plugins (type: "tool") load from the same folder; one assembly may ship several tools.
+        // Tool plugins (type: "tool") load from the same discovered set; one assembly may ship several.
+        var toolResults = new ToolPluginLoader().Load(enabled);
         var tools = new List<IToolPlugin>();
-        foreach (var result in new ToolPluginLoader().Load(pluginsDir))
+        foreach (var result in toolResults)
         {
             if (result.Succeeded)
             {
@@ -62,6 +77,11 @@ public static class AppServices
         }
 
         services.AddSingleton<IToolRegistry>(new ToolRegistry(tools));
+
+        // Host-side view of everything installed (loaded or not, enabled or not) for the Plugin Store's
+        // Installed tab. Enable/disable/uninstall stage a change here, applied on next startup.
+        services.AddSingleton<IPluginStateStore>(stateStore);
+        services.AddSingleton(new PluginCatalogService(stateStore, discovered, providerResults, toolResults));
 
         // Connections: metadata in a JSON file, secrets in the OS-native keychain.
         // Migrate pre-v10 configs (legacy "Kind" enum) to the manifest "ProviderId" once at startup.
