@@ -88,18 +88,14 @@ public partial class DocumentViewModel : ViewModelBase
     [ObservableProperty]
     private string _sql = string.Empty;
 
-    /// <summary>Raised when a query/browse execution fails, so the host can surface it in the main error
-    /// banner (not just the tab's transient status line).</summary>
-    public event Action<string>? ErrorOccurred;
+    /// <summary>Raised after an execution completes, so the host can surface the outcome — success row
+    /// counts, cancellations, and failures — in the shared Output panel. The host pops the panel open on
+    /// a failure so it's never missed.</summary>
+    public event Action<OutputLevel, string>? Reported;
 
-    private void ReportFailure(string message)
-    {
-        Status = message;
-        ErrorOccurred?.Invoke(message);
-    }
+    private void Report(OutputLevel level, string message) => Reported?.Invoke(level, message);
 
-    [ObservableProperty]
-    private string _status = string.Empty;
+    private void ReportFailure(string message) => Report(OutputLevel.Error, message);
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(IsResultEditable))]
@@ -558,11 +554,11 @@ public partial class DocumentViewModel : ViewModelBase
                 var profile = _connections.Resolve(Connection, _database);
                 var result = await _providers.Get(Connection.ProviderId).ExplainAsync(profile, text, token);
                 SetResultSets([new ResultSetTab("EXPLAIN", EditableResultSet.From(result))]);
-                Status = Loc.Get("StatusRows", result.Rows.Count, result.Elapsed.TotalMilliseconds);
+                Report(OutputLevel.Info, Loc.Get("StatusRows", result.Rows.Count, result.Elapsed.TotalMilliseconds));
             }
             catch (OperationCanceledException)
             {
-                Status = Loc["QueryCancelled"];
+                Report(OutputLevel.Info, Loc["QueryCancelled"]);
             }
             catch (Exception ex)
             {
@@ -596,7 +592,7 @@ public partial class DocumentViewModel : ViewModelBase
             stopwatch.Stop();
             var totalRows = results.Sum(r => r.Rows.Count);
             SetResultSets(BuildResultTabs(results));
-            Status = Loc.Get("StatusRows", totalRows, stopwatch.Elapsed.TotalMilliseconds);
+            Report(OutputLevel.Info, Loc.Get("StatusRows", totalRows, stopwatch.Elapsed.TotalMilliseconds));
             if (IsQueryMode)
             {
                 AppendHistory(sql, QueryHistoryKind.Query, stopwatch.ElapsedMilliseconds, totalRows, success: true, error: null);
@@ -605,7 +601,7 @@ public partial class DocumentViewModel : ViewModelBase
         catch (OperationCanceledException)
         {
             stopwatch.Stop();
-            Status = Loc["QueryCancelled"];
+            Report(OutputLevel.Info, Loc["QueryCancelled"]);
         }
         catch (Exception ex)
         {
@@ -670,16 +666,21 @@ public partial class DocumentViewModel : ViewModelBase
             stopwatch.Stop();
             _lastRowCount = result.Rows.Count;
             SetResultSets([new ResultSetTab("Result", EditableResultSet.From(result))]);
-            Status = Loc.Get("StatusRows", result.Rows.Count, result.Elapsed.TotalMilliseconds);
+            // Browse paging shares this path; its own RowRange header already shows the count, so only a
+            // typed query reports to the Output panel — otherwise every page-flip would spam it.
             if (IsQueryMode)
             {
+                Report(OutputLevel.Info, Loc.Get("StatusRows", result.Rows.Count, result.Elapsed.TotalMilliseconds));
                 AppendHistory(sql, QueryHistoryKind.Query, stopwatch.ElapsedMilliseconds, result.Rows.Count, success: true, error: null);
             }
         }
         catch (OperationCanceledException)
         {
             stopwatch.Stop();
-            Status = Loc["QueryCancelled"];
+            if (IsQueryMode)
+            {
+                Report(OutputLevel.Info, Loc["QueryCancelled"]);
+            }
         }
         catch (Exception ex)
         {
@@ -935,7 +936,7 @@ public partial class DocumentViewModel : ViewModelBase
         var statements = CrudStatementBuilder.Build(Editable, dialect);
         if (statements.Count == 0)
         {
-            Status = Loc.Get("SaveNothing");
+            Report(OutputLevel.Info, Loc.Get("SaveNothing"));
             return;
         }
 
@@ -959,7 +960,7 @@ public partial class DocumentViewModel : ViewModelBase
             stopwatch.Stop();
             // Re-read so DB-assigned values (auto-increment ids, defaults) and a clean baseline show up.
             await ReloadAsync(ct);
-            Status = Loc.Get("SaveOk", affected);
+            Report(OutputLevel.Info, Loc.Get("SaveOk", affected));
             AppendHistory(preview, QueryHistoryKind.Save, stopwatch.ElapsedMilliseconds, affected, success: true, error: null);
         }
         catch (Exception ex)

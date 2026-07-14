@@ -169,22 +169,11 @@
       <GridSplitter Grid.Column="1" Width="4" ResizeDirection="Columns"
                     Background="Transparent" />
 
-      <!-- Right: editor tabs (query panes + table-browse panes), with an inline error banner on top. -->
-      <Grid Grid.Column="2" Margin="0" RowDefinitions="Auto,*">
+      <!-- Right: editor tabs (query panes + table-browse panes). Failures no longer show an inline
+           banner here — every outcome (errors and successes alike) surfaces in the Output panel below. -->
+      <Grid Grid.Column="2" Margin="0">
 
-        <!-- Error banner: the latest failure, dismissible; also logged to the Output panel. -->
-        <Border Grid.Row="0" IsVisible="{Binding HasErrorBanner}"
-                Background="#33D64545" BorderBrush="#D64545" BorderThickness="0,0,0,1" Padding="10,7">
-          <Grid ColumnDefinitions="Auto,*,Auto">
-            <TextBlock Grid.Column="0" Text="⚠" Foreground="#D64545" VerticalAlignment="Center" Margin="0,0,8,0" />
-            <TextBlock Grid.Column="1" Text="{Binding ErrorBanner}" TextWrapping="Wrap"
-                       VerticalAlignment="Center" Foreground="{DynamicResource CatTextBrush}" />
-            <Button Grid.Column="2" Content="×" Classes="Subtle" Padding="6,0" FontSize="15"
-                    VerticalAlignment="Center" Command="{Binding DismissErrorCommand}" />
-          </Grid>
-        </Border>
-
-        <Panel Grid.Row="1">
+        <Panel>
         <TabControl ItemsSource="{Binding Documents}" SelectedItem="{Binding SelectedDocument}">
           <TabControl.ItemTemplate>
             <DataTemplate>
@@ -310,7 +299,8 @@
       </Grid>
     </Border>
 
-    <!-- Bottom status bar: connection state dot + active connection + last status message. -->
+    <!-- Bottom status bar: connection state dot + active connection. Execution messages live in the
+         Output panel now, not here. -->
     <Border Grid.Row="3" Background="{DynamicResource CatToolbarBgBrush}"
             BorderBrush="{DynamicResource CatHairlineBrush}" BorderThickness="0,1,0,0">
       <Grid ColumnDefinitions="Auto,*" Margin="10,4">
@@ -325,9 +315,6 @@
                      Foreground="{DynamicResource CatTextSecondaryBrush}"
                      Text="{Binding SelectedConnection.Name, FallbackValue={x:Null}, TargetNullValue=—}" />
         </StackPanel>
-        <TextBlock Grid.Column="1" HorizontalAlignment="Right" VerticalAlignment="Center"
-                   FontSize="12" Foreground="{DynamicResource CatTextFaintBrush}"
-                   Text="{Binding Status}" />
       </Grid>
     </Border>
   </Grid>

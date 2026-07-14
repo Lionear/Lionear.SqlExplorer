@@ -60,23 +60,15 @@ public partial class MainViewModel : ViewModelBase
     private DocumentViewModel? _selectedDocument;
 
     [ObservableProperty]
-    private string _status = string.Empty;
-
-    [ObservableProperty]
     private bool _isHistoryVisible;
 
     [ObservableProperty]
     private string _historySearch = string.Empty;
 
-    // Output/log panel (toggleable) + the inline error banner. Errors go to both plus the status bar.
+    // Output/log panel (toggleable): the single place every execution outcome — connection results,
+    // query row counts, and failures — is surfaced. A failure also pops the panel open (see ReportOutput).
     [ObservableProperty]
     private bool _isOutputVisible;
-
-    [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(HasErrorBanner))]
-    private string? _errorBanner;
-
-    public bool HasErrorBanner => !string.IsNullOrEmpty(ErrorBanner);
 
     [ObservableProperty]
     private bool _isSearchVisible;
@@ -166,30 +158,22 @@ public partial class MainViewModel : ViewModelBase
     private void ToggleOutput() => IsOutputVisible = !IsOutputVisible;
 
     [RelayCommand]
-    private void ClearOutput()
+    private void ClearOutput() => OutputEntries.Clear();
+
+    // Every execution outcome lands here — the Output panel is the one place it shows. A failure also
+    // pops the panel open (if collapsed) so it's never missed; successes just append silently.
+    private void ReportOutput(OutputLevel level, string? source, string message)
     {
-        OutputEntries.Clear();
-        ErrorBanner = null;
+        Append(level, source, message);
+        if (level == OutputLevel.Error)
+        {
+            IsOutputVisible = true;
+        }
     }
 
-    [RelayCommand]
-    private void DismissError() => ErrorBanner = null;
+    private void ReportError(string? source, string message) => ReportOutput(OutputLevel.Error, source, message);
 
-    // Report an error everywhere it belongs: status bar, inline banner, and the output log.
-    private void ReportError(string? source, string message)
-    {
-        Status = message;
-        ErrorBanner = message;
-        Append(OutputLevel.Error, source, message);
-    }
-
-    // Report a success/notice: status bar + output log, and clear any stale error banner.
-    private void ReportInfo(string? source, string message)
-    {
-        Status = message;
-        ErrorBanner = null;
-        Append(OutputLevel.Info, source, message);
-    }
+    private void ReportInfo(string? source, string message) => ReportOutput(OutputLevel.Info, source, message);
 
     private const int MaxOutputEntries = 500;
 
@@ -1480,8 +1464,8 @@ public partial class MainViewModel : ViewModelBase
     private DocumentViewModel NewDocument()
     {
         var document = new DocumentViewModel(_providers, _connections, _formatter, _history, _schemaCache, _settingsStore, Loc);
-        // Surface query/browse errors in the shared banner too, not just the tab's status line.
-        document.ErrorOccurred += message => ReportError(document.Connection?.Name, message);
+        // Surface every execution outcome (row counts, cancellations, failures) in the shared Output panel.
+        document.Reported += (level, message) => ReportOutput(level, document.Connection?.Name, message);
         return document;
     }
 

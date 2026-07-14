@@ -99,8 +99,8 @@
                      FontFamily="Cascadia Code,Consolas,Menlo,monospace" />
     </Border>
 
-    <TextBlock Grid.Row="2" Text="{Binding Status}" Margin="2,6"
-               FontSize="12" Foreground="{DynamicResource CatTextSecondaryBrush}" />
+    <!-- Row 2 is intentionally empty (Auto → 0 height): execution outcomes now surface only in the
+         host's Output panel, not inline under the editor. -->
 
     <!-- Row 3: edit toolbar + pending-changes bar (shared by both modes). -->
     <Grid Grid.Row="3" Margin="0,0,0,8"
