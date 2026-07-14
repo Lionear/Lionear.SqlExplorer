@@ -326,6 +326,13 @@ public partial class DocumentViewModel : ViewModelBase
         _database = database;
         _schema = schema;
         _table = table;
+        // The connection-switcher ComboBox (query toolbar) two-way-binds SelectedItem to Connection. It is
+        // collapsed in browse mode but still realized, so if Connection isn't among its ItemsSource the
+        // ComboBox coerces SelectedItem to null and writes that null straight back into Connection — the
+        // browse tab then NREs on Connection.ProviderId in LoadPageAsync. Seed AvailableConnections with the
+        // exact instance we assign (same pattern InitQuery already uses) so the item matches and no null is
+        // ever coerced back.
+        AvailableConnections = [connection];
         Connection = connection;
         Title = table;
     }
@@ -423,42 +430,58 @@ public partial class DocumentViewModel : ViewModelBase
     /// <summary>Load the current browse page (also the initial load right after <see cref="InitBrowse"/>).</summary>
     public async Task LoadPageAsync(CancellationToken ct = default)
     {
-        var dialect = _providers.Get(Connection.ProviderId).Dialect;
-        var qualified = _schema is { } schema
-            ? $"{dialect.QuoteIdentifier(schema)}.{dialect.QuoteIdentifier(_table)}"
-            : dialect.QuoteIdentifier(_table);
-
-        var conditions = new List<string>();
-        if (!string.IsNullOrWhiteSpace(FilterText))
+        // Building the paged query (dialect/quoting/filters) runs before ExecuteAsync's own try/catch, so
+        // an unexpected failure here — a provider without a dialect, a null field, a cancelled token — used
+        // to escape unguarded and take the whole app down (it surfaces as an unhandled NRE from the browse
+        // command). Wrap the entire load so a browse failure degrades to an Output-panel error, exactly like
+        // a failed query does, and the real cause is visible instead of a crash.
+        try
         {
-            conditions.Add(FilterText);
-        }
+            var dialect = _providers.Get(Connection.ProviderId).Dialect;
+            var qualified = _schema is { } schema
+                ? $"{dialect.QuoteIdentifier(schema)}.{dialect.QuoteIdentifier(_table)}"
+                : dialect.QuoteIdentifier(_table);
 
-        foreach (var filter in ColumnFilters)
-        {
-            if (!string.IsNullOrWhiteSpace(filter.Value))
+            var conditions = new List<string>();
+            if (!string.IsNullOrWhiteSpace(FilterText))
             {
-                // Cast to text first: LIKE against a non-text column (uuid, int, bit, timestamp, …)
-                // fails outright on strict-typed engines like Postgres ("operator does not exist").
-                var column = TextCast(Connection.ProviderId, dialect.QuoteIdentifier(filter.ColumnName));
-                conditions.Add($"{column} LIKE '%{SqlLiteralFormatter.EscapeString(filter.Value)}%'");
+                conditions.Add(FilterText);
             }
+
+            foreach (var filter in ColumnFilters)
+            {
+                if (!string.IsNullOrWhiteSpace(filter.Value))
+                {
+                    // Cast to text first: LIKE against a non-text column (uuid, int, bit, timestamp, …)
+                    // fails outright on strict-typed engines like Postgres ("operator does not exist").
+                    var column = TextCast(Connection.ProviderId, dialect.QuoteIdentifier(filter.ColumnName));
+                    conditions.Add($"{column} LIKE '%{SqlLiteralFormatter.EscapeString(filter.Value)}%'");
+                }
+            }
+
+            var where = conditions.Count == 0 ? string.Empty : $" WHERE {string.Join(" AND ", conditions)}";
+            var orderBy = _sortColumn is null
+                ? null
+                : $"{dialect.QuoteIdentifier(_sortColumn)} {(_sortDescending ? "DESC" : "ASC")}";
+            var paged = dialect.Paginate($"SELECT * FROM {qualified}{where}", PageSize, Page * PageSize, orderBy);
+            await ExecuteAsync(paged, ct);
+            SyncColumnFilters();
+
+            var offset = Page * PageSize;
+            RowRange = _lastRowCount == 0
+                ? Loc.Get("RowRangeEmpty")
+                : Loc.Get("RowRange", offset + 1, offset + _lastRowCount);
+            PrevPageCommand.NotifyCanExecuteChanged();
+            NextPageCommand.NotifyCanExecuteChanged();
         }
-
-        var where = conditions.Count == 0 ? string.Empty : $" WHERE {string.Join(" AND ", conditions)}";
-        var orderBy = _sortColumn is null
-            ? null
-            : $"{dialect.QuoteIdentifier(_sortColumn)} {(_sortDescending ? "DESC" : "ASC")}";
-        var paged = dialect.Paginate($"SELECT * FROM {qualified}{where}", PageSize, Page * PageSize, orderBy);
-        await ExecuteAsync(paged, ct);
-        SyncColumnFilters();
-
-        var offset = Page * PageSize;
-        RowRange = _lastRowCount == 0
-            ? Loc.Get("RowRangeEmpty")
-            : Loc.Get("RowRange", offset + 1, offset + _lastRowCount);
-        PrevPageCommand.NotifyCanExecuteChanged();
-        NextPageCommand.NotifyCanExecuteChanged();
+        catch (OperationCanceledException)
+        {
+            // A newer browse/reload superseded this one — nothing to report.
+        }
+        catch (Exception ex)
+        {
+            ReportFailure(ex.Message);
+        }
     }
 
     // Universal-ish text cast for the per-column filter's LIKE — CAST target names aren't portable:
