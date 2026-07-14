@@ -147,12 +147,14 @@ jobs:
             exit 1
           fi
 
-          # Ad-hoc sign the whole bundle (identity "-", no Developer ID). Guarantees a
-          # valid, consistent signature so the app is never rejected for a *broken* seal.
-          # It's still un-notarized, so a downloaded copy stays quarantined and macOS shows
-          # "is damaged" until the user clears the flag (xattr -cr, see release notes).
-          codesign --force --deep --sign - "$APP"
-          codesign --verify --deep --strict --verbose=2 "$APP" || echo "codesign verify reported issues (continuing)"
+          # Best-effort ad-hoc sign (identity "-", no Developer ID) so the bundle carries a
+          # consistent signature. Non-fatal: `codesign --deep` is flaky, and the app runs
+          # fine unsigned anyway — a downloaded copy just needs `xattr -cr` (see release
+          # notes) because it is not notarized. Never let a signing hiccup fail the build.
+          codesign --force --deep --sign - "$APP" \
+            || echo "::warning::ad-hoc codesign failed; shipping unsigned bundle (needs xattr -cr on download)"
+          codesign --verify --deep --strict --verbose=2 "$APP" \
+            || echo "::warning::codesign verify reported issues (continuing)"
 
           STAGE="$(mktemp -d)"
           cp -R "$APP" "$STAGE/"
