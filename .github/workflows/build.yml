@@ -1,7 +1,7 @@
 name: Build
 
-# Manual only for now. To enable nightly builds later, uncomment the `schedule`
-# block below (02:00 UTC daily) — nothing runs automatically until you do.
+# Runs nightly at 02:00 UTC and on manual dispatch. To pause the nightly build,
+# comment out the `schedule` block below; `workflow_dispatch` keeps manual runs.
 on:
   workflow_dispatch:
     inputs:
