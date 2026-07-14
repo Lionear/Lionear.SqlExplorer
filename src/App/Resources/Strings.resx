@@ -39,6 +39,9 @@
   <data name="StatusRows" xml:space="preserve">
     <value>{0} rows · {1:F0} ms</value>
   </data>
+  <data name="StatusAffected" xml:space="preserve">
+    <value>{0} affected · {1:F0} ms</value>
+  </data>
   <data name="NewConnection" xml:space="preserve">
     <value>New connection…</value>
   </data>
@@ -503,6 +506,9 @@
   </data>
   <data name="Copy" xml:space="preserve">
     <value>Copy</value>
+  </data>
+  <data name="CopyAll" xml:space="preserve">
+    <value>Copy all</value>
   </data>
   <data name="CopyWithHeaders" xml:space="preserve">
     <value>Copy with headers</value>

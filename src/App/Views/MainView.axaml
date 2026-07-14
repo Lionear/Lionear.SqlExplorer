@@ -283,6 +283,7 @@
             <ContextMenu>
               <MenuItem Header="{Binding Loc[Copy]}" Command="{Binding CopyOutputEntryCommand}"
                         CommandParameter="{Binding #OutputList.SelectedItem}" />
+              <MenuItem Header="{Binding Loc[CopyAll]}" Command="{Binding CopyAllOutputCommand}" />
             </ContextMenu>
           </ListBox.ContextMenu>
           <ListBox.ItemTemplate>

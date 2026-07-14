@@ -1,3 +1,4 @@
+using System.Collections.Specialized;
 using System.ComponentModel;
 using System.IO;
 using System.Linq;
@@ -18,6 +19,7 @@ namespace Lionear.SqlExplorer.App.Views;
 public partial class MainView : UserControl
 {
     private MainViewModel? _viewModel;
+    private ListBox? _outputList;
 
     public MainView()
     {
@@ -50,12 +52,12 @@ public partial class MainView : UserControl
             searchBox.KeyDown += OnSearchBoxKeyDown;
         }
 
-        var outputList = this.FindControl<ListBox>("OutputList");
-        if (outputList is not null)
+        _outputList = this.FindControl<ListBox>("OutputList");
+        if (_outputList is not null)
         {
             // Right-click selects the row under the cursor so the context menu's Copy targets it
             // (ListBox doesn't select on right-press by default).
-            outputList.AddHandler(InputElement.PointerPressedEvent, OnOutputPointerPressed, RoutingStrategies.Tunnel);
+            _outputList.AddHandler(InputElement.PointerPressedEvent, OnOutputPointerPressed, RoutingStrategies.Tunnel);
         }
 
         DataContextChanged += OnDataContextChanged;
@@ -125,6 +127,19 @@ public partial class MainView : UserControl
         }
     }
 
+    // Keep the newest line visible now the Output panel is the only feedback channel. Deferred to the
+    // next UI tick so it also lands after the panel auto-opens on an error (it's collapsed until then).
+    private void OnOutputEntriesChanged(object? sender, NotifyCollectionChangedEventArgs e)
+    {
+        if (e.Action != NotifyCollectionChangedAction.Add || _outputList is not { } list
+            || _viewModel is not { OutputEntries.Count: > 0 } vm)
+        {
+            return;
+        }
+
+        Dispatcher.UIThread.Post(() => list.ScrollIntoView(vm.OutputEntries[^1]));
+    }
+
     // Right-click an output row selects it first, so the context menu's Copy acts on that line.
     private void OnOutputPointerPressed(object? sender, PointerPressedEventArgs e)
     {
@@ -189,11 +204,13 @@ public partial class MainView : UserControl
         if (_viewModel is not null)
         {
             _viewModel.PropertyChanged -= OnViewModelPropertyChanged;
+            _viewModel.OutputEntries.CollectionChanged -= OnOutputEntriesChanged;
         }
 
         _viewModel = DataContext as MainViewModel;
         if (_viewModel is not null)
         {
+            _viewModel.OutputEntries.CollectionChanged += OnOutputEntriesChanged;
             _viewModel.ConnectionManagerRequested = ShowConnectionManagerAsync;
             _viewModel.CreateObjectDialogRequested = ShowCreateObjectDialogAsync;
             _viewModel.AlterObjectDialogRequested = ShowAlterObjectDialogAsync;

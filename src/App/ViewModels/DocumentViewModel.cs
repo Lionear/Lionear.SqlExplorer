@@ -615,7 +615,7 @@ public partial class DocumentViewModel : ViewModelBase
             stopwatch.Stop();
             var totalRows = results.Sum(r => r.Rows.Count);
             SetResultSets(BuildResultTabs(results));
-            Report(OutputLevel.Info, Loc.Get("StatusRows", totalRows, stopwatch.Elapsed.TotalMilliseconds));
+            Report(OutputLevel.Info, DescribeOutcome(results, stopwatch.Elapsed.TotalMilliseconds));
             if (IsQueryMode)
             {
                 AppendHistory(sql, QueryHistoryKind.Query, stopwatch.ElapsedMilliseconds, totalRows, success: true, error: null);
@@ -643,6 +643,13 @@ public partial class DocumentViewModel : ViewModelBase
             : results.Select((r, i) => new ResultSetTab($"Result {i + 1} · {r.Rows.Count} rows", EditableResultSet.From(r))).ToList();
 
     private static QueryResult EmptyResult() => new() { Columns = [], Rows = [], RecordsAffected = 0, Elapsed = TimeSpan.Zero };
+
+    // Outcome line for the Output panel: a result-returning statement reports its row count, a non-SELECT
+    // (INSERT/UPDATE/DELETE — no columns) reports affected rows instead of a misleading "0 rows".
+    private string DescribeOutcome(IReadOnlyList<QueryResult> results, double elapsedMs) =>
+        results.Any(r => r.Columns.Count > 0)
+            ? Loc.Get("StatusRows", results.Sum(r => r.Rows.Count), elapsedMs)
+            : Loc.Get("StatusAffected", Math.Max(0, results.Sum(r => r.RecordsAffected)), elapsedMs);
 
     [RelayCommand(CanExecute = nameof(CanPrevPage))]
     private async Task PrevPageAsync(CancellationToken ct)
@@ -693,7 +700,7 @@ public partial class DocumentViewModel : ViewModelBase
             // typed query reports to the Output panel — otherwise every page-flip would spam it.
             if (IsQueryMode)
             {
-                Report(OutputLevel.Info, Loc.Get("StatusRows", result.Rows.Count, result.Elapsed.TotalMilliseconds));
+                Report(OutputLevel.Info, DescribeOutcome([result], result.Elapsed.TotalMilliseconds));
                 AppendHistory(sql, QueryHistoryKind.Query, stopwatch.ElapsedMilliseconds, result.Rows.Count, success: true, error: null);
             }
         }

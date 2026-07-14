@@ -171,6 +171,16 @@ public partial class MainViewModel : ViewModelBase
         }
     }
 
+    // Copy the whole Output log at once (right-click ▸ Copy all) — handy to paste a run into a ticket.
+    [RelayCommand]
+    private async Task CopyAllOutput()
+    {
+        if (OutputEntries.Count > 0 && ClipboardRequested is not null)
+        {
+            await ClipboardRequested(string.Join(Environment.NewLine, OutputEntries.Select(e => e.CopyText)));
+        }
+    }
+
     // Every execution outcome lands here — the Output panel is the one place it shows. A failure also
     // pops the panel open (if collapsed) so it's never missed; successes just append silently.
     private void ReportOutput(OutputLevel level, string? source, string message)
