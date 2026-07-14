@@ -233,7 +233,7 @@ public sealed class SqliteProvider : IDbProvider
 
         return parent switch
         {
-            null => Folders(),
+            null => await FoldersAsync(profile, ct),
             DbNodeKind.TableFolder => await LoadObjectsAsync(profile, isView: false, ct),
             DbNodeKind.ViewFolder => await LoadObjectsAsync(profile, isView: true, ct),
             DbNodeKind.SequenceFolder => await LoadSequencesAsync(profile, ct),
@@ -248,13 +248,46 @@ public sealed class SqliteProvider : IDbProvider
         };
     }
 
-    // No schema layer, so Tables/Views/Sequences sit directly under the connection root.
-    private static IReadOnlyList<DbTreeNode> Folders() =>
-    [
-        new() { Kind = DbNodeKind.TableFolder, Name = "Tables", HasChildren = true },
-        new() { Kind = DbNodeKind.ViewFolder, Name = "Views", HasChildren = true },
-        new() { Kind = DbNodeKind.SequenceFolder, Name = "Sequences", HasChildren = true }
-    ];
+    // No schema layer, so Tables/Views/Sequences sit directly under the connection root, each with its
+    // child count ("Tables (22)"). Counts mirror the Load*Async sources (sqlite_schema; sqlite_sequence).
+    private static async Task<IReadOnlyList<DbTreeNode>> FoldersAsync(ConnectionProfile profile, CancellationToken ct)
+    {
+        int tables = 0, views = 0, sequences = 0;
+        await using var connection = new SqliteConnection(profile.ConnectionString);
+        await connection.OpenAsync(ct);
+
+        await using (var cmd = connection.CreateCommand())
+        {
+            cmd.CommandText = "SELECT type, COUNT(*) FROM sqlite_schema WHERE type IN ('table','view') AND name NOT LIKE 'sqlite_%' GROUP BY type";
+            await using var r = await cmd.ExecuteReaderAsync(ct);
+            while (await r.ReadAsync(ct))
+            {
+                if (r.GetString(0) == "view") views = r.GetInt32(1); else tables = r.GetInt32(1);
+            }
+        }
+
+        // Sequences come from sqlite_sequence (one row per AUTOINCREMENT table), which may not exist.
+        await using (var cmd = connection.CreateCommand())
+        {
+            cmd.CommandText = "SELECT COUNT(*) FROM sqlite_schema WHERE type = 'table' AND name = 'sqlite_sequence'";
+            if (Convert.ToInt64(await cmd.ExecuteScalarAsync(ct)) > 0)
+            {
+                await using var seq = connection.CreateCommand();
+                seq.CommandText = "SELECT COUNT(*) FROM sqlite_sequence";
+                sequences = Convert.ToInt32(await seq.ExecuteScalarAsync(ct));
+            }
+        }
+
+        return
+        [
+            Folder(DbNodeKind.TableFolder, "Tables", tables),
+            Folder(DbNodeKind.ViewFolder, "Views", views),
+            Folder(DbNodeKind.SequenceFolder, "Sequences", sequences)
+        ];
+    }
+
+    private static DbTreeNode Folder(DbNodeKind kind, string name, int count) =>
+        new() { Kind = kind, Name = name, Count = count, HasChildren = count > 0 };
 
     private static DbTreeNode ColumnFolder() =>
         new() { Kind = DbNodeKind.ColumnFolder, Name = "Columns", HasChildren = true };
@@ -291,14 +324,14 @@ public sealed class SqliteProvider : IDbProvider
         return nodes;
     }
 
-    // View Definition: a trigger's full CREATE text is already stored verbatim in sqlite_schema.sql,
-    // so no reconstruction is needed. Only triggers are introspectable on SQLite.
+    // View Definition / CREATE script: SQLite stores every object's exact CREATE text verbatim in
+    // sqlite_schema.sql, so a table, view or trigger's definition needs no reconstruction.
     public async Task<string?> GetObjectDefinitionAsync(
         ConnectionProfile profile,
         IReadOnlyList<DbNodeRef> ancestors,
         CancellationToken ct)
     {
-        if (ancestors[^1].Kind != DbNodeKind.Trigger)
+        if (ancestors[^1].Kind is not (DbNodeKind.Table or DbNodeKind.View or DbNodeKind.Trigger))
         {
             return null;
         }
@@ -306,7 +339,7 @@ public sealed class SqliteProvider : IDbProvider
         await using var connection = new SqliteConnection(profile.ConnectionString);
         await connection.OpenAsync(ct);
         await using var command = connection.CreateCommand();
-        command.CommandText = "SELECT sql FROM sqlite_schema WHERE type = 'trigger' AND name = @name";
+        command.CommandText = "SELECT sql FROM sqlite_schema WHERE name = @name";
         command.Parameters.AddWithValue("@name", ancestors[^1].Name);
         return await command.ExecuteScalarAsync(ct) as string;
     }

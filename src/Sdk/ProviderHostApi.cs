@@ -51,7 +51,9 @@ public static class ProviderHostApi
     //                   / BuildCallStatement (default throws) — View Definition opens in an editable tab,
     //                   Execute… generates a call script (OUT params captured in a trailing SELECT) the
     //                   user runs. Roadmap Fase 4: browse/execute procedures/functions/triggers.
-    public const int Version = 16;
+    // v17 (2026-07-14): added DbTreeNode.Count (int?) — grouping folders (Tables/Views/Procedures/…) carry
+    //                   their child count, shown inline as "Tables (22)" without expanding. Additive.
+    public const int Version = 17;
 
     /// <summary>True when this host can load a plugin built for <paramref name="pluginVersion"/>.</summary>
     public static bool IsCompatible(int pluginVersion) => pluginVersion == Version;

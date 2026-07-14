@@ -209,7 +209,7 @@ public sealed class PostgresProvider : IDbProvider
             null => await LoadDatabasesAsync(profile, ct),
             DbNodeKind.Database => [SchemaFolder()],
             DbNodeKind.SchemaFolder => await LoadSchemasAsync(profile, Name(ancestors, DbNodeKind.Database), ct),
-            DbNodeKind.Schema => Folders(),
+            DbNodeKind.Schema => await FoldersAsync(profile, ancestors, ct),
             DbNodeKind.TableFolder => await LoadRelationsAsync(profile, ancestors, isView: false, ct),
             DbNodeKind.ViewFolder => await LoadRelationsAsync(profile, ancestors, isView: true, ct),
             DbNodeKind.SequenceFolder => await LoadSequencesAsync(profile, ancestors, ct),
@@ -242,14 +242,66 @@ public sealed class PostgresProvider : IDbProvider
     private static DbTreeNode TriggerFolder() =>
         new() { Kind = DbNodeKind.TriggerFolder, Name = "Triggers", HasChildren = true };
 
-    private static IReadOnlyList<DbTreeNode> Folders() =>
-    [
-        new() { Kind = DbNodeKind.TableFolder, Name = "Tables", HasChildren = true },
-        new() { Kind = DbNodeKind.ViewFolder, Name = "Views", HasChildren = true },
-        new() { Kind = DbNodeKind.ProcedureFolder, Name = "Procedures", HasChildren = true },
-        new() { Kind = DbNodeKind.FunctionFolder, Name = "Functions", HasChildren = true },
-        new() { Kind = DbNodeKind.SequenceFolder, Name = "Sequences", HasChildren = true }
-    ];
+    // The Programmability/relation folders under a schema, each carrying its child count so the tree shows
+    // "Tables (22)" without expanding. Counts mirror exactly what each Load*Async returns (information_schema
+    // tables/sequences; DISTINCT proname for routines, matching the load's overload-collapse).
+    private async Task<IReadOnlyList<DbTreeNode>> FoldersAsync(
+        ConnectionProfile profile, IReadOnlyList<DbNodeRef> ancestors, CancellationToken ct)
+    {
+        var schema = Name(ancestors, DbNodeKind.Schema);
+        await using var connection = new NpgsqlConnection(ConnectionStringFor(profile, Name(ancestors, DbNodeKind.Database)));
+        await connection.OpenAsync(ct);
+
+        var tables = 0;
+        var views = 0;
+        await using (var cmd = new NpgsqlCommand(
+            "SELECT table_type, count(*) FROM information_schema.tables WHERE table_schema = @schema GROUP BY table_type", connection))
+        {
+            cmd.Parameters.AddWithValue("schema", schema);
+            await using var r = await cmd.ExecuteReaderAsync(ct);
+            while (await r.ReadAsync(ct))
+            {
+                if (r.GetString(0) == "VIEW") views = (int)r.GetInt64(1); else tables += (int)r.GetInt64(1);
+            }
+        }
+
+        var procedures = 0;
+        var functions = 0;
+        await using (var cmd = new NpgsqlCommand("""
+            SELECT p.prokind::text, count(DISTINCT p.proname)
+            FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace
+            WHERE n.nspname = @schema AND p.prokind IN ('p', 'f') GROUP BY p.prokind
+            """, connection))
+        {
+            cmd.Parameters.AddWithValue("schema", schema);
+            await using var r = await cmd.ExecuteReaderAsync(ct);
+            while (await r.ReadAsync(ct))
+            {
+                if (r.GetString(0) == "p") procedures = (int)r.GetInt64(1); else functions = (int)r.GetInt64(1);
+            }
+        }
+
+        var sequences = 0;
+        await using (var cmd = new NpgsqlCommand(
+            "SELECT count(*) FROM information_schema.sequences WHERE sequence_schema = @schema", connection))
+        {
+            cmd.Parameters.AddWithValue("schema", schema);
+            sequences = (int)(long)(await cmd.ExecuteScalarAsync(ct))!;
+        }
+
+        return
+        [
+            Folder(DbNodeKind.TableFolder, "Tables", tables),
+            Folder(DbNodeKind.ViewFolder, "Views", views),
+            Folder(DbNodeKind.ProcedureFolder, "Procedures", procedures),
+            Folder(DbNodeKind.FunctionFolder, "Functions", functions),
+            Folder(DbNodeKind.SequenceFolder, "Sequences", sequences)
+        ];
+    }
+
+    // A counted grouping folder: an empty one (count 0) drops its expander and reads as a leaf.
+    private static DbTreeNode Folder(DbNodeKind kind, string name, int count) =>
+        new() { Kind = kind, Name = name, Count = count, HasChildren = count > 0 };
 
     private async Task<IReadOnlyList<DbTreeNode>> LoadDatabasesAsync(ConnectionProfile profile, CancellationToken ct)
     {
@@ -629,16 +681,24 @@ public sealed class PostgresProvider : IDbProvider
         return nodes;
     }
 
-    // View Definition: pg_get_functiondef reconstructs a procedure/function's CREATE text;
-    // pg_get_triggerdef does the same for a trigger.
+    // View Definition / CREATE script: pg_get_functiondef reconstructs a procedure/function's CREATE text;
+    // pg_get_triggerdef a trigger's; pg_get_viewdef a view's body (wrapped into a CREATE VIEW). Tables have
+    // no native reconstruction function, so a best-effort script is built from information_schema (columns +
+    // primary key — no foreign keys/indexes).
     public async Task<string?> GetObjectDefinitionAsync(
         ConnectionProfile profile,
         IReadOnlyList<DbNodeRef> ancestors,
         CancellationToken ct)
     {
         var schema = Name(ancestors, DbNodeKind.Schema);
+        var name = ancestors[^1].Name;
         await using var connection = new NpgsqlConnection(ConnectionStringFor(profile, Name(ancestors, DbNodeKind.Database)));
         await connection.OpenAsync(ct);
+
+        if (ancestors[^1].Kind == DbNodeKind.Table)
+        {
+            return await ScriptTableAsync(connection, schema, name, ct);
+        }
 
         NpgsqlCommand command;
         if (ancestors[^1].Kind == DbNodeKind.Trigger)
@@ -651,6 +711,11 @@ public sealed class PostgresProvider : IDbProvider
                 WHERE n.nspname = @schema AND c.relname = @table AND t.tgname = @name
                 """, connection);
             command.Parameters.AddWithValue("table", Name(ancestors, DbNodeKind.Table));
+        }
+        else if (ancestors[^1].Kind == DbNodeKind.View)
+        {
+            command = new NpgsqlCommand(
+                "SELECT pg_get_viewdef(format('%I.%I', @schema, @name)::regclass, true)", connection);
         }
         else
         {
@@ -666,9 +731,73 @@ public sealed class PostgresProvider : IDbProvider
         await using (command)
         {
             command.Parameters.AddWithValue("schema", schema);
-            command.Parameters.AddWithValue("name", ancestors[^1].Name);
-            return await command.ExecuteScalarAsync(ct) as string;
+            command.Parameters.AddWithValue("name", name);
+            var result = await command.ExecuteScalarAsync(ct) as string;
+
+            // pg_get_viewdef returns only the SELECT body; wrap it into a runnable CREATE VIEW.
+            return ancestors[^1].Kind == DbNodeKind.View && result is not null
+                ? $"CREATE OR REPLACE VIEW {Dialect.QuoteIdentifier(schema)}.{Dialect.QuoteIdentifier(name)} AS\n{result}"
+                : result;
         }
+    }
+
+    private async Task<string?> ScriptTableAsync(NpgsqlConnection connection, string schema, string name, CancellationToken ct)
+    {
+        var columns = new List<string>();
+        await using (var command = new NpgsqlCommand("""
+            SELECT column_name, data_type, is_nullable, character_maximum_length,
+                   numeric_precision, numeric_scale, column_default
+            FROM information_schema.columns
+            WHERE table_schema = @schema AND table_name = @name
+            ORDER BY ordinal_position
+            """, connection))
+        {
+            command.Parameters.AddWithValue("schema", schema);
+            command.Parameters.AddWithValue("name", name);
+            await using var reader = await command.ExecuteReaderAsync(ct);
+            while (await reader.ReadAsync(ct))
+            {
+                var type = FormatColumnType(reader.GetString(1),
+                    reader.IsDBNull(3) ? null : reader.GetInt32(3),
+                    reader.IsDBNull(4) ? null : reader.GetInt32(4),
+                    reader.IsDBNull(5) ? null : reader.GetInt32(5));
+                var nullable = reader.GetString(2) == "NO" ? " NOT NULL" : "";
+                var def = reader.IsDBNull(6) ? "" : $" DEFAULT {reader.GetString(6)}";
+                columns.Add($"    {Dialect.QuoteIdentifier(reader.GetString(0))} {type}{def}{nullable}");
+            }
+        }
+
+        if (columns.Count == 0)
+        {
+            return null;
+        }
+
+        var pk = new List<string>();
+        await using (var command = new NpgsqlCommand("""
+            SELECT kcu.column_name
+            FROM information_schema.table_constraints tc
+            JOIN information_schema.key_column_usage kcu
+                ON kcu.constraint_name = tc.constraint_name AND kcu.table_schema = tc.table_schema
+            WHERE tc.table_schema = @schema AND tc.table_name = @name AND tc.constraint_type = 'PRIMARY KEY'
+            ORDER BY kcu.ordinal_position
+            """, connection))
+        {
+            command.Parameters.AddWithValue("schema", schema);
+            command.Parameters.AddWithValue("name", name);
+            await using var reader = await command.ExecuteReaderAsync(ct);
+            while (await reader.ReadAsync(ct))
+            {
+                pk.Add(Dialect.QuoteIdentifier(reader.GetString(0)));
+            }
+        }
+
+        var lines = new List<string>(columns);
+        if (pk.Count > 0)
+        {
+            lines.Add($"    PRIMARY KEY ({string.Join(", ", pk)})");
+        }
+
+        return $"CREATE TABLE {Dialect.QuoteIdentifier(schema)}.{Dialect.QuoteIdentifier(name)} (\n{string.Join(",\n", lines)}\n);";
     }
 
     public async Task<IReadOnlyList<RoutineParameter>> GetRoutineParametersAsync(

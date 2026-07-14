@@ -188,7 +188,7 @@ public sealed class MySqlProvider : IDbProvider
         return parent switch
         {
             null => await LoadDatabasesAsync(profile, ct),
-            DbNodeKind.Database => Folders(),
+            DbNodeKind.Database => await FoldersAsync(profile, ancestors, ct),
             DbNodeKind.TableFolder => await LoadRelationsAsync(profile, ancestors, isView: false, ct),
             DbNodeKind.ViewFolder => await LoadRelationsAsync(profile, ancestors, isView: true, ct),
             DbNodeKind.ProcedureFolder => await LoadRoutinesAsync(profile, ancestors, isFunction: false, ct),
@@ -204,13 +204,49 @@ public sealed class MySqlProvider : IDbProvider
         };
     }
 
-    private static IReadOnlyList<DbTreeNode> Folders() =>
-    [
-        new() { Kind = DbNodeKind.TableFolder, Name = "Tables", HasChildren = true },
-        new() { Kind = DbNodeKind.ViewFolder, Name = "Views", HasChildren = true },
-        new() { Kind = DbNodeKind.ProcedureFolder, Name = "Procedures", HasChildren = true },
-        new() { Kind = DbNodeKind.FunctionFolder, Name = "Functions", HasChildren = true }
-    ];
+    // Database folders with child counts ("Tables (22)"), so the size shows without expanding. Counts come
+    // from the same information_schema sources the Load*Async methods read (tables + ROUTINES).
+    private async Task<IReadOnlyList<DbTreeNode>> FoldersAsync(
+        ConnectionProfile profile, IReadOnlyList<DbNodeRef> ancestors, CancellationToken ct)
+    {
+        var db = Name(ancestors, DbNodeKind.Database);
+        int tables = 0, views = 0, procedures = 0, functions = 0;
+        await using var connection = new MySqlConnection(ConnectionStringFor(profile, db));
+        await connection.OpenAsync(ct);
+
+        await using (var cmd = new MySqlCommand(
+            "SELECT table_type, COUNT(*) FROM information_schema.tables WHERE table_schema = @db GROUP BY table_type", connection))
+        {
+            cmd.Parameters.AddWithValue("db", db);
+            await using var r = await cmd.ExecuteReaderAsync(ct);
+            while (await r.ReadAsync(ct))
+            {
+                if (r.GetString(0) == "VIEW") views = (int)r.GetInt64(1); else tables += (int)r.GetInt64(1);
+            }
+        }
+
+        await using (var cmd = new MySqlCommand(
+            "SELECT ROUTINE_TYPE, COUNT(*) FROM information_schema.ROUTINES WHERE ROUTINE_SCHEMA = @db GROUP BY ROUTINE_TYPE", connection))
+        {
+            cmd.Parameters.AddWithValue("db", db);
+            await using var r = await cmd.ExecuteReaderAsync(ct);
+            while (await r.ReadAsync(ct))
+            {
+                if (r.GetString(0) == "PROCEDURE") procedures = (int)r.GetInt64(1); else functions = (int)r.GetInt64(1);
+            }
+        }
+
+        return
+        [
+            Folder(DbNodeKind.TableFolder, "Tables", tables),
+            Folder(DbNodeKind.ViewFolder, "Views", views),
+            Folder(DbNodeKind.ProcedureFolder, "Procedures", procedures),
+            Folder(DbNodeKind.FunctionFolder, "Functions", functions)
+        ];
+    }
+
+    private static DbTreeNode Folder(DbNodeKind kind, string name, int count) =>
+        new() { Kind = kind, Name = name, Count = count, HasChildren = count > 0 };
 
     private static DbTreeNode ColumnFolder() =>
         new() { Kind = DbNodeKind.ColumnFolder, Name = "Columns", HasChildren = true };
@@ -497,18 +533,21 @@ public sealed class MySqlProvider : IDbProvider
     }
 
     // View Definition: SHOW CREATE PROCEDURE/FUNCTION/TRIGGER — roundtrip-safe (includes the CREATE
-    // header, unlike ROUTINE_DEFINITION). The CREATE text is column ordinal 2 for all three forms.
+    // SHOW CREATE {kind}. The create text's result column differs by kind: TABLE/VIEW put it at ordinal 1,
+    // while PROCEDURE/FUNCTION/TRIGGER carry a leading sql_mode column so it's at ordinal 2.
     public async Task<string?> GetObjectDefinitionAsync(
         ConnectionProfile profile,
         IReadOnlyList<DbNodeRef> ancestors,
         CancellationToken ct)
     {
-        var what = ancestors[^1].Kind switch
+        var (what, createColumn) = ancestors[^1].Kind switch
         {
-            DbNodeKind.Procedure => "PROCEDURE",
-            DbNodeKind.Function => "FUNCTION",
-            DbNodeKind.Trigger => "TRIGGER",
-            _ => null
+            DbNodeKind.Table => ("TABLE", 1),
+            DbNodeKind.View => ("VIEW", 1),
+            DbNodeKind.Procedure => ("PROCEDURE", 2),
+            DbNodeKind.Function => ("FUNCTION", 2),
+            DbNodeKind.Trigger => ("TRIGGER", 2),
+            _ => (null, 0)
         };
 
         if (what is null)
@@ -522,7 +561,7 @@ public sealed class MySqlProvider : IDbProvider
         await connection.OpenAsync(ct);
         await using var command = new MySqlCommand($"SHOW CREATE {what} {qualified}", connection);
         await using var reader = await command.ExecuteReaderAsync(ct);
-        return await reader.ReadAsync(ct) && !reader.IsDBNull(2) ? reader.GetString(2) : null;
+        return await reader.ReadAsync(ct) && !reader.IsDBNull(createColumn) ? reader.GetString(createColumn) : null;
     }
 
     public async Task<IReadOnlyList<RoutineParameter>> GetRoutineParametersAsync(

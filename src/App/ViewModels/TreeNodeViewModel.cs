@@ -156,8 +156,11 @@ public partial class TreeNodeViewModel : ViewModelBase
     /// reads to introspect this object (definition/parameters/call). Empty for a connection root.</summary>
     public IReadOnlyList<DbNodeRef> NodePath => _pathToChildren;
 
-    /// <summary>"View Definition" is offered on a procedure/function/trigger (their CREATE text opens in a tab).</summary>
-    public bool CanViewDefinition => NodeKind is DbNodeKind.Procedure or DbNodeKind.Function or DbNodeKind.Trigger;
+    /// <summary>"View Definition" is offered on a procedure/function/trigger/view (their CREATE text opens in
+    /// a tab) and on a table (a best-effort CREATE TABLE script). The provider returns null when it can't
+    /// produce one (e.g. a SQL Server / Postgres object without a native definition), and the host reports that.</summary>
+    public bool CanViewDefinition => NodeKind is DbNodeKind.Procedure or DbNodeKind.Function
+        or DbNodeKind.Trigger or DbNodeKind.View or DbNodeKind.Table;
 
     /// <summary>"Execute…" is offered on a procedure/function (a trigger is fired by events, not by hand).</summary>
     public bool CanExecuteRoutine => NodeKind is DbNodeKind.Procedure or DbNodeKind.Function;
@@ -324,7 +327,8 @@ public partial class TreeNodeViewModel : ViewModelBase
             Children.Clear();
             foreach (var child in children)
             {
-                var title = child.Detail is null ? child.Name : $"{child.Name} : {child.Detail}";
+                var title = child.Count is { } count ? $"{child.Name} ({count})"
+                    : child.Detail is null ? child.Name : $"{child.Name} : {child.Detail}";
                 var childPath = new List<DbNodeRef>(_pathToChildren) { new(child.Kind, child.Name) };
                 Children.Add(new TreeNodeViewModel(
                     Connection, _provider!, child.Kind, child.Name, title, child.HasChildren,

@@ -96,6 +96,10 @@ public sealed record DbTreeNode
     /// <summary>Optional right-aligned badge, e.g. an object's on-disk size ("1.8G"). See <see cref="ByteSize"/>.</summary>
     public string? Badge { get; init; }
 
+    /// <summary>Optional child count for a grouping folder (Tables/Views/…), shown inline as "Name (N)" so
+    /// the size is visible without expanding. Null = no count (the default).</summary>
+    public int? Count { get; init; }
+
     /// <summary>Optional hover text, e.g. a table's estimated row count.</summary>
     public string? Tooltip { get; init; }
 

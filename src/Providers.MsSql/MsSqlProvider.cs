@@ -370,7 +370,7 @@ public sealed class MsSqlProvider : IDbProvider, ICustomConnectionUi, ICustomNod
             DbNodeKind.Group => await LoadGroupAsync(profile, ancestors, ct),
             DbNodeKind.Database => DatabaseChildren(),
             DbNodeKind.SchemaFolder => await LoadSchemasAsync(profile, Name(ancestors, DbNodeKind.Database), ct),
-            DbNodeKind.Schema => Folders(),
+            DbNodeKind.Schema => await FoldersAsync(profile, ancestors, ct),
             DbNodeKind.TableFolder => await LoadRelationsAsync(profile, ancestors, isView: false, ct),
             DbNodeKind.ViewFolder => await LoadRelationsAsync(profile, ancestors, isView: true, ct),
             DbNodeKind.SequenceFolder => await LoadSequencesAsync(profile, ancestors, ct),
@@ -494,14 +494,42 @@ public sealed class MsSqlProvider : IDbProvider, ICustomConnectionUi, ICustomNod
     private static DbTreeNode TriggerFolder() =>
         new() { Kind = DbNodeKind.TriggerFolder, Name = "Triggers", HasChildren = true };
 
-    private static IReadOnlyList<DbTreeNode> Folders() =>
-    [
-        new() { Kind = DbNodeKind.TableFolder, Name = "Tables", HasChildren = true },
-        new() { Kind = DbNodeKind.ViewFolder, Name = "Views", HasChildren = true },
-        new() { Kind = DbNodeKind.ProcedureFolder, Name = "Procedures", HasChildren = true },
-        new() { Kind = DbNodeKind.FunctionFolder, Name = "Functions", HasChildren = true },
-        new() { Kind = DbNodeKind.SequenceFolder, Name = "Sequences", HasChildren = true }
-    ];
+    // Schema folders, each with its child count ("Tables (22)") so the size shows without expanding. One
+    // UNION'd query; each count mirrors the source its Load*Async reads (information_schema tables, sys.
+    // procedures, sys.objects functions, sys.sequences).
+    private async Task<IReadOnlyList<DbTreeNode>> FoldersAsync(
+        ConnectionProfile profile, IReadOnlyList<DbNodeRef> ancestors, CancellationToken ct)
+    {
+        var schema = Name(ancestors, DbNodeKind.Schema);
+        var counts = new Dictionary<string, int>();
+        await using var connection = new SqlConnection(ConnectionStringFor(profile, Name(ancestors, DbNodeKind.Database)));
+        await connection.OpenAsync(ct);
+        await using var command = new SqlCommand("""
+            SELECT 'T', COUNT(*) FROM information_schema.tables WHERE table_schema = @schema AND table_type = 'BASE TABLE'
+            UNION ALL SELECT 'V', COUNT(*) FROM information_schema.tables WHERE table_schema = @schema AND table_type = 'VIEW'
+            UNION ALL SELECT 'P', COUNT(*) FROM sys.procedures p JOIN sys.schemas s ON s.schema_id = p.schema_id WHERE s.name = @schema
+            UNION ALL SELECT 'F', COUNT(*) FROM sys.objects o JOIN sys.schemas s ON s.schema_id = o.schema_id WHERE s.name = @schema AND o.type IN ('FN','IF','TF','FS','FT')
+            UNION ALL SELECT 'S', COUNT(*) FROM sys.sequences q JOIN sys.schemas s ON s.schema_id = q.schema_id WHERE s.name = @schema
+            """, connection);
+        command.Parameters.AddWithValue("schema", schema);
+        await using var reader = await command.ExecuteReaderAsync(ct);
+        while (await reader.ReadAsync(ct))
+        {
+            counts[reader.GetString(0)] = reader.GetInt32(1);
+        }
+
+        return
+        [
+            Folder(DbNodeKind.TableFolder, "Tables", counts.GetValueOrDefault("T")),
+            Folder(DbNodeKind.ViewFolder, "Views", counts.GetValueOrDefault("V")),
+            Folder(DbNodeKind.ProcedureFolder, "Procedures", counts.GetValueOrDefault("P")),
+            Folder(DbNodeKind.FunctionFolder, "Functions", counts.GetValueOrDefault("F")),
+            Folder(DbNodeKind.SequenceFolder, "Sequences", counts.GetValueOrDefault("S"))
+        ];
+    }
+
+    private static DbTreeNode Folder(DbNodeKind kind, string name, int count) =>
+        new() { Kind = kind, Name = name, Count = count, HasChildren = count > 0 };
 
     private async Task<IReadOnlyList<DbTreeNode>> LoadDatabasesAsync(ConnectionProfile profile, CancellationToken ct)
     {
@@ -909,18 +937,96 @@ public sealed class MsSqlProvider : IDbProvider, ICustomConnectionUi, ICustomNod
 
     // View Definition: OBJECT_DEFINITION returns the CREATE text for a procedure, function, trigger or
     // view. A trigger's name is scoped to its parent table's schema, so schema.name qualifies all cases.
+    // View Definition / CREATE script. Views, procedures, functions and triggers have their source text in
+    // OBJECT_DEFINITION. Tables don't (SQL Server has no built-in CREATE TABLE text), so we reconstruct a
+    // best-effort script from the catalog (columns + identity + primary key — no FKs/indexes/defaults).
     public async Task<string?> GetObjectDefinitionAsync(
         ConnectionProfile profile,
         IReadOnlyList<DbNodeRef> ancestors,
         CancellationToken ct)
     {
-        var qualified = $"{Name(ancestors, DbNodeKind.Schema)}.{ancestors[^1].Name}";
+        var schema = Name(ancestors, DbNodeKind.Schema);
+        var name = ancestors[^1].Name;
+        var qualified = $"{schema}.{name}";
         await using var connection = new SqlConnection(ConnectionStringFor(profile, Name(ancestors, DbNodeKind.Database)));
         await connection.OpenAsync(ct);
+
+        if (ancestors[^1].Kind == DbNodeKind.Table)
+        {
+            return await ScriptTableAsync(connection, schema, name, qualified, ct);
+        }
+
         await using var command = new SqlCommand("SELECT OBJECT_DEFINITION(OBJECT_ID(@qualified))", connection);
         command.Parameters.AddWithValue("qualified", qualified);
         return await command.ExecuteScalarAsync(ct) as string;
     }
+
+    private static async Task<string?> ScriptTableAsync(SqlConnection connection, string schema, string name, string qualified, CancellationToken ct)
+    {
+        var columns = new List<string>();
+        await using (var command = new SqlCommand("""
+            SELECT c.name, t.name AS type_name, c.max_length, c.precision, c.scale, c.is_nullable,
+                   c.is_identity, ISNULL(ic.seed_value, 1), ISNULL(ic.increment_value, 1)
+            FROM sys.columns c
+            JOIN sys.types t ON t.user_type_id = c.user_type_id
+            LEFT JOIN sys.identity_columns ic ON ic.object_id = c.object_id AND ic.column_id = c.column_id
+            WHERE c.object_id = OBJECT_ID(@qualified)
+            ORDER BY c.column_id
+            """, connection))
+        {
+            command.Parameters.AddWithValue("qualified", qualified);
+            await using var reader = await command.ExecuteReaderAsync(ct);
+            while (await reader.ReadAsync(ct))
+            {
+                var type = FormatSqlType(reader.GetString(1), reader.GetInt16(2), reader.GetByte(3), reader.GetByte(4));
+                var identity = reader.GetBoolean(6) ? $" IDENTITY({Convert.ToInt64(reader.GetValue(7))},{Convert.ToInt64(reader.GetValue(8))})" : "";
+                var nullable = reader.GetBoolean(5) ? "NULL" : "NOT NULL";
+                columns.Add($"    [{reader.GetString(0)}] {type}{identity} {nullable}");
+            }
+        }
+
+        if (columns.Count == 0)
+        {
+            return null;
+        }
+
+        var pk = new List<string>();
+        await using (var command = new SqlCommand("""
+            SELECT col.name
+            FROM sys.indexes i
+            JOIN sys.index_columns ixc ON ixc.object_id = i.object_id AND ixc.index_id = i.index_id
+            JOIN sys.columns col ON col.object_id = ixc.object_id AND col.column_id = ixc.column_id
+            WHERE i.object_id = OBJECT_ID(@qualified) AND i.is_primary_key = 1
+            ORDER BY ixc.key_ordinal
+            """, connection))
+        {
+            command.Parameters.AddWithValue("qualified", qualified);
+            await using var reader = await command.ExecuteReaderAsync(ct);
+            while (await reader.ReadAsync(ct))
+            {
+                pk.Add($"[{reader.GetString(0)}]");
+            }
+        }
+
+        var lines = new List<string>(columns);
+        if (pk.Count > 0)
+        {
+            lines.Add($"    CONSTRAINT [PK_{name}] PRIMARY KEY ({string.Join(", ", pk)})");
+        }
+
+        return $"CREATE TABLE [{schema}].[{name}] (\n{string.Join(",\n", lines)}\n);";
+    }
+
+    // Render a SQL Server type with its length/precision. nvarchar/nchar max_length is in bytes (÷2);
+    // -1 means MAX. varbinary/varchar use the byte count directly.
+    private static string FormatSqlType(string type, short maxLength, byte precision, byte scale) => type switch
+    {
+        "nvarchar" or "nchar" => maxLength == -1 ? $"{type}(max)" : $"{type}({maxLength / 2})",
+        "varchar" or "char" or "varbinary" or "binary" => maxLength == -1 ? $"{type}(max)" : $"{type}({maxLength})",
+        "decimal" or "numeric" => $"{type}({precision},{scale})",
+        "datetime2" or "time" or "datetimeoffset" => scale == 7 ? type : $"{type}({scale})",
+        _ => type
+    };
 
     public async Task<IReadOnlyList<RoutineParameter>> GetRoutineParametersAsync(
         ConnectionProfile profile,
