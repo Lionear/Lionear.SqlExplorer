@@ -50,6 +50,14 @@ public partial class MainView : UserControl
             searchBox.KeyDown += OnSearchBoxKeyDown;
         }
 
+        var outputList = this.FindControl<ListBox>("OutputList");
+        if (outputList is not null)
+        {
+            // Right-click selects the row under the cursor so the context menu's Copy targets it
+            // (ListBox doesn't select on right-press by default).
+            outputList.AddHandler(InputElement.PointerPressedEvent, OnOutputPointerPressed, RoutingStrategies.Tunnel);
+        }
+
         DataContextChanged += OnDataContextChanged;
     }
 
@@ -115,6 +123,19 @@ public partial class MainView : UserControl
             _viewModel.SelectedNode = node;
             _viewModel.ConnectCommand.Execute(null);
         }
+    }
+
+    // Right-click an output row selects it first, so the context menu's Copy acts on that line.
+    private void OnOutputPointerPressed(object? sender, PointerPressedEventArgs e)
+    {
+        if (e.Source is not Visual source
+            || source.FindAncestorOfType<ListBoxItem>() is not { } item
+            || !e.GetCurrentPoint(sender as Visual).Properties.IsRightButtonPressed)
+        {
+            return;
+        }
+
+        item.IsSelected = true;
     }
 
     // Double-click a history row: re-run its SQL in a new query tab.

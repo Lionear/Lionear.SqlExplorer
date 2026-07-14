@@ -278,7 +278,13 @@
           <Button Grid.Column="1" Classes="Subtle" Padding="8,2"
                   Content="{Binding Loc[ClearOutput]}" Command="{Binding ClearOutputCommand}" />
         </Grid>
-        <ListBox Grid.Row="1" Background="Transparent" ItemsSource="{Binding OutputEntries}">
+        <ListBox Grid.Row="1" x:Name="OutputList" Background="Transparent" ItemsSource="{Binding OutputEntries}">
+          <ListBox.ContextMenu>
+            <ContextMenu>
+              <MenuItem Header="{Binding Loc[Copy]}" Command="{Binding CopyOutputEntryCommand}"
+                        CommandParameter="{Binding #OutputList.SelectedItem}" />
+            </ContextMenu>
+          </ListBox.ContextMenu>
           <ListBox.ItemTemplate>
             <DataTemplate>
               <Grid ColumnDefinitions="Auto,Auto,Auto,*" Margin="0,1">

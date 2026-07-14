@@ -160,6 +160,17 @@ public partial class MainViewModel : ViewModelBase
     [RelayCommand]
     private void ClearOutput() => OutputEntries.Clear();
 
+    // Copy a single output line to the clipboard (right-click ▸ Copy). Reuses the same clipboard hook the
+    // schema tree's copy actions go through (wired by the view).
+    [RelayCommand]
+    private async Task CopyOutputEntry(OutputLogEntry? entry)
+    {
+        if (entry is not null && ClipboardRequested is not null)
+        {
+            await ClipboardRequested(entry.CopyText);
+        }
+    }
+
     // Every execution outcome lands here — the Output panel is the one place it shows. A failure also
     // pops the panel open (if collapsed) so it's never missed; successes just append silently.
     private void ReportOutput(OutputLevel level, string? source, string message)
