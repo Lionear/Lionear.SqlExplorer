@@ -188,7 +188,10 @@ public sealed class MySqlProvider : IDbProvider
 
         return parent switch
         {
-            null => await LoadDatabasesAsync(profile, ct),
+            // Root: the databases plus a server-wide Security group (mysql.user is not per-database).
+            null => [.. await LoadDatabasesAsync(profile, ct), new DbTreeNode { Kind = DbNodeKind.Group, Name = "Security", HasChildren = true }],
+            DbNodeKind.Group => [new DbTreeNode { Kind = DbNodeKind.UserFolder, Name = "Users", HasChildren = true }],
+            DbNodeKind.UserFolder => await LoadUsersAsync(profile, ct),
             DbNodeKind.Database => await FoldersAsync(profile, ancestors, ct),
             DbNodeKind.TableFolder => await LoadRelationsAsync(profile, ancestors, isView: false, ct),
             DbNodeKind.ViewFolder => await LoadRelationsAsync(profile, ancestors, isView: true, ct),
@@ -812,4 +815,78 @@ public sealed class MySqlProvider : IDbProvider
         await using var command = new MySqlCommand(sql, connection);
         await command.ExecuteNonQueryAsync(ct);
     }
+
+    // User management. MySQL identity is name@host, so the tree node is named "user@host" (the host is part
+    // of the identity, not optional). Users are server-wide (mysql.user), so any database context works.
+    private async Task<IReadOnlyList<DbTreeNode>> LoadUsersAsync(ConnectionProfile profile, CancellationToken ct)
+    {
+        var nodes = new List<DbTreeNode>();
+        await using var connection = await OpenAsync(profile, ct);
+        await using var command = new MySqlCommand(
+            "SELECT User, Host FROM mysql.user WHERE User NOT LIKE 'mysql.%' ORDER BY User, Host", connection);
+        await using var reader = await command.ExecuteReaderAsync(ct);
+        while (await reader.ReadAsync(ct))
+        {
+            nodes.Add(new DbTreeNode { Kind = DbNodeKind.User, Name = $"{reader.GetString(0)}@{reader.GetString(1)}" });
+        }
+
+        return nodes;
+    }
+
+    public bool CanManageUsers => true;
+
+    public IReadOnlyList<UserField> UserFields { get; } =
+    [
+        new("password", "Password", UserFieldType.Password, Required: true),
+        new("host", "Host", UserFieldType.Text, Default: "%", Hint: "% = any host, localhost = local only")
+    ];
+
+    public async Task<IReadOnlyList<string>> GetAssignableRolesAsync(
+        ConnectionProfile profile,
+        IReadOnlyList<DbNodeRef> ancestors,
+        CancellationToken ct)
+    {
+        var roles = new List<string>();
+        await using var connection = await OpenAsync(profile, ct);
+        // MySQL 8 roles are created as locked, passwordless accounts — that is how they differ from users.
+        await using var command = new MySqlCommand(
+            "SELECT DISTINCT User FROM mysql.user WHERE account_locked = 'Y' AND (authentication_string = '' OR authentication_string IS NULL) AND User NOT LIKE 'mysql.%' ORDER BY User",
+            connection);
+        await using var reader = await command.ExecuteReaderAsync(ct);
+        while (await reader.ReadAsync(ct))
+        {
+            roles.Add(reader.GetString(0));
+        }
+
+        return roles;
+    }
+
+    public SqlStatement BuildCreateUserStatement(IReadOnlyDictionary<string, string?> values, IReadOnlyList<string> roles)
+    {
+        var host = values.GetValueOrDefault("host") is { Length: > 0 } h ? h : "%";
+        var account = UserLiteral(values["name"] ?? string.Empty, host);
+        var password = (values.GetValueOrDefault("password") ?? string.Empty).Replace("'", "''");
+
+        var script = new StringBuilder();
+        script.Append($"CREATE USER {account} IDENTIFIED BY '{password}';");
+        foreach (var role in roles)
+        {
+            script.Append($"\nGRANT {UserLiteral(role, "%")} TO {account};");
+        }
+
+        return new SqlStatement(script.ToString(), []);
+    }
+
+    public SqlStatement BuildDropUserStatement(DbNodeRef userNode, IReadOnlyList<DbNodeRef> ancestors)
+    {
+        // The node is "user@host"; split on the last '@' so a user name containing '@' still parses.
+        var at = userNode.Name.LastIndexOf('@');
+        var user = at < 0 ? userNode.Name : userNode.Name[..at];
+        var host = at < 0 ? "%" : userNode.Name[(at + 1)..];
+        return new SqlStatement($"DROP USER {UserLiteral(user, host)};", []);
+    }
+
+    // MySQL accounts are 'user'@'host' string literals (not identifiers) — quote/escape both parts.
+    private static string UserLiteral(string user, string host) =>
+        $"'{user.Replace("'", "''")}'@'{host.Replace("'", "''")}'";
 }

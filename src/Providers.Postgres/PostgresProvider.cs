@@ -2,6 +2,7 @@ using System.Data;
 using System.Data.Common;
 using System.Diagnostics;
 using System.Globalization;
+using System.Text;
 using Lionear.SqlExplorer.Sdk;
 using Npgsql;
 
@@ -207,7 +208,10 @@ public sealed class PostgresProvider : IDbProvider
 
         return parent switch
         {
-            null => await LoadDatabasesAsync(profile, ct),
+            // Root: the databases plus a cluster-wide Security group (roles/users aren't per-database).
+            null => [.. await LoadDatabasesAsync(profile, ct), new DbTreeNode { Kind = DbNodeKind.Group, Name = "Security", HasChildren = true }],
+            DbNodeKind.Group => [new DbTreeNode { Kind = DbNodeKind.UserFolder, Name = "Users", HasChildren = true }],
+            DbNodeKind.UserFolder => await LoadUsersAsync(profile, ct),
             DbNodeKind.Database => [SchemaFolder()],
             DbNodeKind.SchemaFolder => await LoadSchemasAsync(profile, Name(ancestors, DbNodeKind.Database), ct),
             DbNodeKind.Schema => await FoldersAsync(profile, ancestors, ct),
@@ -1016,6 +1020,75 @@ public sealed class PostgresProvider : IDbProvider
         var result = await ReadResultAsync(reader, stopwatch, ct);
         return new ActiveSessionSnapshot(result, currentId);
     }
+
+    // Login-roles (rolcanlogin), the closest Postgres equivalent to a "user". Group roles belong to the
+    // later permissions editor (plan decision #3). Roles are cluster-wide, so any database context works.
+    private async Task<IReadOnlyList<DbTreeNode>> LoadUsersAsync(ConnectionProfile profile, CancellationToken ct)
+    {
+        var nodes = new List<DbTreeNode>();
+        await using var connection = await OpenAsync(profile, ct);
+        await using var command = new NpgsqlCommand(
+            "SELECT rolname FROM pg_roles WHERE rolcanlogin = true AND rolname NOT LIKE 'pg\\_%' ORDER BY rolname",
+            connection);
+        await using var reader = await command.ExecuteReaderAsync(ct);
+        while (await reader.ReadAsync(ct))
+        {
+            nodes.Add(new DbTreeNode { Kind = DbNodeKind.User, Name = reader.GetString(0) });
+        }
+
+        return nodes;
+    }
+
+    public bool CanManageUsers => true;
+
+    public IReadOnlyList<UserField> UserFields { get; } =
+    [
+        new("password", "Password", UserFieldType.Password, Required: true),
+        new("superuser", "Superuser", UserFieldType.Bool, Default: "false"),
+        new("createdb", "Create databases", UserFieldType.Bool, Default: "false")
+    ];
+
+    public async Task<IReadOnlyList<string>> GetAssignableRolesAsync(
+        ConnectionProfile profile,
+        IReadOnlyList<DbNodeRef> ancestors,
+        CancellationToken ct)
+    {
+        var roles = new List<string>();
+        await using var connection = await OpenAsync(profile, ct);
+        // Group roles to grant membership of (non-login, excluding the built-in pg_* roles).
+        await using var command = new NpgsqlCommand(
+            "SELECT rolname FROM pg_roles WHERE rolcanlogin = false AND rolname NOT LIKE 'pg\\_%' ORDER BY rolname",
+            connection);
+        await using var reader = await command.ExecuteReaderAsync(ct);
+        while (await reader.ReadAsync(ct))
+        {
+            roles.Add(reader.GetString(0));
+        }
+
+        return roles;
+    }
+
+    public SqlStatement BuildCreateUserStatement(IReadOnlyDictionary<string, string?> values, IReadOnlyList<string> roles)
+    {
+        var name = Dialect.QuoteIdentifier(values["name"] ?? string.Empty);
+        var password = (values.GetValueOrDefault("password") ?? string.Empty).Replace("'", "''");
+
+        var options = new StringBuilder("LOGIN");
+        if (values.GetValueOrDefault("superuser") == "true") options.Append(" SUPERUSER");
+        if (values.GetValueOrDefault("createdb") == "true") options.Append(" CREATEDB");
+
+        var script = new StringBuilder();
+        script.Append($"CREATE ROLE {name} WITH {options} PASSWORD '{password}';");
+        foreach (var role in roles)
+        {
+            script.Append($"\nGRANT {Dialect.QuoteIdentifier(role)} TO {name};");
+        }
+
+        return new SqlStatement(script.ToString(), []);
+    }
+
+    public SqlStatement BuildDropUserStatement(DbNodeRef userNode, IReadOnlyList<DbNodeRef> ancestors) =>
+        new($"DROP ROLE {Dialect.QuoteIdentifier(userNode.Name)};", []);
 
     public Task KillSessionAsync(ConnectionProfile profile, string sessionId, CancellationToken ct) =>
         RunBackendActionAsync(profile, "pg_terminate_backend", sessionId, ct);

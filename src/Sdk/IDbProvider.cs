@@ -4,6 +4,7 @@ using Lionear.SqlExplorer.Sdk.Ddl;
 using Lionear.SqlExplorer.Sdk.Query;
 using Lionear.SqlExplorer.Sdk.Routines;
 using Lionear.SqlExplorer.Sdk.Schema;
+using Lionear.SqlExplorer.Sdk.Security;
 
 namespace Lionear.SqlExplorer.Sdk;
 
@@ -244,4 +245,49 @@ public interface IDbProvider
     /// </summary>
     Task CancelQueryAsync(ConnectionProfile profile, string sessionId, CancellationToken ct) =>
         throw new NotSupportedException("This provider does not support cancelling a query.");
+
+    /// <summary>
+    /// True when this provider can create/drop database or server users (drives the "New User…"/"Delete"
+    /// actions and whether the Users tree folder is offered). False (the default) — e.g. SQLite, which has
+    /// no auth model. Same "false = not supported" convention as <see cref="ParseConnectionString"/>.
+    /// </summary>
+    bool CanManageUsers => false;
+
+    /// <summary>The declarative inputs for the generic "New User…" form, on top of the always-present user
+    /// name (MSSQL: a password; MySQL: password + host; Postgres: password + role attributes). Empty when
+    /// user management is unsupported.</summary>
+    IReadOnlyList<UserField> UserFields => [];
+
+    /// <summary>
+    /// Roles the new user can be granted, for the optional role checkbox list in the Create dialog — the
+    /// database roles under <paramref name="ancestors"/> (MSSQL) or the cluster/server roles (Postgres/
+    /// MySQL). Empty (the default) hides the role picker.
+    /// </summary>
+    Task<IReadOnlyList<string>> GetAssignableRolesAsync(
+        ConnectionProfile profile,
+        IReadOnlyList<DbNodeRef> ancestors,
+        CancellationToken ct) => Task.FromResult<IReadOnlyList<string>>([]);
+
+    /// <summary>
+    /// Build the dialect-correct statement(s) to create a user from the collected <paramref name="values"/>
+    /// (keyed by <see cref="UserField.Key"/>, plus <c>"name"</c> for the user name) and the selected
+    /// <paramref name="roles"/>. May be a multi-statement batch (CREATE USER + role grants); the host
+    /// previews it and runs it via <see cref="ExecuteDdlAsync"/>. Only reached when
+    /// <see cref="CanManageUsers"/> is true, so the default throws.
+    /// </summary>
+    SqlStatement BuildCreateUserStatement(
+        IReadOnlyDictionary<string, string?> values,
+        IReadOnlyList<string> roles) =>
+        throw new NotSupportedException("This provider does not support creating users.");
+
+    /// <summary>
+    /// Build the dialect-correct DROP for the user at <paramref name="userNode"/>. MySQL user nodes are
+    /// named <c>name@host</c> (one identity), so the provider parses that back out; MSSQL/Postgres use a
+    /// plain name. The host shows the usual destructive confirm, then runs it via
+    /// <see cref="ExecuteDdlAsync"/>. Default throws.
+    /// </summary>
+    SqlStatement BuildDropUserStatement(
+        DbNodeRef userNode,
+        IReadOnlyList<DbNodeRef> ancestors) =>
+        throw new NotSupportedException("This provider does not support dropping users.");
 }

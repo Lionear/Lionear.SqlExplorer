@@ -60,7 +60,14 @@ public static class ProviderHostApi
     //                   sessions/queries screen per connection, third DocumentMode.Monitor reusing the
     //                   grid/tab infra. Postgres/MySQL support Cancel (pg_cancel_backend / KILL QUERY),
     //                   MSSQL is Kill-only, SQLite unsupported. Roadmap "Activity Monitor" (plan #2 of 4).
-    public const int Version = 18;
+    // v19 (2026-07-14): added user/security management to IDbProvider (all default not-supported):
+    //                   CanManageUsers + UserFields (Sdk/Security: UserField/UserFieldType) +
+    //                   GetAssignableRolesAsync + BuildCreateUserStatement(values, roles) +
+    //                   BuildDropUserStatement + DbNodeKind UserFolder/User, plus the Route-B seam
+    //                   ICustomSecurityUi (unused in v1). Create/Drop contained-DB users (MSSQL, per
+    //                   Database), cluster login-roles (Postgres) and name@host users (MySQL) from the
+    //                   tree, with an optional role checkbox list. SQLite unsupported. Roadmap plan #3 of 4.
+    public const int Version = 19;
 
     /// <summary>True when this host can load a plugin built for <paramref name="pluginVersion"/>.</summary>
     public static bool IsCompatible(int pluginVersion) => pluginVersion == Version;

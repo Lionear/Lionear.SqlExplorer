@@ -165,6 +165,12 @@ public partial class TreeNodeViewModel : ViewModelBase
     /// <summary>"Execute…" is offered on a procedure/function (a trigger is fired by events, not by hand).</summary>
     public bool CanExecuteRoutine => NodeKind is DbNodeKind.Procedure or DbNodeKind.Function;
 
+    /// <summary>"New User…" is offered on a Users folder whose provider supports user management.</summary>
+    public bool CanManageUsers => NodeKind == DbNodeKind.UserFolder && _provider is { CanManageUsers: true };
+
+    /// <summary>"Delete" is offered on a User node whose provider supports user management.</summary>
+    public bool CanDeleteUser => NodeKind == DbNodeKind.User && _provider is { CanManageUsers: true };
+
     /// <summary>"Properties…" is offered when the provider ships an <see cref="ICustomNodeInfoUi"/> info view
     /// for this node (e.g. SQL Server's Database Properties on a Database node).</summary>
     public bool CanShowProperties => _provider is ICustomNodeInfoUi info

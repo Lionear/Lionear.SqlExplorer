@@ -41,6 +41,7 @@ public partial class MainViewModel : ViewModelBase
     private readonly ISchemaCache _schemaCache;
     private readonly Func<ConnectionManagerViewModel> _connectionManagerFactory;
     private readonly Func<CreateObjectDialogViewModel> _createDialogFactory;
+    private readonly Func<NewUserDialogViewModel> _newUserDialogFactory;
     private readonly Func<AlterObjectDialogViewModel> _alterDialogFactory;
     private readonly Func<ImportCsvDialogViewModel> _importCsvDialogFactory;
     private readonly Func<SettingsViewModel> _settingsDialogFactory;
@@ -87,6 +88,7 @@ public partial class MainViewModel : ViewModelBase
         ISchemaCache schemaCache,
         Func<ConnectionManagerViewModel> connectionManagerFactory,
         Func<CreateObjectDialogViewModel> createDialogFactory,
+        Func<NewUserDialogViewModel> newUserDialogFactory,
         Func<AlterObjectDialogViewModel> alterDialogFactory,
         Func<ImportCsvDialogViewModel> importCsvDialogFactory,
         Func<SettingsViewModel> settingsDialogFactory,
@@ -106,6 +108,7 @@ public partial class MainViewModel : ViewModelBase
         _schemaCache = schemaCache;
         _connectionManagerFactory = connectionManagerFactory;
         _createDialogFactory = createDialogFactory;
+        _newUserDialogFactory = newUserDialogFactory;
         _alterDialogFactory = alterDialogFactory;
         _importCsvDialogFactory = importCsvDialogFactory;
         _settingsDialogFactory = settingsDialogFactory;
@@ -981,6 +984,86 @@ public partial class MainViewModel : ViewModelBase
         catch (Exception ex)
         {
             ReportError(SelectedConnection?.Name, ex.Message);
+        }
+    }
+
+    /// <summary>Set by the view so the VM can show the "New User…" dialog.</summary>
+    public Func<NewUserDialogViewModel, Task<string?>>? NewUserDialogRequested { get; set; }
+
+    // "New User…" on a Users folder: collect fields + roles, preview the provider-built SQL, run it. For
+    // SQL Server the folder sits under a Database, so the create runs against that database's context.
+    [RelayCommand]
+    private async Task NewUserAsync()
+    {
+        if (SelectedNode is not { CanManageUsers: true } node || NewUserDialogRequested is null)
+        {
+            return;
+        }
+
+        var provider = _providers.Get(node.Connection.ProviderId);
+        var profile = _connections.Resolve(node.Connection, node.DatabaseName);
+
+        IReadOnlyList<string> roles;
+        try
+        {
+            roles = await provider.GetAssignableRolesAsync(profile, node.NodePath, CancellationToken.None);
+        }
+        catch
+        {
+            roles = []; // best-effort: no role picker rather than blocking the whole dialog
+        }
+
+        var dialog = _newUserDialogFactory();
+        dialog.Configure(provider, provider.UserFields, roles);
+
+        var sql = await NewUserDialogRequested(dialog);
+        if (string.IsNullOrWhiteSpace(sql))
+        {
+            return;
+        }
+
+        try
+        {
+            await provider.ExecuteDdlAsync(profile, sql, CancellationToken.None);
+            await node.RefreshAsync();
+        }
+        catch (Exception ex)
+        {
+            ReportError(node.Connection.Name, ex.Message);
+        }
+    }
+
+    // "Delete" on a User node: provider builds the exact DROP (MySQL needs the host from the node name),
+    // confirm with the statement shown, then run it against the right database context.
+    [RelayCommand]
+    private async Task DeleteUserAsync()
+    {
+        if (SelectedNode is not { CanDeleteUser: true, NodeKind: { } kind } node || ConfirmRequested is null)
+        {
+            return;
+        }
+
+        var provider = _providers.Get(node.Connection.ProviderId);
+        var statement = provider.BuildDropUserStatement(new DbNodeRef(kind, node.Name), node.NodePath);
+
+        if (!await ConfirmRequested(Loc["DeleteUser"], string.Format(Loc["ConfirmDeleteUser"], node.Name)))
+        {
+            return;
+        }
+
+        try
+        {
+            var profile = _connections.Resolve(node.Connection, node.DatabaseName);
+            await provider.ExecuteDdlAsync(profile, statement.Text, CancellationToken.None);
+            var refreshTarget = node.Parent ?? FindConnectionNode(node.Connection.Id);
+            if (refreshTarget is not null)
+            {
+                await refreshTarget.RefreshAsync();
+            }
+        }
+        catch (Exception ex)
+        {
+            ReportError(node.Connection.Name, ex.Message);
         }
     }
 

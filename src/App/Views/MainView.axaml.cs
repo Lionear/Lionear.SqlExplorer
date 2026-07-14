@@ -267,6 +267,7 @@ public partial class MainView : UserControl
             _viewModel.OutputEntries.CollectionChanged += OnOutputEntriesChanged;
             _viewModel.ConnectionManagerRequested = ShowConnectionManagerAsync;
             _viewModel.CreateObjectDialogRequested = ShowCreateObjectDialogAsync;
+            _viewModel.NewUserDialogRequested = ShowNewUserDialogAsync;
             _viewModel.AlterObjectDialogRequested = ShowAlterObjectDialogAsync;
             _viewModel.ClipboardRequested = CopyToClipboardAsync;
             _viewModel.ImportCsvFileRequested = PickCsvFileAsync;
@@ -327,6 +328,17 @@ public partial class MainView : UserControl
         }
 
         var dialog = new CreateObjectDialog { DataContext = dialogViewModel };
+        return await dialog.ShowDialog<string?>(owner);
+    }
+
+    private async Task<string?> ShowNewUserDialogAsync(NewUserDialogViewModel dialogViewModel)
+    {
+        if (TopLevel.GetTopLevel(this) is not Window owner)
+        {
+            return null;
+        }
+
+        var dialog = new NewUserDialog { DataContext = dialogViewModel };
         return await dialog.ShowDialog<string?>(owner);
     }
 

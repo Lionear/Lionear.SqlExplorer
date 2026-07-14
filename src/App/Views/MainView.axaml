@@ -115,6 +115,10 @@
                           IsVisible="{Binding SelectedNode.CanCreateSchema, FallbackValue=False}" />
                 <MenuItem Header="{Binding Loc[NewTable]}" Command="{Binding NewTableCommand}"
                           IsVisible="{Binding SelectedNode.CanCreateTable, FallbackValue=False}" />
+                <MenuItem Header="{Binding Loc[NewUser]}" Command="{Binding NewUserCommand}"
+                          IsVisible="{Binding SelectedNode.CanManageUsers, FallbackValue=False}" />
+                <MenuItem Header="{Binding Loc[DeleteUser]}" Command="{Binding DeleteUserCommand}"
+                          IsVisible="{Binding SelectedNode.CanDeleteUser, FallbackValue=False}" />
                 <MenuItem Header="{Binding Loc[AddColumnMenu]}" Command="{Binding AddColumnCommand}"
                           IsVisible="{Binding SelectedNode.CanAddColumn, FallbackValue=False}" />
                 <MenuItem Header="{Binding Loc[ImportCsv]}" Command="{Binding ImportCsvCommand}"

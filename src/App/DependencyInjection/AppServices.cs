@@ -148,6 +148,10 @@ public static class AppServices
         services.AddTransient<CreateObjectDialogViewModel>();
         services.AddSingleton<Func<CreateObjectDialogViewModel>>(sp => sp.GetRequiredService<CreateObjectDialogViewModel>);
 
+        // "New User…" dialog — same factory-delegate pattern; reconfigured per open via Configure(...).
+        services.AddTransient<NewUserDialogViewModel>();
+        services.AddSingleton<Func<NewUserDialogViewModel>>(sp => sp.GetRequiredService<NewUserDialogViewModel>);
+
         // DROP/ALTER confirmation dialog (host-only SQL, see Core/Ddl/AlterStatementBuilder) — same
         // factory-delegate pattern as the other two dialogs.
         services.AddTransient<AlterObjectDialogViewModel>();

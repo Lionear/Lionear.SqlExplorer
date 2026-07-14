@@ -168,6 +168,21 @@
   <data name="QueryCancelledSession" xml:space="preserve">
     <value>Query op sessie {0} geannuleerd.</value>
   </data>
+  <data name="NewUser" xml:space="preserve">
+    <value>Nieuwe gebruiker…</value>
+  </data>
+  <data name="DeleteUser" xml:space="preserve">
+    <value>Gebruiker verwijderen</value>
+  </data>
+  <data name="UserName" xml:space="preserve">
+    <value>Gebruikersnaam</value>
+  </data>
+  <data name="UserRoles" xml:space="preserve">
+    <value>Rollen</value>
+  </data>
+  <data name="ConfirmDeleteUser" xml:space="preserve">
+    <value>Gebruiker {0} verwijderen?</value>
+  </data>
   <data name="OpenInEditor" xml:space="preserve">
     <value>Openen in editor</value>
   </data>

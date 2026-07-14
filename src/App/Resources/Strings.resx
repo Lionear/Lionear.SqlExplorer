@@ -168,6 +168,21 @@
   <data name="QueryCancelledSession" xml:space="preserve">
     <value>Query on session {0} cancelled.</value>
   </data>
+  <data name="NewUser" xml:space="preserve">
+    <value>New user…</value>
+  </data>
+  <data name="DeleteUser" xml:space="preserve">
+    <value>Delete user</value>
+  </data>
+  <data name="UserName" xml:space="preserve">
+    <value>User name</value>
+  </data>
+  <data name="UserRoles" xml:space="preserve">
+    <value>Roles</value>
+  </data>
+  <data name="ConfirmDeleteUser" xml:space="preserve">
+    <value>Delete user {0}?</value>
+  </data>
   <data name="OpenInEditor" xml:space="preserve">
     <value>Open in editor</value>
   </data>

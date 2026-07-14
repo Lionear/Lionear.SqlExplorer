@@ -111,6 +111,10 @@ public static class NodeIcons
     public static readonly Geometry SettingsPlugins =
         Parse("M3,3 H6.5 V6.5 H3 Z M9.5,3 H13 V6.5 H9.5 Z M3,9.5 H6.5 V13 H3 Z M9.5,9.5 H13 V13 H9.5 Z");
 
+    // Head + shoulders → a database/server user.
+    public static readonly Geometry User =
+        Parse("M8,3 A2.4,2.4 0 1 1 8,7.8 A2.4,2.4 0 1 1 8,3 Z M3.2,13.2 A4.8,4.8 0 0 1 12.8,13.2 Z");
+
     public static Geometry For(DbNodeKind kind) => kind switch
     {
         DbNodeKind.Database => Database,
@@ -126,6 +130,8 @@ public static class NodeIcons
         DbNodeKind.Group => Folder,
         DbNodeKind.DatabaseFolder => Folder,
         DbNodeKind.ColumnFolder => Folder,
+        DbNodeKind.UserFolder => Folder,
+        DbNodeKind.User => User,
         DbNodeKind.Table => Table,
         DbNodeKind.View => View,
         DbNodeKind.Column => Column,

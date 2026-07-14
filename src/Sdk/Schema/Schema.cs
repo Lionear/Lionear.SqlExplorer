@@ -71,7 +71,15 @@ public enum DbNodeKind
     TriggerFolder,
 
     /// <summary>A single trigger on a table (or, for SQLite, a view). Definition-only — not runnable.</summary>
-    Trigger
+    Trigger,
+
+    /// <summary>Grouping node that holds a database's/server's users — the "New User…" action appears here.
+    /// Hangs under a Database (SQL Server contained users) or the connection root (Postgres/MySQL, whose
+    /// users are cluster/server-wide).</summary>
+    UserFolder,
+
+    /// <summary>A single database/server user; "Delete" builds a provider-specific DROP via the SDK.</summary>
+    User
 }
 
 /// <summary>

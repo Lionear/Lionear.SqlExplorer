@@ -23,6 +23,54 @@ public sealed class MsSqlProvider : IDbProvider, ICustomConnectionUi, ICustomNod
 
     public Control CreateCellActionView(CellActionContext context) => new BlockingSessionView(context);
 
+    // User management: contained database users (CREATE USER … WITH PASSWORD, SQL Server 2012+). Runs in
+    // the target database's context (the host resolves the profile to it). Server logins/Windows auth stay
+    // out of v1 — that is the natural first use of the ICustomSecurityUi Route-B seam.
+    public bool CanManageUsers => true;
+
+    public IReadOnlyList<UserField> UserFields { get; } =
+    [
+        new("password", "Password", UserFieldType.Password, Required: true)
+    ];
+
+    public async Task<IReadOnlyList<string>> GetAssignableRolesAsync(
+        ConnectionProfile profile,
+        IReadOnlyList<DbNodeRef> ancestors,
+        CancellationToken ct)
+    {
+        var roles = new List<string>();
+        await using var connection = new SqlConnection(ConnectionStringFor(profile, Name(ancestors, DbNodeKind.Database)));
+        await connection.OpenAsync(ct);
+        await using var command = new SqlCommand(
+            "SELECT name FROM sys.database_principals WHERE type = 'R' AND name <> 'public' ORDER BY name",
+            connection);
+        await using var reader = await command.ExecuteReaderAsync(ct);
+        while (await reader.ReadAsync(ct))
+        {
+            roles.Add(reader.GetString(0));
+        }
+
+        return roles;
+    }
+
+    public SqlStatement BuildCreateUserStatement(IReadOnlyDictionary<string, string?> values, IReadOnlyList<string> roles)
+    {
+        var name = Dialect.QuoteIdentifier(values["name"] ?? string.Empty);
+        var password = (values.GetValueOrDefault("password") ?? string.Empty).Replace("'", "''");
+
+        var script = new StringBuilder();
+        script.Append($"CREATE USER {name} WITH PASSWORD = N'{password}';");
+        foreach (var role in roles)
+        {
+            script.Append($"\nALTER ROLE {Dialect.QuoteIdentifier(role)} ADD MEMBER {name};");
+        }
+
+        return new SqlStatement(script.ToString(), []);
+    }
+
+    public SqlStatement BuildDropUserStatement(DbNodeRef userNode, IReadOnlyList<DbNodeRef> ancestors) =>
+        new($"DROP USER {Dialect.QuoteIdentifier(userNode.Name)};", []);
+
     // Route B (Notes §4.4): render the Advanced section with a provider-owned view instead of the
     // host-generated form. The declared Advanced ConnectionFields still define the data — the view
     // just reads/writes them through the context.
@@ -380,6 +428,7 @@ public sealed class MsSqlProvider : IDbProvider, ICustomConnectionUi, ICustomNod
             DbNodeKind.DatabaseFolder => await LoadDatabasesAsync(profile, ct),
             // Every cosmetic folder shares the Group kind, so route Group nodes by their name.
             DbNodeKind.Group => await LoadGroupAsync(profile, ancestors, ct),
+            DbNodeKind.UserFolder => await LoadUsersAsync(profile, ancestors, ct),
             DbNodeKind.Database => DatabaseChildren(),
             DbNodeKind.SchemaFolder => await LoadSchemasAsync(profile, Name(ancestors, DbNodeKind.Database), ct),
             DbNodeKind.Schema => await FoldersAsync(profile, ancestors, ct),
@@ -406,6 +455,7 @@ public sealed class MsSqlProvider : IDbProvider, ICustomConnectionUi, ICustomNod
     private const string Logins = "Logins";
     private const string ServerRoles = "Server Roles";
     private const string AgentJobs = "Agent Jobs";
+    private const string Users = "Users";
 
     private async Task<IReadOnlyList<DbTreeNode>> RootFoldersAsync(ConnectionProfile profile, CancellationToken ct)
     {
@@ -428,6 +478,12 @@ public sealed class MsSqlProvider : IDbProvider, ICustomConnectionUi, ICustomNod
         CancellationToken ct) =>
         ancestors[^1].Name switch
         {
+            // "Security" appears twice: under a Database it holds contained users; at the server root it
+            // holds Logins/Server Roles (the existing read-only lists). Disambiguate by ancestry.
+            Security when ancestors.Any(a => a.Kind == DbNodeKind.Database) =>
+            [
+                new() { Kind = DbNodeKind.UserFolder, Name = Users, HasChildren = true }
+            ],
             Security =>
             [
                 new() { Kind = DbNodeKind.Group, Name = Logins, HasChildren = true },
@@ -446,11 +502,36 @@ public sealed class MsSqlProvider : IDbProvider, ICustomConnectionUi, ICustomNod
             _ => []
         };
 
-    // Each database currently just groups its schemas (server-level Security/Administration live at the root).
+    // A database groups its schemas plus its own Security (contained users); server-level Security/
+    // Administration live at the connection root.
     private static IReadOnlyList<DbTreeNode> DatabaseChildren() =>
     [
-        new() { Kind = DbNodeKind.SchemaFolder, Name = "Schemas", HasChildren = true }
+        new() { Kind = DbNodeKind.SchemaFolder, Name = "Schemas", HasChildren = true },
+        new() { Kind = DbNodeKind.Group, Name = Security, HasChildren = true }
     ];
+
+    // Contained database users (type S = SQL, U = Windows), excluding the fixed principals (dbo/guest/
+    // sys/INFORMATION_SCHEMA, principal_id <= 4). Runs against the folder's own database.
+    private async Task<IReadOnlyList<DbTreeNode>> LoadUsersAsync(
+        ConnectionProfile profile,
+        IReadOnlyList<DbNodeRef> ancestors,
+        CancellationToken ct)
+    {
+        var nodes = new List<DbTreeNode>();
+        await using var connection = new SqlConnection(ConnectionStringFor(profile, Name(ancestors, DbNodeKind.Database)));
+        await connection.OpenAsync(ct);
+        await using var command = new SqlCommand(
+            "SELECT name FROM sys.database_principals WHERE type IN ('S','U') AND principal_id > 4 " +
+            "AND name NOT LIKE '##%' ORDER BY name",
+            connection);
+        await using var reader = await command.ExecuteReaderAsync(ct);
+        while (await reader.ReadAsync(ct))
+        {
+            nodes.Add(new DbTreeNode { Kind = DbNodeKind.User, Name = reader.GetString(0) });
+        }
+
+        return nodes;
+    }
 
     // Run a single-column name query and map each row to a generic Object leaf.
     private static async Task<IReadOnlyList<DbTreeNode>> LoadPrincipalsAsync(
