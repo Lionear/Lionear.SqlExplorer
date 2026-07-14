@@ -55,5 +55,8 @@ public sealed record PluginManifest
     {
         public const string Provider = "provider";
         public const string Tool = "tool";
+
+        /// <summary>Contributes MCP tools to the host-owned MCP server (see <c>IMcpToolProvider</c>).</summary>
+        public const string Mcp = "mcp";
     }
 }

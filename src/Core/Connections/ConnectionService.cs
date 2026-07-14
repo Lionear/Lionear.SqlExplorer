@@ -26,7 +26,8 @@ public sealed class ConnectionService
     /// <summary>Persist a connection: secrets to the keychain, the rest to the config file.</summary>
     public SavedConnection Save(
         string id, string name, string providerId, IReadOnlyDictionary<string, string?> values,
-        string? color = null, bool readOnly = false, string? folder = null)
+        string? color = null, bool readOnly = false, string? folder = null,
+        AiAccessMode aiAccess = AiAccessMode.None, bool excludeFromMcp = false)
     {
         var fields = _providers.Get(providerId).ConnectionFields;
         var secretKeys = fields.Where(f => f.IsSecret).Select(f => f.Key).ToHashSet();
@@ -52,7 +53,8 @@ public sealed class ConnectionService
         var connection = new SavedConnection
         {
             Id = id, Name = name, ProviderId = providerId, Color = color, ReadOnly = readOnly,
-            Folder = string.IsNullOrWhiteSpace(folder) ? null : folder.Trim(), Values = nonSecret
+            Folder = string.IsNullOrWhiteSpace(folder) ? null : folder.Trim(),
+            AiAccess = aiAccess, ExcludeFromMcp = excludeFromMcp, Values = nonSecret
         };
         _store.Save(connection);
         return connection;

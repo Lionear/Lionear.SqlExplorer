@@ -25,5 +25,20 @@ public sealed record SavedConnection
     /// Null/blank = ungrouped (shown at the tree root). Purely organisational.</summary>
     public string? Folder { get; init; }
 
+    /// <summary>How much MCP (AI) access this connection grants. Absent/default = <see cref="AiAccessMode.None"/>
+    /// (fail-closed): the connection is invisible to the MCP server until explicitly opted in. See the
+    /// MCP-Server plan §4 / CRIT-1.</summary>
+    public AiAccessMode AiAccess { get; init; } = AiAccessMode.None;
+
+    /// <summary>Independent hard override that blocks this connection from MCP entirely, regardless of
+    /// <see cref="AiAccess"/> — defense-in-depth against accidentally exposing production data. A connection
+    /// is MCP-reachable only when <c>AiAccess != None &amp;&amp; !ExcludeFromMcp</c>. Absent = false; never
+    /// auto-set (always a manual choice, plan §4 / decision #6).</summary>
+    public bool ExcludeFromMcp { get; init; }
+
+    /// <summary>True when this connection may be surfaced to / used by the MCP server: opted in AND not
+    /// hard-excluded. The single place both gates are combined, so every MCP code path checks the same rule.</summary>
+    public bool IsMcpReachable => AiAccess != AiAccessMode.None && !ExcludeFromMcp;
+
     public required IReadOnlyDictionary<string, string?> Values { get; init; }
 }

@@ -183,6 +183,63 @@
   <data name="ConfirmDeleteUser" xml:space="preserve">
     <value>Gebruiker {0} verwijderen?</value>
   </data>
+  <data name="SettingsMcp" xml:space="preserve">
+    <value>MCP-server</value>
+  </data>
+  <data name="McpDesc" xml:space="preserve">
+    <value>Laat een AI-client (Claude Desktop/Code) via MCP queries uitvoeren op je connecties terwijl SQL Explorer openstaat. Alleen connecties die je expliciet vrijgeeft (AI-toegang per connectie) zijn zichtbaar.</value>
+  </data>
+  <data name="McpEnabled" xml:space="preserve">
+    <value>MCP-server inschakelen</value>
+  </data>
+  <data name="McpPort" xml:space="preserve">
+    <value>Poort</value>
+  </data>
+  <data name="McpBindHint" xml:space="preserve">
+    <value>De server bindt altijd op 127.0.0.1 (alleen dit apparaat) — nooit bereikbaar vanaf het netwerk.</value>
+  </data>
+  <data name="McpRequireAuth" xml:space="preserve">
+    <value>Bearer-token vereisen (aanbevolen)</value>
+  </data>
+  <data name="McpNoAuthWarning" xml:space="preserve">
+    <value>⚠️ Zonder authenticatie kan elk lokaal programma op dit apparaat queries uitvoeren op je AI-toegankelijke connecties.</value>
+  </data>
+  <data name="McpToken" xml:space="preserve">
+    <value>Bearer-token</value>
+  </data>
+  <data name="McpTokenEmpty" xml:space="preserve">
+    <value>(gegenereerd bij het inschakelen)</value>
+  </data>
+  <data name="McpTokenHint" xml:space="preserve">
+    <value>Zet dit in de config van je AI-client. Voeg het niet toe aan een gedeelde repo of backup. Regenereren maakt het oude token meteen ongeldig.</value>
+  </data>
+  <data name="McpRegenerate" xml:space="preserve">
+    <value>Regenereren</value>
+  </data>
+  <data name="McpCaps" xml:space="preserve">
+    <value>Limieten</value>
+  </data>
+  <data name="McpMaxRows" xml:space="preserve">
+    <value>Max. rijen per query</value>
+  </data>
+  <data name="McpTimeout" xml:space="preserve">
+    <value>Query-timeout (seconden)</value>
+  </data>
+  <data name="AiAccess" xml:space="preserve">
+    <value>AI-toegang (MCP)</value>
+  </data>
+  <data name="AiAccessHint" xml:space="preserve">
+    <value>None = onzichtbaar voor de AI. Read-only = SELECT/EXPLAIN. Read-write = ook INSERT/UPDATE/DELETE (DDL kan nooit via MCP).</value>
+  </data>
+  <data name="AiWriteWarning" xml:space="preserve">
+    <value>⚠️ Read-write laat de AI data wijzigen op deze connectie. Zet dit alleen aan als je zeker bent — nooit op productie tenzij je dat echt bedoelt.</value>
+  </data>
+  <data name="ExcludeFromMcp" xml:space="preserve">
+    <value>Nooit aan de AI tonen (harde blokkade)</value>
+  </data>
+  <data name="ExcludeFromMcpHint" xml:space="preserve">
+    <value>Blokkeert deze connectie volledig voor MCP, ook als AI-toegang aan staat — een veiligheidsoverride voor gevoelige/productie-connecties.</value>
+  </data>
   <data name="OpenInEditor" xml:space="preserve">
     <value>Openen in editor</value>
   </data>

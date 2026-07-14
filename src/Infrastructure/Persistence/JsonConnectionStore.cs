@@ -107,6 +107,8 @@ public sealed class JsonConnectionStore : IConnectionStore
         Color = dto.Color,
         ReadOnly = dto.ReadOnly,
         Folder = dto.Folder,
+        AiAccess = dto.AiAccess,
+        ExcludeFromMcp = dto.ExcludeFromMcp,
         Values = dto.Values ?? new Dictionary<string, string?>()
     };
 
@@ -133,6 +135,8 @@ public sealed class JsonConnectionStore : IConnectionStore
         public string? Color { get; init; }
         public bool ReadOnly { get; init; }
         public string? Folder { get; init; }
+        public AiAccessMode AiAccess { get; init; } = AiAccessMode.None;
+        public bool ExcludeFromMcp { get; init; }
         public Dictionary<string, string?>? Values { get; init; }
     }
 }

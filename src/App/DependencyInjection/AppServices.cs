@@ -4,6 +4,7 @@ using Lionear.SqlExplorer.Core.Connections;
 using Lionear.SqlExplorer.Core.Formatting;
 using Lionear.SqlExplorer.Core.History;
 using Lionear.SqlExplorer.Core.Localization;
+using Lionear.SqlExplorer.Core.Mcp;
 using Lionear.SqlExplorer.Core.Plugins;
 using Lionear.SqlExplorer.Core.Providers;
 using Lionear.SqlExplorer.Core.Schema;
@@ -17,7 +18,9 @@ using Lionear.SqlExplorer.Sdk.Tools;
 using Lionear.SqlExplorer.Infrastructure.Persistence;
 using Lionear.SqlExplorer.Infrastructure.Secrets;
 using Lionear.SqlExplorer.Infrastructure.Store;
+using Lionear.SqlExplorer.Mcp.Hosting;
 using Lionear.SqlExplorer.Sdk;
+using Lionear.SqlExplorer.Sdk.Mcp;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace Lionear.SqlExplorer.App.DependencyInjection;
@@ -80,6 +83,22 @@ public static class AppServices
         }
 
         services.AddSingleton<IToolRegistry>(new ToolRegistry(tools));
+
+        // MCP plugins (type: "mcp") contribute tools; the host — not any plugin — owns the server. Gather
+        // the tools from every enabled MCP plugin so the host server can serve them.
+        var mcpToolResults = new McpPluginLoader().Load(enabled);
+        var mcpTools = new List<McpToolDefinition>();
+        foreach (var result in mcpToolResults)
+        {
+            if (result.Succeeded)
+            {
+                mcpTools.AddRange(result.Providers.SelectMany(p => p.GetTools()));
+            }
+            else
+            {
+                Console.Error.WriteLine($"[plugin] skipped mcp '{result.PluginDirectory}': {result.Error}");
+            }
+        }
 
         // Host-side view of everything installed (loaded or not, enabled or not) for the Plugin Store's
         // Installed tab. Enable/disable/uninstall stage a change here, applied on next startup.
@@ -174,7 +193,54 @@ public static class AppServices
 
         services.AddTransient<MainViewModel>();
 
+        // MCP host + server: the host owns the transport + all authorization (McpHost). Registered here so
+        // the settings view can restart it on change; started once below after the container is built.
+        services.AddSingleton(sp =>
+        {
+            var settingsStore = sp.GetRequiredService<IAppSettingsStore>();
+            string? GetSetting(string key)
+            {
+                var s = settingsStore.Load();
+                return key switch
+                {
+                    "requireAuth" => s.McpRequireAuth ? "true" : "false",
+                    "maxRows" => s.McpMaxRows.ToString(),
+                    "timeoutSeconds" => s.McpTimeoutSeconds.ToString(),
+                    _ => null
+                };
+            }
+
+            void Audit(string message) => Console.Error.WriteLine(message);
+
+            var mcpHost = new McpHost(
+                sp.GetRequiredService<ConnectionService>(),
+                sp.GetRequiredService<IDbProviderRegistry>(),
+                sp.GetRequiredService<IQueryHistoryStore>(),
+                GetSetting,
+                Audit);
+
+            var server = new McpServer(mcpHost, Audit);
+            return new McpService(
+                server,
+                mcpTools,
+                readOptions: () =>
+                {
+                    var s = settingsStore.Load();
+                    return new McpServerOptions(s.McpEnabled, s.McpPort, s.McpRequireAuth, s.McpToken);
+                },
+                persistToken: token =>
+                {
+                    var s = settingsStore.Load();
+                    s.McpToken = token;
+                    settingsStore.Save(s);
+                });
+        });
+
         var provider = services.BuildServiceProvider();
+
+        // Start the MCP server now (fire-and-forget). ApplyAsync no-ops when disabled (the default), so no
+        // listener opens unless the user turned it on; it also skips starting when there are no tools.
+        _ = provider.GetRequiredService<McpService>().ApplyAsync();
 
         // Editor tabs are created outside DI (as DataTemplate content), so expose the keymap statically
         // for the editor's comment shortcut to resolve against.

@@ -55,6 +55,22 @@ public partial class ConnectionDialogViewModel : ViewModelBase
     [ObservableProperty]
     private string? _folder;
 
+    /// <summary>How much MCP (AI) access this connection grants. Default None (fail-closed).</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(ShowAiWriteWarning))]
+    private AiAccessMode _aiAccess = AiAccessMode.None;
+
+    /// <summary>Hard override that blocks this connection from MCP entirely, regardless of AiAccess.</summary>
+    [ObservableProperty]
+    private bool _excludeFromMcp;
+
+    public IReadOnlyList<AiAccessMode> AiAccessModes { get; } =
+        [AiAccessMode.None, AiAccessMode.ReadOnly, AiAccessMode.ReadWrite];
+
+    /// <summary>Warn prominently when AI write-access is granted (extra weight on a prod-coloured
+    /// connection) — the visible "are you sure" step before persisting ReadWrite (plan §4).</summary>
+    public bool ShowAiWriteWarning => AiAccess == AiAccessMode.ReadWrite;
+
     // A small fixed palette + "none"; enough to flag prod/staging without a full colour picker.
     private static readonly string?[] Palette =
         [null, "#E5484D", "#F76B15", "#FFB224", "#30A46C", "#3574F0", "#8E4EC6"];
@@ -138,6 +154,8 @@ public partial class ConnectionDialogViewModel : ViewModelBase
         Color = connection.Color;
         ReadOnly = connection.ReadOnly;
         Folder = connection.Folder;
+        AiAccess = connection.AiAccess;
+        ExcludeFromMcp = connection.ExcludeFromMcp;
         SelectedProvider = AvailableProviders.FirstOrDefault(o => o.Id == connection.ProviderId) ?? SelectedProvider;
 
         // Ensure fields match the provider even if SelectedProvider didn't change, then overlay stored values
@@ -300,7 +318,8 @@ public partial class ConnectionDialogViewModel : ViewModelBase
     }
 
     /// <summary>Persist and return the saved connection (secrets go to the keychain).</summary>
-    public SavedConnection Save() => _connections.Save(_id, Name, SelectedProvider!.Id, Values(), Color, ReadOnly, Folder);
+    public SavedConnection Save() =>
+        _connections.Save(_id, Name, SelectedProvider!.Id, Values(), Color, ReadOnly, Folder, AiAccess, ExcludeFromMcp);
 
     /// <summary>Bridges a provider's custom advanced view (Route B) to the dialog's field inputs by key,
     /// so its edits land in the same values the host saves and passes to BuildConnectionString.</summary>

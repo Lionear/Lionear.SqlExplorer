@@ -186,6 +186,58 @@
           </Border>
         </Grid>
 
+        <!-- MCP server (AI query access) -->
+        <ScrollViewer IsVisible="{Binding SelectedCategory.Key, Converter={x:Static c:EqualsConverter.Instance}, ConverterParameter=Mcp}">
+          <StackPanel Spacing="10" MaxWidth="560" HorizontalAlignment="Left">
+            <TextBlock Text="{Binding Loc[SettingsMcp]}" FontSize="14" FontWeight="SemiBold" />
+            <TextBlock Text="{Binding Loc[McpDesc]}" FontSize="12" TextWrapping="Wrap"
+                       Foreground="{DynamicResource CatTextSecondaryBrush}" />
+
+            <CheckBox Content="{Binding Loc[McpEnabled]}" IsChecked="{Binding McpEnabled}" Margin="0,6,0,0" />
+
+            <Grid ColumnDefinitions="*,Auto" Margin="0,4,0,0">
+              <TextBlock Grid.Column="0" Text="{Binding Loc[McpPort]}" VerticalAlignment="Center" />
+              <NumericUpDown Grid.Column="1" Width="150" Minimum="1024" Maximum="65535" FormatString="0"
+                             Value="{Binding McpPort}" />
+            </Grid>
+            <TextBlock Text="{Binding Loc[McpBindHint]}" FontSize="11" Foreground="{DynamicResource CatTextFaintBrush}" />
+
+            <CheckBox Content="{Binding Loc[McpRequireAuth]}" IsChecked="{Binding McpRequireAuth}" Margin="0,6,0,0" />
+
+            <!-- No-auth warning (plan §6): non-dismissible while auth is off. -->
+            <Border IsVisible="{Binding ShowNoAuthWarning}"
+                    Background="#22D6A545" BorderBrush="#66D6A545" BorderThickness="1" CornerRadius="5" Padding="10,6">
+              <TextBlock Text="{Binding Loc[McpNoAuthWarning]}" FontSize="12" Foreground="#E7C77A" TextWrapping="Wrap" />
+            </Border>
+
+            <!-- Bearer token: read-only, copy + regenerate. Only meaningful when auth is on. -->
+            <StackPanel Spacing="4" IsVisible="{Binding McpRequireAuth}">
+              <TextBlock Text="{Binding Loc[McpToken]}" FontWeight="SemiBold" Margin="0,6,0,0" />
+              <Grid ColumnDefinitions="*,Auto,Auto">
+                <TextBox Grid.Column="0" Text="{Binding McpToken}" IsReadOnly="True"
+                         FontFamily="Cascadia Code,Consolas,Menlo,monospace" FontSize="12"
+                         PlaceholderText="{Binding Loc[McpTokenEmpty]}" />
+                <Button Grid.Column="1" Margin="6,0,0,0" Content="{Binding Loc[Copy]}" Click="OnCopyMcpTokenClick" />
+                <Button Grid.Column="2" Margin="6,0,0,0" Content="{Binding Loc[McpRegenerate]}"
+                        Command="{Binding RegenerateMcpTokenCommand}" />
+              </Grid>
+              <TextBlock Text="{Binding Loc[McpTokenHint]}" FontSize="11" Foreground="{DynamicResource CatTextFaintBrush}" TextWrapping="Wrap" />
+            </StackPanel>
+
+            <TextBlock Text="{Binding Loc[McpCaps]}" FontWeight="SemiBold" Margin="0,10,0,0" />
+            <Grid ColumnDefinitions="*,Auto" Margin="0,2,0,0">
+              <TextBlock Grid.Column="0" Text="{Binding Loc[McpMaxRows]}" VerticalAlignment="Center" />
+              <NumericUpDown Grid.Column="1" Width="150" Minimum="1" Maximum="100000" FormatString="0"
+                             Value="{Binding McpMaxRows}" />
+            </Grid>
+            <Grid ColumnDefinitions="*,Auto">
+              <TextBlock Grid.Column="0" Text="{Binding Loc[McpTimeout]}" VerticalAlignment="Center" />
+              <NumericUpDown Grid.Column="1" Width="150" Minimum="1" Maximum="3600" FormatString="0"
+                             Value="{Binding McpTimeoutSeconds}" />
+            </Grid>
+          </StackPanel>
+        </ScrollViewer>
+
         <!-- Plugins -->
         <Grid RowDefinitions="Auto,Auto,*"
               IsVisible="{Binding SelectedCategory.Key, Converter={x:Static c:EqualsConverter.Instance}, ConverterParameter=Plugins}">

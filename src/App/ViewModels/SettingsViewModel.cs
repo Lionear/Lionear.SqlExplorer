@@ -36,6 +36,7 @@ public partial class SettingsViewModel : ViewModelBase
     private readonly IDbProviderRegistry _providers;
     private readonly IToolRegistry _tools;
     private readonly KeymapService _keymap;
+    private readonly Mcp.Hosting.McpService _mcp;
     private readonly List<ShortcutItem> _allShortcuts = [];
 
     [ObservableProperty]
@@ -68,12 +69,40 @@ public partial class SettingsViewModel : ViewModelBase
     [ObservableProperty]
     private PluginSettingsItem? _selectedPlugin;
 
+    // ── MCP server (top-level) ───────────────────────────────────────────────────────────────────────
+    [ObservableProperty]
+    private bool _mcpEnabled;
+
+    [ObservableProperty]
+    private int _mcpPort;
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(ShowNoAuthWarning))]
+    private bool _mcpRequireAuth;
+
+    [ObservableProperty]
+    private string? _mcpToken;
+
+    [ObservableProperty]
+    private int _mcpMaxRows;
+
+    [ObservableProperty]
+    private int _mcpTimeoutSeconds;
+
+    /// <summary>Show the "any local process can query" warning when auth is turned off (plan §6 / CRIT-3).</summary>
+    public bool ShowNoAuthWarning => !McpRequireAuth;
+
+    [RelayCommand]
+    private void RegenerateMcpToken() =>
+        McpToken = Convert.ToBase64String(System.Security.Cryptography.RandomNumberGenerator.GetBytes(32));
+
     public SettingsViewModel(
         IAppSettingsStore store,
         IPluginSettingsStore pluginStore,
         IDbProviderRegistry providers,
         IToolRegistry tools,
         KeymapService keymap,
+        Mcp.Hosting.McpService mcp,
         ILocalizer localizer)
     {
         _store = store;
@@ -81,6 +110,7 @@ public partial class SettingsViewModel : ViewModelBase
         _providers = providers;
         _tools = tools;
         _keymap = keymap;
+        _mcp = mcp;
         Loc = localizer;
 
         Categories =
@@ -90,6 +120,7 @@ public partial class SettingsViewModel : ViewModelBase
             new SettingsCategory("Editor", localizer["SettingsEditor"], NodeIcons.SettingsEditor),
             new SettingsCategory("Query", localizer["SettingsQuery"], NodeIcons.SettingsQuery),
             new SettingsCategory("Keyboard", localizer["SettingsKeyboard"], NodeIcons.SettingsKeyboard),
+            new SettingsCategory("Mcp", localizer["SettingsMcp"], NodeIcons.SettingsPlugins),
             new SettingsCategory("Plugins", localizer["SettingsPlugins"], NodeIcons.SettingsPlugins),
         ];
         _selectedCategory = Categories[0];
@@ -131,6 +162,12 @@ public partial class SettingsViewModel : ViewModelBase
         RestoreTabsOnStartup = settings.RestoreTabsOnStartup;
         ShowSystemDatabases = settings.ShowSystemDatabases;
         ConfirmOnExit = settings.ConfirmOnExit;
+        McpEnabled = settings.McpEnabled;
+        McpPort = settings.McpPort;
+        McpRequireAuth = settings.McpRequireAuth;
+        McpToken = settings.McpToken;
+        McpMaxRows = settings.McpMaxRows;
+        McpTimeoutSeconds = settings.McpTimeoutSeconds;
     }
 
     // A plugin (provider or tool) gets a tree entry only if it declares fields (Route A) or a custom
@@ -256,6 +293,12 @@ public partial class SettingsViewModel : ViewModelBase
         RestoreTabsOnStartup = defaults.RestoreTabsOnStartup;
         ShowSystemDatabases = defaults.ShowSystemDatabases;
         ConfirmOnExit = defaults.ConfirmOnExit;
+        // MCP: reset the tunables but keep an existing token (regenerate is an explicit action).
+        McpEnabled = defaults.McpEnabled;
+        McpPort = defaults.McpPort;
+        McpRequireAuth = defaults.McpRequireAuth;
+        McpMaxRows = defaults.McpMaxRows;
+        McpTimeoutSeconds = defaults.McpTimeoutSeconds;
 
         // Keyboard shortcuts reset to their factory bindings too.
         foreach (var shortcut in _allShortcuts)
@@ -291,7 +334,22 @@ public partial class SettingsViewModel : ViewModelBase
         settings.RestoreTabsOnStartup = RestoreTabsOnStartup;
         settings.ShowSystemDatabases = ShowSystemDatabases;
         settings.ConfirmOnExit = ConfirmOnExit;
+        // Generate a token on enabling auth if none is set yet, so the field is never empty when required.
+        if (McpEnabled && McpRequireAuth && string.IsNullOrEmpty(McpToken))
+        {
+            RegenerateMcpToken();
+        }
+
+        settings.McpEnabled = McpEnabled;
+        settings.McpPort = McpPort;
+        settings.McpRequireAuth = McpRequireAuth;
+        settings.McpToken = McpToken;
+        settings.McpMaxRows = McpMaxRows;
+        settings.McpTimeoutSeconds = McpTimeoutSeconds;
         _store.Save(settings);
+
+        // Apply MCP changes immediately (start/stop/restart the server with the new settings).
+        _ = _mcp.ApplyAsync();
 
         // Plugin settings live in their own file, keyed by plugin id.
         foreach (var plugin in Plugins)

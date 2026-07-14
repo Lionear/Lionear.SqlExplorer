@@ -57,4 +57,26 @@ public sealed class AppSettings
     /// <summary>Whether closing the app asks for confirmation first. Cleared when the user ticks
     /// "always close without asking" in the exit dialog.</summary>
     public bool ConfirmOnExit { get; set; } = true;
+
+    // ── MCP server (top-level; the host owns the server, plugins only contribute tools) ──────────────
+
+    /// <summary>Master switch for the MCP server. Off by default — no listener until the user turns it on.</summary>
+    public bool McpEnabled { get; set; }
+
+    /// <summary>Loopback port the MCP server binds (127.0.0.1 only, never configurable to another host).</summary>
+    public int McpPort { get; set; } = 5488;
+
+    /// <summary>Require a bearer token on the MCP listener. Default on (recommended); turning it off lets any
+    /// local process reach the AI-accessible connections, so the UI must warn on disable (plan §6 / CRIT-3).</summary>
+    public bool McpRequireAuth { get; set; } = true;
+
+    /// <summary>The generated bearer token (≥256-bit, base64). Created on first enable when auth is on;
+    /// regenerating invalidates the old one.</summary>
+    public string? McpToken { get; set; }
+
+    /// <summary>Server-side hard row cap for MCP queries — the AI can only ever request fewer (HIGH-1).</summary>
+    public int McpMaxRows { get; set; } = 200;
+
+    /// <summary>Server-side query timeout (seconds) for MCP queries.</summary>
+    public int McpTimeoutSeconds { get; set; } = 30;
 }

@@ -1,4 +1,5 @@
 using Avalonia.Controls;
+using Avalonia.Input.Platform;
 using Avalonia.Interactivity;
 using Avalonia.Platform.Storage;
 using Lionear.SqlExplorer.App.ViewModels;
@@ -42,6 +43,16 @@ public partial class SettingsWindow : Window
         if (files.Count > 0)
         {
             input.Value = files[0].TryGetLocalPath() ?? files[0].Path.ToString();
+        }
+    }
+
+    // Copy the MCP bearer token to the clipboard.
+    private async void OnCopyMcpTokenClick(object? sender, RoutedEventArgs e)
+    {
+        if (DataContext is SettingsViewModel { McpToken: { Length: > 0 } token }
+            && TopLevel.GetTopLevel(this) is { Clipboard: { } clipboard })
+        {
+            await clipboard.SetTextAsync(token);
         }
     }
 }

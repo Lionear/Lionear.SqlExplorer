@@ -270,9 +270,17 @@
             <ListBox.ItemTemplate>
               <DataTemplate>
                 <StackPanel Spacing="1" Margin="0,2">
-                  <TextBlock Text="{Binding Sql}" TextWrapping="Wrap" MaxLines="2"
-                             TextTrimming="CharacterEllipsis" FontSize="12"
-                             FontFamily="Cascadia Code,Consolas,Menlo,monospace" />
+                  <Grid ColumnDefinitions="Auto,*">
+                    <!-- AI badge: this entry was run by an AI client over MCP. -->
+                    <Border Grid.Column="0" Margin="0,0,6,0" VerticalAlignment="Center"
+                            Background="#223574F0" CornerRadius="4" Padding="4,0"
+                            IsVisible="{Binding Source, Converter={x:Static cvt:EqualsConverter.Instance}, ConverterParameter=Ai}">
+                      <TextBlock Text="AI" FontSize="9" FontWeight="SemiBold" Foreground="{DynamicResource CatAccentBrush}" />
+                    </Border>
+                    <TextBlock Grid.Column="1" Text="{Binding Sql}" TextWrapping="Wrap" MaxLines="2"
+                               TextTrimming="CharacterEllipsis" FontSize="12"
+                               FontFamily="Cascadia Code,Consolas,Menlo,monospace" />
+                  </Grid>
                   <TextBlock FontSize="10" Foreground="{DynamicResource CatTextFaintBrush}">
                     <TextBlock.Text>
                       <MultiBinding StringFormat="{}{0} · {1} rows · {2} ms">

@@ -17,6 +17,9 @@
     <ProjectReference Include="..\Sdk\Lionear.SqlExplorer.Sdk.csproj" />
     <ProjectReference Include="..\Core\Lionear.SqlExplorer.Core.csproj" />
     <ProjectReference Include="..\Infrastructure\Lionear.SqlExplorer.Infrastructure.csproj" />
+    <!-- The host owns the MCP server (loopback listener + transport security); this brings in ASP.NET Core
+         and the MCP SDK. MCP plugins only contribute tools, loaded at runtime like other plugins. -->
+    <ProjectReference Include="..\Mcp.Hosting\Lionear.SqlExplorer.Mcp.Hosting.csproj" />
     <!-- Providers are loaded at runtime as plugins, not linked. ReferenceOutputAssembly=false
          keeps them out of the host's bin (no privileged access to their driver deps) while still
          forcing them to build first so StageProviderPlugins can copy them into plugins/.
@@ -31,6 +34,9 @@
          unconditionally staged like the MVP providers — always present in Debug AND Release, not an
          optional Store install (plan §3.2, Rick: "kern-feature, altijd aanwezig"). -->
     <ProjectReference Include="..\Tools.MsSqlAdmin\Lionear.SqlExplorer.Tools.MsSqlAdmin.csproj" ReferenceOutputAssembly="false" Private="false" />
+    <!-- First-party MCP tool plugin (type "mcp"): the four core tools served by the host-owned MCP server.
+         Staged like the providers/admin tool — always present, loaded at runtime, not linked. -->
+    <ProjectReference Include="..\Mcp.Server\Lionear.SqlExplorer.Mcp.Server.csproj" ReferenceOutputAssembly="false" Private="false" />
     <!-- Optional/non-shipped plugins live under the repo-root plugins/ folder (not src/), so it's clear
          they aren't part of the core product. Debug-only: they build + get staged during development but
          never ship in a Release/MVP build. The template demonstrates IPluginSettings (Route A) live. -->
