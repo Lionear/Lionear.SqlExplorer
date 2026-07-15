@@ -1,9 +1,9 @@
 using System.Diagnostics;
-using Lionear.SqlExplorer.Sdk;
-using Lionear.SqlExplorer.Sdk.Settings;
-using Lionear.SqlExplorer.Sdk.Shortcuts;
+using SqlExplorer.Sdk;
+using SqlExplorer.Sdk.Settings;
+using SqlExplorer.Sdk.Shortcuts;
 
-namespace Lionear.SqlExplorer.Providers.Template;
+namespace SqlExplorer.Providers.Template;
 
 /// <summary>
 /// A reference / example provider. It does not talk to any database — its purpose is to be a readable

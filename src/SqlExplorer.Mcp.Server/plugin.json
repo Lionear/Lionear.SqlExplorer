@@ -1,0 +1,9 @@
+{
+  "schemaVersion": 1,
+  "id": "sql-explorer-mcp",
+  "type": "mcp",
+  "name": "SQL Explorer MCP tools",
+  "version": "1.0.0",
+  "hostApiVersion": 1,
+  "entryAssembly": "SqlExplorer.Mcp.Server.dll"
+}

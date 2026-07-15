@@ -1,0 +1,9 @@
+{
+  "schemaVersion": 1,
+  "id": "sqlserver",
+  "type": "provider",
+  "name": "SQL Server",
+  "version": "1.0.0",
+  "hostApiVersion": 19,
+  "entryAssembly": "SqlExplorer.Providers.MsSql.dll"
+}

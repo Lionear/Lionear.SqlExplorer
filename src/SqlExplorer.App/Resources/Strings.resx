@@ -1,0 +1,978 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <resheader name="resmimetype">
+    <value>text/microsoft-resx</value>
+  </resheader>
+  <resheader name="version">
+    <value>2.0</value>
+  </resheader>
+  <resheader name="reader">
+    <value>System.Resources.ResXResourceReader, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <resheader name="writer">
+    <value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <data name="AppTitle" xml:space="preserve">
+    <value>SQL Explorer</value>
+  </data>
+  <data name="ConnectionString" xml:space="preserve">
+    <value>Connection string</value>
+  </data>
+  <data name="Connect" xml:space="preserve">
+    <value>Connect</value>
+  </data>
+  <data name="Disconnect" xml:space="preserve">
+    <value>Disconnect</value>
+  </data>
+  <data name="Run" xml:space="preserve">
+    <value>Run</value>
+  </data>
+  <data name="Format" xml:space="preserve">
+    <value>Format</value>
+  </data>
+  <data name="Language" xml:space="preserve">
+    <value>Language</value>
+  </data>
+  <data name="StatusConnected" xml:space="preserve">
+    <value>Connected · {0} schema(s)</value>
+  </data>
+  <data name="StatusRows" xml:space="preserve">
+    <value>{0} rows · {1:F0} ms</value>
+  </data>
+  <data name="StatusAffected" xml:space="preserve">
+    <value>{0} affected · {1:F0} ms</value>
+  </data>
+  <data name="NewConnection" xml:space="preserve">
+    <value>New connection…</value>
+  </data>
+  <data name="Connections" xml:space="preserve">
+    <value>Connections</value>
+  </data>
+  <data name="SelectRows" xml:space="preserve">
+    <value>Show rows (top 100)</value>
+  </data>
+  <data name="CopyName" xml:space="preserve">
+    <value>Copy name</value>
+  </data>
+  <data name="EditConnection" xml:space="preserve">
+    <value>Edit connection</value>
+  </data>
+  <data name="ConnectionName" xml:space="preserve">
+    <value>Name</value>
+  </data>
+  <data name="Provider" xml:space="preserve">
+    <value>Provider</value>
+  </data>
+  <data name="Test" xml:space="preserve">
+    <value>Test</value>
+  </data>
+  <data name="Save" xml:space="preserve">
+    <value>Save</value>
+  </data>
+  <data name="Cancel" xml:space="preserve">
+    <value>Cancel</value>
+  </data>
+  <data name="Close" xml:space="preserve">
+    <value>Close</value>
+  </data>
+  <data name="Properties" xml:space="preserve">
+    <value>Properties…</value>
+  </data>
+  <data name="Delete" xml:space="preserve">
+    <value>Delete</value>
+  </data>
+  <data name="Browse" xml:space="preserve">
+    <value>Browse…</value>
+  </data>
+  <data name="TestOk" xml:space="preserve">
+    <value>Connection OK</value>
+  </data>
+  <data name="TestFailed" xml:space="preserve">
+    <value>Connection failed</value>
+  </data>
+  <data name="AddRow" xml:space="preserve">
+    <value>Add row</value>
+  </data>
+  <data name="DeleteRow" xml:space="preserve">
+    <value>Delete row</value>
+  </data>
+  <data name="Discard" xml:space="preserve">
+    <value>Discard</value>
+  </data>
+  <data name="PendingSummary" xml:space="preserve">
+    <value>{0} modified · {1} added · {2} deleted</value>
+  </data>
+  <data name="SaveOk" xml:space="preserve">
+    <value>Saved · {0} row(s) affected</value>
+  </data>
+  <data name="SaveNothing" xml:space="preserve">
+    <value>Nothing to save</value>
+  </data>
+  <data name="ReadOnlyLabel" xml:space="preserve">
+    <value>Read-only</value>
+  </data>
+  <data name="ReviewTitle" xml:space="preserve">
+    <value>Review changes</value>
+  </data>
+  <data name="Apply" xml:space="preserve">
+    <value>Apply</value>
+  </data>
+  <data name="NewQueryTab" xml:space="preserve">
+    <value>New query</value>
+  </data>
+  <data name="QueryTab" xml:space="preserve">
+    <value>Query</value>
+  </data>
+  <data name="BrowseTable" xml:space="preserve">
+    <value>Browse table</value>
+  </data>
+  <data name="ViewDefinition" xml:space="preserve">
+    <value>View definition</value>
+  </data>
+  <data name="ExecuteRoutine" xml:space="preserve">
+    <value>Execute…</value>
+  </data>
+  <data name="ActivityMonitor" xml:space="preserve">
+    <value>Activity monitor…</value>
+  </data>
+  <data name="ActivityMonitorTab" xml:space="preserve">
+    <value>Activity Monitor — {0}</value>
+  </data>
+  <data name="AutoRefresh" xml:space="preserve">
+    <value>Auto-refresh</value>
+  </data>
+  <data name="RefreshOff" xml:space="preserve">
+    <value>Off</value>
+  </data>
+  <data name="KillSession" xml:space="preserve">
+    <value>Kill session…</value>
+  </data>
+  <data name="CancelQuery" xml:space="preserve">
+    <value>Cancel query…</value>
+  </data>
+  <data name="ConfirmKillSessionTitle" xml:space="preserve">
+    <value>Kill session</value>
+  </data>
+  <data name="ConfirmKillSession" xml:space="preserve">
+    <value>Kill session {0}? This closes its connection.</value>
+  </data>
+  <data name="ConfirmCancelQueryTitle" xml:space="preserve">
+    <value>Cancel query</value>
+  </data>
+  <data name="ConfirmCancelQuery" xml:space="preserve">
+    <value>Cancel the running query on session {0}?</value>
+  </data>
+  <data name="SessionKilled" xml:space="preserve">
+    <value>Session {0} killed.</value>
+  </data>
+  <data name="QueryCancelledSession" xml:space="preserve">
+    <value>Query on session {0} cancelled.</value>
+  </data>
+  <data name="NewUser" xml:space="preserve">
+    <value>New user…</value>
+  </data>
+  <data name="DeleteUser" xml:space="preserve">
+    <value>Delete user</value>
+  </data>
+  <data name="UserName" xml:space="preserve">
+    <value>User name</value>
+  </data>
+  <data name="UserRoles" xml:space="preserve">
+    <value>Roles</value>
+  </data>
+  <data name="ConfirmDeleteUser" xml:space="preserve">
+    <value>Delete user {0}?</value>
+  </data>
+  <data name="SettingsMcp" xml:space="preserve">
+    <value>MCP server</value>
+  </data>
+  <data name="McpDesc" xml:space="preserve">
+    <value>Let an AI client (Claude Desktop/Code) query your connections over MCP while SQL Explorer is open. Only connections you opt in (per-connection AI access) are ever visible.</value>
+  </data>
+  <data name="McpEnabled" xml:space="preserve">
+    <value>Enable the MCP server</value>
+  </data>
+  <data name="McpPort" xml:space="preserve">
+    <value>Port</value>
+  </data>
+  <data name="McpBindHint" xml:space="preserve">
+    <value>The server always binds to 127.0.0.1 (this machine only) — it is never reachable from the network.</value>
+  </data>
+  <data name="McpUrl" xml:space="preserve">
+    <value>Server URL</value>
+  </data>
+  <data name="McpRequireAuth" xml:space="preserve">
+    <value>Require a bearer token (recommended)</value>
+  </data>
+  <data name="McpNoAuthWarning" xml:space="preserve">
+    <value>⚠️ Without authentication, any local program on this device can run queries on your AI-accessible connections.</value>
+  </data>
+  <data name="McpToken" xml:space="preserve">
+    <value>Bearer token</value>
+  </data>
+  <data name="McpTokenEmpty" xml:space="preserve">
+    <value>(generated when you enable the server)</value>
+  </data>
+  <data name="McpTokenHint" xml:space="preserve">
+    <value>Put this in your AI client's config. Don't add it to a shared repo or backup. Regenerating invalidates the old token immediately.</value>
+  </data>
+  <data name="McpRegenerate" xml:space="preserve">
+    <value>Regenerate</value>
+  </data>
+  <data name="McpCaps" xml:space="preserve">
+    <value>Limits</value>
+  </data>
+  <data name="McpMaxRows" xml:space="preserve">
+    <value>Max rows per query</value>
+  </data>
+  <data name="McpTimeout" xml:space="preserve">
+    <value>Query timeout (seconds)</value>
+  </data>
+  <data name="AiAccess" xml:space="preserve">
+    <value>AI access (MCP)</value>
+  </data>
+  <data name="AiAccessHint" xml:space="preserve">
+    <value>None = invisible to the AI. Read-only = SELECT/EXPLAIN. Read-write = also INSERT/UPDATE/DELETE (DDL is never allowed over MCP).</value>
+  </data>
+  <data name="AiWriteWarning" xml:space="preserve">
+    <value>⚠️ Read-write lets the AI modify data on this connection. Only enable it on a connection you're sure about — never on production unless you really mean to.</value>
+  </data>
+  <data name="ExcludeFromMcp" xml:space="preserve">
+    <value>Never expose to the AI (hard block)</value>
+  </data>
+  <data name="ExcludeFromMcpHint" xml:space="preserve">
+    <value>Blocks this connection from MCP entirely, even if AI access is set — a safety override for sensitive/production connections.</value>
+  </data>
+  <data name="OpenInEditor" xml:space="preserve">
+    <value>Open in editor</value>
+  </data>
+  <data name="DefinitionUnavailable" xml:space="preserve">
+    <value>No definition is available for this object.</value>
+  </data>
+  <data name="ParameterOutput" xml:space="preserve">
+    <value>(output)</value>
+  </data>
+  <data name="RoutineExecuteHint" xml:space="preserve">
+    <value>Enter values for the input parameters. A call script opens in a new tab — press Run to execute it.</value>
+  </data>
+  <data name="PrevPage" xml:space="preserve">
+    <value>‹ Prev</value>
+  </data>
+  <data name="NextPage" xml:space="preserve">
+    <value>Next ›</value>
+  </data>
+  <data name="Filter" xml:space="preserve">
+    <value>Filter (WHERE)</value>
+  </data>
+  <data name="RowRange" xml:space="preserve">
+    <value>Rows {0}–{1}</value>
+  </data>
+  <data name="RowRangeEmpty" xml:space="preserve">
+    <value>No rows</value>
+  </data>
+  <data name="EmptyHint" xml:space="preserve">
+    <value>Double-click a table to browse, or start a new query.</value>
+  </data>
+  <data name="SqlCommands" xml:space="preserve">
+    <value>SQL commands</value>
+  </data>
+  <data name="DuplicateConnection" xml:space="preserve">
+    <value>Duplicate</value>
+  </data>
+  <data name="CopySuffix" xml:space="preserve">
+    <value>(copy)</value>
+  </data>
+  <data name="AdvancedSettings" xml:space="preserve">
+    <value>Advanced</value>
+  </data>
+  <data name="ConnectionFailed" xml:space="preserve">
+    <value>Could not connect to the server.</value>
+  </data>
+  <data name="Stop" xml:space="preserve">
+    <value>Stop</value>
+  </data>
+  <data name="Folder" xml:space="preserve">
+    <value>Folder</value>
+  </data>
+  <data name="FolderHint" xml:space="preserve">
+    <value>Optional — group connections (e.g. Production)</value>
+  </data>
+  <data name="QueryCancelled" xml:space="preserve">
+    <value>Query cancelled.</value>
+  </data>
+  <data name="Yes" xml:space="preserve">
+    <value>Yes</value>
+  </data>
+  <data name="No" xml:space="preserve">
+    <value>No</value>
+  </data>
+  <data name="ReconnectTitle" xml:space="preserve">
+    <value>Reconnect?</value>
+  </data>
+  <data name="ReconnectMessage" xml:space="preserve">
+    <value>The connection is still open with its previous settings. Your changes only take effect after reconnecting. Reconnect now?</value>
+  </data>
+  <data name="ChangesOnReconnect" xml:space="preserve">
+    <value>Changes saved — they take effect the next time you connect.</value>
+  </data>
+  <data name="Output" xml:space="preserve">
+    <value>Output</value>
+  </data>
+  <data name="ClearOutput" xml:space="preserve">
+    <value>Clear</value>
+  </data>
+  <data name="ImportConnectionString" xml:space="preserve">
+    <value>Import from connection string</value>
+  </data>
+  <data name="ImportConnectionStringHint" xml:space="preserve">
+    <value>Paste a connection string to fill the fields…</value>
+  </data>
+  <data name="ImportDone" xml:space="preserve">
+    <value>Fields filled from the connection string.</value>
+  </data>
+  <data name="ImportNotSupported" xml:space="preserve">
+    <value>This provider cannot import a connection string.</value>
+  </data>
+  <data name="ConnectionColor" xml:space="preserve">
+    <value>Colour</value>
+  </data>
+  <data name="ReadOnlyMode" xml:space="preserve">
+    <value>Read-only (safe mode)</value>
+  </data>
+  <data name="ReadOnlyConnection" xml:space="preserve">
+    <value>This connection is read-only (safe mode).</value>
+  </data>
+  <data name="History" xml:space="preserve">
+    <value>History</value>
+  </data>
+  <data name="GoToObject" xml:space="preserve">
+    <value>Go to…</value>
+  </data>
+  <data name="SearchObjects" xml:space="preserve">
+    <value>Search tables, views, columns, or run a command…</value>
+  </data>
+  <data name="SearchHistory" xml:space="preserve">
+    <value>Search history…</value>
+  </data>
+  <data name="ClearHistory" xml:space="preserve">
+    <value>Clear</value>
+  </data>
+  <data name="AggCount" xml:space="preserve">
+    <value>Count</value>
+  </data>
+  <data name="AggSum" xml:space="preserve">
+    <value>Sum</value>
+  </data>
+  <data name="AggAvg" xml:space="preserve">
+    <value>Avg</value>
+  </data>
+  <data name="AggMin" xml:space="preserve">
+    <value>Min</value>
+  </data>
+  <data name="AggMax" xml:space="preserve">
+    <value>Max</value>
+  </data>
+  <data name="NewDatabase" xml:space="preserve">
+    <value>New Database…</value>
+  </data>
+  <data name="NewSchema" xml:space="preserve">
+    <value>New Schema…</value>
+  </data>
+  <data name="NewTable" xml:space="preserve">
+    <value>New Table…</value>
+  </data>
+  <data name="ObjectName" xml:space="preserve">
+    <value>Name</value>
+  </data>
+  <data name="ColumnName" xml:space="preserve">
+    <value>Column</value>
+  </data>
+  <data name="ColumnType" xml:space="preserve">
+    <value>Type</value>
+  </data>
+  <data name="ColumnNullable" xml:space="preserve">
+    <value>Nullable</value>
+  </data>
+  <data name="ColumnPrimaryKey" xml:space="preserve">
+    <value>PK</value>
+  </data>
+  <data name="AddColumn" xml:space="preserve">
+    <value>+ Add column</value>
+  </data>
+  <data name="SqlPreview" xml:space="preserve">
+    <value>SQL preview</value>
+  </data>
+  <data name="Create" xml:space="preserve">
+    <value>Create</value>
+  </data>
+  <data name="DropDatabase" xml:space="preserve">
+    <value>Drop Database…</value>
+  </data>
+  <data name="DropSchema" xml:space="preserve">
+    <value>Drop Schema…</value>
+  </data>
+  <data name="DropTable" xml:space="preserve">
+    <value>Drop Table…</value>
+  </data>
+  <data name="AddColumnTitle" xml:space="preserve">
+    <value>Add Column</value>
+  </data>
+  <data name="AddColumnMenu" xml:space="preserve">
+    <value>Add Column…</value>
+  </data>
+  <data name="DropColumn" xml:space="preserve">
+    <value>Drop Column…</value>
+  </data>
+  <data name="RenameColumn" xml:space="preserve">
+    <value>Rename Column…</value>
+  </data>
+  <data name="NewName" xml:space="preserve">
+    <value>New name</value>
+  </data>
+  <data name="Confirm" xml:space="preserve">
+    <value>Confirm</value>
+  </data>
+  <data name="IrreversibleWarning" xml:space="preserve">
+    <value>This cannot be undone.</value>
+  </data>
+  <data name="ColumnAutoIncrement" xml:space="preserve">
+    <value>AI</value>
+  </data>
+  <data name="AutoIncrementHint" xml:space="preserve">
+    <value>Auto-increment (identity). Rendered per engine: Postgres GENERATED ALWAYS AS IDENTITY, MySQL AUTO_INCREMENT, SQL Server IDENTITY(1,1), SQLite INTEGER PRIMARY KEY AUTOINCREMENT.</value>
+  </data>
+  <data name="PrimaryKeyHint" xml:space="preserve">
+    <value>Primary key. Uniquely identifies each row; multiple checked columns form a composite key.</value>
+  </data>
+  <data name="RunAtCursor" xml:space="preserve">
+    <value>Run at cursor</value>
+  </data>
+  <data name="Explain" xml:space="preserve">
+    <value>Explain</value>
+  </data>
+  <data name="Export" xml:space="preserve">
+    <value>Export…</value>
+  </data>
+  <data name="ExportFormat" xml:space="preserve">
+    <value>Export format</value>
+  </data>
+  <data name="ExportRowsSelected" xml:space="preserve">
+    <value>{0} row(s) selected</value>
+  </data>
+  <data name="ExportRowsAll" xml:space="preserve">
+    <value>{0} row(s), whole result</value>
+  </data>
+  <data name="ImportCsv" xml:space="preserve">
+    <value>Import CSV…</value>
+  </data>
+  <data name="ImportCsvTitle" xml:space="preserve">
+    <value>Import CSV</value>
+  </data>
+  <data name="ImportPreview" xml:space="preserve">
+    <value>Preview</value>
+  </data>
+  <data name="ImportMapColumn" xml:space="preserve">
+    <value>Column mapping</value>
+  </data>
+  <data name="ImportSkip" xml:space="preserve">
+    <value>— skip —</value>
+  </data>
+  <data name="ImportRowCount" xml:space="preserve">
+    <value>{0} row(s) to import</value>
+  </data>
+  <data name="Import" xml:space="preserve">
+    <value>Import</value>
+  </data>
+  <data name="ImportOk" xml:space="preserve">
+    <value>Imported {0} row(s)</value>
+  </data>
+  <data name="Settings" xml:space="preserve">
+    <value>Settings</value>
+  </data>
+  <data name="Preferences" xml:space="preserve">
+    <value>Preferences…</value>
+  </data>
+  <data name="SettingsGeneral" xml:space="preserve">
+    <value>General app preferences.</value>
+  </data>
+  <data name="SettingsAppearance" xml:space="preserve">
+    <value>Appearance</value>
+  </data>
+  <data name="SettingsEditor" xml:space="preserve">
+    <value>Editor</value>
+  </data>
+  <data name="SettingsQuery" xml:space="preserve">
+    <value>Query</value>
+  </data>
+  <data name="Theme" xml:space="preserve">
+    <value>Theme</value>
+  </data>
+  <data name="ThemeSystem" xml:space="preserve">
+    <value>System</value>
+  </data>
+  <data name="ThemeLight" xml:space="preserve">
+    <value>Light</value>
+  </data>
+  <data name="ThemeDark" xml:space="preserve">
+    <value>Dark</value>
+  </data>
+  <data name="EditorFontSize" xml:space="preserve">
+    <value>Font size</value>
+  </data>
+  <data name="EditorWordWrap" xml:space="preserve">
+    <value>Word wrap</value>
+  </data>
+  <data name="ConfirmBeforeSave" xml:space="preserve">
+    <value>Show a review dialog before saving changes</value>
+  </data>
+  <data name="ConfirmOnExit" xml:space="preserve">
+    <value>Ask for confirmation before quitting</value>
+  </data>
+  <data name="CloseToTray" xml:space="preserve">
+    <value>Close to system tray instead of quitting</value>
+  </data>
+  <data name="CloseToTrayHint" xml:space="preserve">
+    <value>The close button hides the window and keeps the app running in the background (e.g. the MCP server). Quit from the tray icon or File &gt; Exit.</value>
+  </data>
+  <data name="ExitConfirmTitle" xml:space="preserve">
+    <value>Quit</value>
+  </data>
+  <data name="ExitConfirmMessage" xml:space="preserve">
+    <value>Are you sure you want to quit Lionear SQL Explorer?</value>
+  </data>
+  <data name="ExitConfirmQuit" xml:space="preserve">
+    <value>Quit</value>
+  </data>
+  <data name="ExitConfirmAlways" xml:space="preserve">
+    <value>Always quit without asking</value>
+  </data>
+  <data name="Startup" xml:space="preserve">
+    <value>Startup</value>
+  </data>
+  <data name="RestoreTabsOnStartup" xml:space="preserve">
+    <value>Reopen the previous session's query tabs</value>
+  </data>
+  <data name="SettingsSchemaTree" xml:space="preserve">
+    <value>Schema tree</value>
+  </data>
+  <data name="ShowSystemDatabases" xml:space="preserve">
+    <value>Show system databases (applies on next refresh)</value>
+  </data>
+  <data name="RestoreDefaults" xml:space="preserve">
+    <value>Restore Defaults</value>
+  </data>
+  <data name="ApplyAndClose" xml:space="preserve">
+    <value>Apply and Close</value>
+  </data>
+  <data name="MenuFile" xml:space="preserve">
+    <value>_File</value>
+  </data>
+  <data name="MenuEdit" xml:space="preserve">
+    <value>_Edit</value>
+  </data>
+  <data name="MenuHelp" xml:space="preserve">
+    <value>_Help</value>
+  </data>
+  <data name="NewConnectionMenu" xml:space="preserve">
+    <value>New Connection…</value>
+  </data>
+  <data name="Exit" xml:space="preserve">
+    <value>Exit</value>
+  </data>
+  <data name="TrayShow" xml:space="preserve">
+    <value>Show SQL Explorer</value>
+  </data>
+  <data name="About" xml:space="preserve">
+    <value>About</value>
+  </data>
+  <data name="AboutText" xml:space="preserve">
+    <value>Lionear SQL Explorer</value>
+  </data>
+  <data name="CopyAsCsv" xml:space="preserve">
+    <value>Copy as CSV</value>
+  </data>
+  <data name="CopyAsMarkdown" xml:space="preserve">
+    <value>Copy as Markdown</value>
+  </data>
+  <data name="CopyAsHtml" xml:space="preserve">
+    <value>Copy as HTML</value>
+  </data>
+  <data name="CopyAsInsert" xml:space="preserve">
+    <value>Copy as INSERT</value>
+  </data>
+  <data name="ManageConnections" xml:space="preserve">
+    <value>Manage Connections…</value>
+  </data>
+  <data name="FilterConnections" xml:space="preserve">
+    <value>Filter connections…</value>
+  </data>
+  <data name="NewFolder" xml:space="preserve">
+    <value>New folder</value>
+  </data>
+  <data name="NewFolderName" xml:space="preserve">
+    <value>New folder</value>
+  </data>
+  <data name="FolderName" xml:space="preserve">
+    <value>Folder name</value>
+  </data>
+  <data name="RenameFolder" xml:space="preserve">
+    <value>Rename</value>
+  </data>
+  <data name="DeleteFolder" xml:space="preserve">
+    <value>Delete folder</value>
+  </data>
+  <data name="FolderDeleteNote" xml:space="preserve">
+    <value>Deleting a non-empty folder moves every connection under it (including sub-folders) to "ungrouped" — connections are never deleted. Renaming a folder rewrites the path prefix of every connection beneath it.</value>
+  </data>
+  <data name="ManagerEmptyHint" xml:space="preserve">
+    <value>Select a connection or folder, or add a new one.</value>
+  </data>
+  <data name="ManagerSummary" xml:space="preserve">
+    <value>{0} connections · {1} folders</value>
+  </data>
+  <data name="DeleteConnectionConfirm" xml:space="preserve">
+    <value>Delete connection "{0}"?</value>
+  </data>
+  <data name="DeleteFolderConfirm" xml:space="preserve">
+    <value>Move {0} connection(s) to ungrouped and delete this folder?</value>
+  </data>
+  <data name="SettingsGeneralCat" xml:space="preserve">
+    <value>General</value>
+  </data>
+  <data name="SettingsPlugins" xml:space="preserve">
+    <value>Plugins</value>
+  </data>
+  <data name="AppearanceDesc" xml:space="preserve">
+    <value>Theme applies live — no restart needed.</value>
+  </data>
+  <data name="PluginsDesc" xml:space="preserve">
+    <value>Only plugins that declare their own settings appear here. Installing or enabling plugins happens in the Plugin Store.</value>
+  </data>
+  <data name="PluginsNoneHint" xml:space="preserve">
+    <value>No installed plugin declares settings yet. Plugins expose their own settings through the SDK.</value>
+  </data>
+  <data name="Tools" xml:space="preserve">
+    <value>Tools</value>
+  </data>
+  <data name="ToolDone" xml:space="preserve">
+    <value>Done.</value>
+  </data>
+  <data name="ToolCancelled" xml:space="preserve">
+    <value>Cancelled.</value>
+  </data>
+  <data name="ToolRunning" xml:space="preserve">
+    <value>Running…</value>
+  </data>
+  <data name="ToolDestructiveConfirm" xml:space="preserve">
+    <value>This action modifies the database and cannot be undone. Continue?</value>
+  </data>
+  <data name="ToolSucceeded" xml:space="preserve">
+    <value>Completed successfully.</value>
+  </data>
+  <data name="ToolFinish" xml:space="preserve">
+    <value>Finish</value>
+  </data>
+  <data name="Refresh" xml:space="preserve">
+    <value>Refresh</value>
+  </data>
+  <data name="SelectTop100" xml:space="preserve">
+    <value>Select top 100</value>
+  </data>
+  <data name="Copy" xml:space="preserve">
+    <value>Copy</value>
+  </data>
+  <data name="Cut" xml:space="preserve">
+    <value>Cut</value>
+  </data>
+  <data name="Paste" xml:space="preserve">
+    <value>Paste</value>
+  </data>
+  <data name="SelectAll" xml:space="preserve">
+    <value>Select All</value>
+  </data>
+  <data name="GenerateGuid" xml:space="preserve">
+    <value>Generate GUID</value>
+  </data>
+  <data name="GuidV4" xml:space="preserve">
+    <value>v4 (random)</value>
+  </data>
+  <data name="GuidV7" xml:space="preserve">
+    <value>v7 (time-ordered)</value>
+  </data>
+  <data name="CopyAll" xml:space="preserve">
+    <value>Copy all</value>
+  </data>
+  <data name="CopyWithHeaders" xml:space="preserve">
+    <value>Copy with headers</value>
+  </data>
+  <data name="CopyQualifiedName" xml:space="preserve">
+    <value>Copy qualified name</value>
+  </data>
+  <data name="TruncateTable" xml:space="preserve">
+    <value>Truncate table…</value>
+  </data>
+  <data name="CollapseAll" xml:space="preserve">
+    <value>Collapse all</value>
+  </data>
+  <data name="TestConnection" xml:space="preserve">
+    <value>Test connection</value>
+  </data>
+  <data name="TestConnectionOk" xml:space="preserve">
+    <value>Connection succeeded.</value>
+  </data>
+  <data name="TestConnectionFailed" xml:space="preserve">
+    <value>Connection failed.</value>
+  </data>
+  <data name="SetNull" xml:space="preserve">
+    <value>Set NULL</value>
+  </data>
+  <data name="ConfirmDeleteConnection" xml:space="preserve">
+    <value>Delete the connection "{0}"? This cannot be undone.</value>
+  </data>
+  <data name="SettingsKeyboard" xml:space="preserve">
+    <value>Keyboard</value>
+  </data>
+  <data name="KeyboardDesc" xml:space="preserve">
+    <value>Click a shortcut, then press the key combination you want. Changes apply live — no restart.</value>
+  </data>
+  <data name="ShortcutPressKeys" xml:space="preserve">
+    <value>Press keys…</value>
+  </data>
+  <data name="ShortcutUnbound" xml:space="preserve">
+    <value>Unbound</value>
+  </data>
+  <data name="ShortcutResetTooltip" xml:space="preserve">
+    <value>Reset to default</value>
+  </data>
+  <data name="ShortcutConflictBanner" xml:space="preserve">
+    <value>Two commands share a shortcut — resolve the conflict before saving.</value>
+  </data>
+  <data name="ShortcutGroupTabs" xml:space="preserve">
+    <value>Tabs</value>
+  </data>
+  <data name="ShortcutGroupQuery" xml:space="preserve">
+    <value>Query</value>
+  </data>
+  <data name="ShortcutGroupEditor" xml:space="preserve">
+    <value>Editor</value>
+  </data>
+  <data name="ShortcutGroupSearch" xml:space="preserve">
+    <value>Search</value>
+  </data>
+  <data name="ShortcutGroupTree" xml:space="preserve">
+    <value>Tree</value>
+  </data>
+  <data name="RefreshTree" xml:space="preserve">
+    <value>Refresh selected object</value>
+  </data>
+  <data name="CloseTab" xml:space="preserve">
+    <value>Close tab</value>
+  </data>
+  <data name="DuplicateTab" xml:space="preserve">
+    <value>Duplicate tab</value>
+  </data>
+  <data name="CloseOtherTabs" xml:space="preserve">
+    <value>Close other tabs</value>
+  </data>
+  <data name="CloseAllTabs" xml:space="preserve">
+    <value>Close all tabs</value>
+  </data>
+  <data name="CopyCell" xml:space="preserve">
+    <value>Copy cell</value>
+  </data>
+  <data name="ConfirmDiscardTitle" xml:space="preserve">
+    <value>Unsaved changes</value>
+  </data>
+  <data name="ConfirmDiscardChanges" xml:space="preserve">
+    <value>This tab has unsaved changes. Close it and discard them?</value>
+  </data>
+  <data name="ConfirmDiscardChangesMany" xml:space="preserve">
+    <value>{0} tabs have unsaved changes. Close them and discard the changes?</value>
+  </data>
+  <data name="ReopenTab" xml:space="preserve">
+    <value>Reopen closed tab</value>
+  </data>
+  <data name="ToggleSearch" xml:space="preserve">
+    <value>Go to / search</value>
+  </data>
+  <data name="ToggleComment" xml:space="preserve">
+    <value>Toggle line comment</value>
+  </data>
+  <data name="ZoomIn" xml:space="preserve">
+    <value>Increase editor font size</value>
+  </data>
+  <data name="ZoomOut" xml:space="preserve">
+    <value>Decrease editor font size</value>
+  </data>
+  <data name="MenuTools" xml:space="preserve">
+    <value>Tools</value>
+  </data>
+  <data name="PluginStoreMenu" xml:space="preserve">
+    <value>Plugin Store…</value>
+  </data>
+  <data name="PluginStoreTitle" xml:space="preserve">
+    <value>Plugin Store</value>
+  </data>
+  <data name="StoreTabBrowse" xml:space="preserve">
+    <value>Browse</value>
+  </data>
+  <data name="StoreTabInstalled" xml:space="preserve">
+    <value>Installed</value>
+  </data>
+  <data name="StoreTabSources" xml:space="preserve">
+    <value>Sources</value>
+  </data>
+  <data name="StoreInstallFromFile" xml:space="preserve">
+    <value>Install from file…</value>
+  </data>
+  <data name="StoreRestartNeeded" xml:space="preserve">
+    <value>Some changes take effect after a restart.</value>
+  </data>
+  <data name="StoreSearch" xml:space="preserve">
+    <value>Search plugins…</value>
+  </data>
+  <data name="StoreLoading" xml:space="preserve">
+    <value>Loading…</value>
+  </data>
+  <data name="StoreBundleChip" xml:space="preserve">
+    <value>Bundle</value>
+  </data>
+  <data name="StoreStaged" xml:space="preserve">
+    <value>Installed — restart needed</value>
+  </data>
+  <data name="StoreCapabilities" xml:space="preserve">
+    <value>Capabilities</value>
+  </data>
+  <data name="StoreBuiltIn" xml:space="preserve">
+    <value>Built-in</value>
+  </data>
+  <data name="StoreInstalledSection" xml:space="preserve">
+    <value>Installed</value>
+  </data>
+  <data name="StoreDiscoverySources" xml:space="preserve">
+    <value>Discovery sources</value>
+  </data>
+  <data name="StoreDiscoveryDesc" xml:space="preserve">
+    <value>Automatically provided by Lionear; not editable.</value>
+  </data>
+  <data name="StoreManualSources" xml:space="preserve">
+    <value>Manual sources</value>
+  </data>
+  <data name="StoreAddSourceHint" xml:space="preserve">
+    <value>Add an index.json URL…</value>
+  </data>
+  <data name="Add" xml:space="preserve">
+    <value>Add</value>
+  </data>
+  <data name="Remove" xml:space="preserve">
+    <value>Remove</value>
+  </data>
+  <data name="StoreConsentTitle" xml:space="preserve">
+    <value>Grant capabilities?</value>
+  </data>
+  <data name="StoreConsentBody" xml:space="preserve">
+    <value>This plugin requests the following capabilities:</value>
+  </data>
+  <data name="StoreConsentApprove" xml:space="preserve">
+    <value>Trust and install</value>
+  </data>
+  <data name="StoreDisabled" xml:space="preserve">
+    <value>Disabled</value>
+  </data>
+  <data name="StorePendingRemove" xml:space="preserve">
+    <value>Will be removed on restart</value>
+  </data>
+  <data name="StorePendingInstall" xml:space="preserve">
+    <value>Restart needed</value>
+  </data>
+  <data name="StoreRollback" xml:space="preserve">
+    <value>Roll back</value>
+  </data>
+  <data name="StoreDisable" xml:space="preserve">
+    <value>Disable</value>
+  </data>
+  <data name="StoreEnable" xml:space="preserve">
+    <value>Enable</value>
+  </data>
+  <data name="StoreUninstall" xml:space="preserve">
+    <value>Uninstall</value>
+  </data>
+  <data name="StoreDownloading" xml:space="preserve">
+    <value>Downloading…</value>
+  </data>
+  <data name="StoreVerifying" xml:space="preserve">
+    <value>Verifying…</value>
+  </data>
+  <data name="StoreExtracting" xml:space="preserve">
+    <value>Extracting…</value>
+  </data>
+  <data name="StoreStaging" xml:space="preserve">
+    <value>Staging…</value>
+  </data>
+  <data name="StoreInstalling" xml:space="preserve">
+    <value>Installing…</value>
+  </data>
+  <data name="StoreInstall" xml:space="preserve">
+    <value>Install</value>
+  </data>
+  <data name="StoreUpdate" xml:space="preserve">
+    <value>Update</value>
+  </data>
+  <data name="StoreDowngrade" xml:space="preserve">
+    <value>Downgrade</value>
+  </data>
+  <data name="StoreReinstall" xml:space="preserve">
+    <value>Reinstall</value>
+  </data>
+  <data name="StoreIncompatible" xml:space="preserve">
+    <value>Incompatible</value>
+  </data>
+  <data name="StoreInstallAll" xml:space="preserve">
+    <value>Install all</value>
+  </data>
+  <data name="StoreIncompatRange" xml:space="preserve">
+    <value>Requires host API {0}–{1}; this build is {2}.</value>
+  </data>
+  <data name="StoreIncompatMin" xml:space="preserve">
+    <value>Requires host API {0}+; this build is {1}.</value>
+  </data>
+  <data name="StoreUpdateAll" xml:space="preserve">
+    <value>Update all ({0})</value>
+  </data>
+  <data name="StoreUpdateTo" xml:space="preserve">
+    <value>Update → {0}</value>
+  </data>
+  <data name="StoreRestartApp" xml:space="preserve">
+    <value>Restart app</value>
+  </data>
+  <data name="StoreBundleSub" xml:space="preserve">
+    <value>bundle · {0} plugins</value>
+  </data>
+  <data name="StoreInstalledCount" xml:space="preserve">
+    <value>{0} plugins installed</value>
+  </data>
+  <data name="StoreManualHint" xml:space="preserve">
+    <value>For stores not (yet) in Discovery — private, internal, or intentionally unregistered. Fully self-managed.</value>
+  </data>
+  <data name="StoreReadOnly" xml:space="preserve">
+    <value>read-only</value>
+  </data>
+  <data name="StoreContains" xml:space="preserve">
+    <value>Contains</value>
+  </data>
+  <data name="StoreVersionLabel" xml:space="preserve">
+    <value>Version</value>
+  </data>
+  <data name="StoreRollbackTo" xml:space="preserve">
+    <value>Back to {0}</value>
+  </data>
+  <data name="StoreConsentChecksum" xml:space="preserve">
+    <value>Pinned SHA-256</value>
+  </data>
+  <data name="MainPluginRestartBanner" xml:space="preserve">
+    <value>Plugin changes are pending — restart to apply them.</value>
+  </data>
+  <data name="MainRestartNow" xml:space="preserve">
+    <value>Restart now</value>
+  </data>
+</root>

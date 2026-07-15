@@ -87,7 +87,7 @@ jobs:
       - name: Publish
         shell: bash
         run: |
-          dotnet publish src/Desktop/Lionear.SqlExplorer.Desktop.csproj \
+          dotnet publish src/Desktop/SqlExplorer.Desktop.csproj \
             -c Release \
             -r ${{ matrix.rid }} \
             --self-contained true \
@@ -118,7 +118,7 @@ jobs:
           rm -rf "$APPDIR"
           mkdir -p "$APPDIR/usr/bin"
           cp -r publish/${{ matrix.rid }}/* "$APPDIR/usr/bin/"
-          chmod +x "$APPDIR/usr/bin/Lionear.SqlExplorer.Desktop"
+          chmod +x "$APPDIR/usr/bin/SqlExplorer.Desktop"
 
           # Icon (top-level + hicolor path both referenced by the .desktop entry)
           cp src/App/Assets/icon.png "$APPDIR/lionear-sql-explorer.png"
@@ -129,7 +129,7 @@ jobs:
           [Desktop Entry]
           Type=Application
           Name=Lionear SQL Explorer
-          Exec=Lionear.SqlExplorer.Desktop
+          Exec=SqlExplorer.Desktop
           Icon=lionear-sql-explorer
           Categories=Development;Database;
           Terminal=false
@@ -138,7 +138,7 @@ jobs:
           cat > "$APPDIR/AppRun" <<'EOF'
           #!/bin/sh
           HERE="$(dirname "$(readlink -f "$0")")"
-          exec "$HERE/usr/bin/Lionear.SqlExplorer.Desktop" "$@"
+          exec "$HERE/usr/bin/SqlExplorer.Desktop" "$@"
           EOF
           chmod +x "$APPDIR/AppRun"
 
@@ -191,7 +191,7 @@ jobs:
           if-no-files-found: error
 
   # Publishes a rolling "nightly" prerelease with fixed asset download links:
-  #   https://github.com/Lionear/Lionear.SqlExplorer/releases/download/nightly/<file>
+  #   https://github.com/Lionear/SqlExplorer/releases/download/nightly/<file>
   # Runs on the scheduled nightly build, or on a manual run when publish_release is ticked.
   release:
     name: Nightly release

@@ -1,0 +1,9 @@
+{
+  "schemaVersion": 1,
+  "id": "postgres",
+  "type": "provider",
+  "name": "PostgreSQL",
+  "version": "1.0.0",
+  "hostApiVersion": 19,
+  "entryAssembly": "SqlExplorer.Providers.Postgres.dll"
+}

@@ -1,6 +1,6 @@
-using Lionear.SqlExplorer.Sdk;
+using SqlExplorer.Sdk;
 
-namespace Lionear.SqlExplorer.Providers.Template;
+namespace SqlExplorer.Providers.Template;
 
 /// <summary>Minimal ANSI-ish dialect for the example provider — enough to satisfy the contract.</summary>
 public sealed class TemplateDialect : ISqlDialect

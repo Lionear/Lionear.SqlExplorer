@@ -5,5 +5,5 @@
   "name": "Template (example)",
   "version": "1.0.0",
   "hostApiVersion": 19,
-  "entryAssembly": "Lionear.SqlExplorer.Providers.Template.dll"
+  "entryAssembly": "SqlExplorer.Providers.Template.dll"
 }

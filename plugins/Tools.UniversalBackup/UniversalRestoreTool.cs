@@ -1,7 +1,7 @@
 using System.Security.Cryptography;
-using Lionear.SqlExplorer.Sdk.Branding;
+using SqlExplorer.Sdk.Branding;
 
-namespace Lionear.SqlExplorer.Tools.UniversalBackup;
+namespace SqlExplorer.Tools.UniversalBackup;
 
 /// <summary>
 /// Restores a <c>.lbak</c> file into the connected database: recreates each table and inserts its rows

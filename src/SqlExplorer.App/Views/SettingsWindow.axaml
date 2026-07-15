@@ -1,0 +1,322 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:c="using:SqlExplorer.App.Converters"
+        xmlns:ctl="using:SqlExplorer.App.Controls"
+        xmlns:settings="using:SqlExplorer.Core.Settings"
+        x:Class="SqlExplorer.App.Views.SettingsWindow"
+        Title="{Binding Loc[Preferences]}"
+        Width="800" Height="540" MinWidth="640" MinHeight="440"
+        WindowStartupLocation="CenterOwner">
+  <Window.Resources>
+    <!-- One row per PluginSettingField (Route A) — same shape/look as the connection dialog's fields. -->
+    <DataTemplate x:Key="PluginFieldTemplate">
+      <StackPanel Spacing="2" Margin="0,4,0,0">
+        <TextBlock Text="{Binding Label}" Foreground="{DynamicResource CatTextSecondaryBrush}" FontSize="11.5" />
+        <Grid ColumnDefinitions="*,Auto">
+          <TextBox Grid.Column="0" Text="{Binding Value}" PlaceholderText="{Binding Watermark}"
+                   IsVisible="{Binding IsText}" />
+          <CheckBox Grid.Column="0" IsChecked="{Binding BoolValue}" IsVisible="{Binding IsBool}" />
+          <ComboBox Grid.Column="0" HorizontalAlignment="Stretch" ItemsSource="{Binding Choices}"
+                    SelectedItem="{Binding Value}" IsVisible="{Binding IsChoice}" />
+          <Button Grid.Column="1" Margin="6,0,0,0"
+                  Content="{Binding $parent[Window].DataContext.Loc[Browse]}"
+                  IsVisible="{Binding HasBrowse}" Click="OnBrowseClick" />
+        </Grid>
+      </StackPanel>
+    </DataTemplate>
+  </Window.Resources>
+
+  <Window.Styles>
+    <!-- Capture chip: accent while listening for keys, red outline while it clashes with another binding. -->
+    <Style Selector="ctl|ShortcutCaptureBox:capturing">
+      <Setter Property="BorderBrush" Value="{DynamicResource CatAccentBrush}" />
+      <Setter Property="Foreground" Value="{DynamicResource CatAccentBrush}" />
+      <Setter Property="Background" Value="#223574F0" />
+    </Style>
+    <Style Selector="ctl|ShortcutCaptureBox.conflict">
+      <Setter Property="BorderBrush" Value="{DynamicResource CatStatusErrorBrush}" />
+    </Style>
+  </Window.Styles>
+
+  <Grid ColumnDefinitions="172,*">
+
+    <!-- ============ Category rail ============ -->
+    <Border Grid.Column="0" Background="{DynamicResource CatPanelBgBrush}"
+            BorderBrush="{DynamicResource CatHairlineBrush}" BorderThickness="0,0,1,0">
+      <ListBox Background="Transparent" Padding="0,8"
+               ItemsSource="{Binding Categories}" SelectedItem="{Binding SelectedCategory}">
+        <ListBox.ItemTemplate>
+          <DataTemplate>
+            <StackPanel Orientation="Horizontal" Spacing="10">
+              <Path Width="16" Height="16" VerticalAlignment="Center" Data="{Binding Icon}"
+                    Stroke="{DynamicResource CatTextSecondaryBrush}" StrokeThickness="1.3"
+                    StrokeJoin="Round" StrokeLineCap="Round" />
+              <TextBlock Text="{Binding Label}" VerticalAlignment="Center" />
+            </StackPanel>
+          </DataTemplate>
+        </ListBox.ItemTemplate>
+      </ListBox>
+    </Border>
+
+    <!-- ============ Content ============ -->
+    <Grid Grid.Column="1" RowDefinitions="*,Auto">
+      <Panel Grid.Row="0" Margin="24,20">
+
+        <!-- General -->
+        <StackPanel Spacing="10"
+                    IsVisible="{Binding SelectedCategory.Key, Converter={x:Static c:EqualsConverter.Instance}, ConverterParameter=General}">
+          <TextBlock Text="{Binding Loc[SettingsGeneralCat]}" FontSize="14" FontWeight="SemiBold" />
+          <TextBlock Text="{Binding Loc[SettingsGeneral]}" FontSize="12" Foreground="{DynamicResource CatTextSecondaryBrush}" />
+          <TextBlock Text="{Binding Loc[Language]}" FontWeight="SemiBold" Margin="0,6,0,0" />
+          <StackPanel Orientation="Horizontal" Spacing="12">
+            <RadioButton GroupName="Language" Content="Nederlands"
+                         IsChecked="{Binding Language, Converter={x:Static c:EqualsConverter.Instance}, ConverterParameter=nl, Mode=OneWay}"
+                         Command="{Binding SetLanguageCommand}" CommandParameter="nl" />
+            <RadioButton GroupName="Language" Content="English"
+                         IsChecked="{Binding Language, Converter={x:Static c:EqualsConverter.Instance}, ConverterParameter=en, Mode=OneWay}"
+                         Command="{Binding SetLanguageCommand}" CommandParameter="en" />
+          </StackPanel>
+          <TextBlock Text="{Binding Loc[Startup]}" FontWeight="SemiBold" Margin="0,10,0,0" />
+          <CheckBox Content="{Binding Loc[RestoreTabsOnStartup]}" IsChecked="{Binding RestoreTabsOnStartup}" />
+          <CheckBox Content="{Binding Loc[ConfirmOnExit]}" IsChecked="{Binding ConfirmOnExit}" />
+          <CheckBox Content="{Binding Loc[CloseToTray]}" IsChecked="{Binding CloseToTray}" />
+          <TextBlock Text="{Binding Loc[CloseToTrayHint]}" FontSize="11" TextWrapping="Wrap"
+                     Foreground="{DynamicResource CatTextFaintBrush}" Margin="24,0,0,0" />
+          <TextBlock Text="{Binding Loc[SettingsSchemaTree]}" FontWeight="SemiBold" Margin="0,10,0,0" />
+          <CheckBox Content="{Binding Loc[ShowSystemDatabases]}" IsChecked="{Binding ShowSystemDatabases}" />
+        </StackPanel>
+
+        <!-- Appearance -->
+        <StackPanel Spacing="10"
+                    IsVisible="{Binding SelectedCategory.Key, Converter={x:Static c:EqualsConverter.Instance}, ConverterParameter=Appearance}">
+          <TextBlock Text="{Binding Loc[SettingsAppearance]}" FontSize="14" FontWeight="SemiBold" />
+          <TextBlock Text="{Binding Loc[AppearanceDesc]}" FontSize="12" Foreground="{DynamicResource CatTextSecondaryBrush}" />
+          <TextBlock Text="{Binding Loc[Theme]}" FontWeight="SemiBold" Margin="0,6,0,0" />
+          <StackPanel Orientation="Horizontal" Spacing="12">
+            <RadioButton GroupName="Theme" Content="{Binding Loc[ThemeSystem]}"
+                         IsChecked="{Binding Theme, Converter={x:Static c:EqualsConverter.Instance}, ConverterParameter={x:Static settings:AppTheme.System}, Mode=OneWay}"
+                         Command="{Binding SetThemeCommand}" CommandParameter="{x:Static settings:AppTheme.System}" />
+            <RadioButton GroupName="Theme" Content="{Binding Loc[ThemeLight]}"
+                         IsChecked="{Binding Theme, Converter={x:Static c:EqualsConverter.Instance}, ConverterParameter={x:Static settings:AppTheme.Light}, Mode=OneWay}"
+                         Command="{Binding SetThemeCommand}" CommandParameter="{x:Static settings:AppTheme.Light}" />
+            <RadioButton GroupName="Theme" Content="{Binding Loc[ThemeDark]}"
+                         IsChecked="{Binding Theme, Converter={x:Static c:EqualsConverter.Instance}, ConverterParameter={x:Static settings:AppTheme.Dark}, Mode=OneWay}"
+                         Command="{Binding SetThemeCommand}" CommandParameter="{x:Static settings:AppTheme.Dark}" />
+          </StackPanel>
+        </StackPanel>
+
+        <!-- Editor -->
+        <StackPanel Spacing="10"
+                    IsVisible="{Binding SelectedCategory.Key, Converter={x:Static c:EqualsConverter.Instance}, ConverterParameter=Editor}">
+          <TextBlock Text="{Binding Loc[SettingsEditor]}" FontSize="14" FontWeight="SemiBold" />
+          <Grid ColumnDefinitions="*,Auto" Margin="0,6,0,0">
+            <TextBlock Grid.Column="0" Text="{Binding Loc[EditorFontSize]}" VerticalAlignment="Center" />
+            <NumericUpDown Grid.Column="1" Width="150" MinHeight="34" FontSize="14"
+                           Minimum="8" Maximum="32" Value="{Binding EditorFontSize}" />
+          </Grid>
+          <CheckBox Content="{Binding Loc[EditorWordWrap]}" IsChecked="{Binding EditorWordWrap}" />
+        </StackPanel>
+
+        <!-- Query -->
+        <StackPanel Spacing="10"
+                    IsVisible="{Binding SelectedCategory.Key, Converter={x:Static c:EqualsConverter.Instance}, ConverterParameter=Query}">
+          <TextBlock Text="{Binding Loc[SettingsQuery]}" FontSize="14" FontWeight="SemiBold" />
+          <CheckBox Content="{Binding Loc[ConfirmBeforeSave]}" IsChecked="{Binding ConfirmBeforeSave}" Margin="0,6,0,0" />
+        </StackPanel>
+
+        <!-- Keyboard -->
+        <Grid RowDefinitions="Auto,Auto,Auto,*"
+              IsVisible="{Binding SelectedCategory.Key, Converter={x:Static c:EqualsConverter.Instance}, ConverterParameter=Keyboard}">
+          <TextBlock Grid.Row="0" Text="{Binding Loc[SettingsKeyboard]}" FontSize="14" FontWeight="SemiBold" />
+          <TextBlock Grid.Row="1" Text="{Binding Loc[KeyboardDesc]}" FontSize="12" TextWrapping="Wrap"
+                     Foreground="{DynamicResource CatTextSecondaryBrush}" Margin="0,4,0,10" />
+
+          <!-- Conflict banner: only while two commands share a gesture (save is blocked meanwhile). -->
+          <Border Grid.Row="2" IsVisible="{Binding HasShortcutConflicts}" Margin="0,0,0,10"
+                  Background="#22D64545" BorderBrush="#66D64545" BorderThickness="1" CornerRadius="5" Padding="10,6">
+            <TextBlock Text="{Binding Loc[ShortcutConflictBanner]}" FontSize="12" Foreground="#F0B4B4" TextWrapping="Wrap" />
+          </Border>
+
+          <Border Grid.Row="3" BorderBrush="{DynamicResource CatHairlineBrush}" BorderThickness="1" CornerRadius="6">
+            <ScrollViewer>
+              <ItemsControl ItemsSource="{Binding ShortcutGroups}">
+                <ItemsControl.ItemTemplate>
+                  <DataTemplate>
+                    <StackPanel>
+                      <!-- Group header (Tabs/Query/Editor/Search) -->
+                      <TextBlock Text="{Binding Label}" FontSize="10.5" FontWeight="SemiBold" Margin="12,9,12,5"
+                                 Foreground="{DynamicResource CatTextSecondaryBrush}" />
+                      <ItemsControl ItemsSource="{Binding Items}">
+                        <ItemsControl.ItemTemplate>
+                          <DataTemplate>
+                            <Grid ColumnDefinitions="*,Auto,Auto" Height="42" Margin="12,0"
+                                  Background="Transparent">
+                              <StackPanel Grid.Column="0" VerticalAlignment="Center" Spacing="1">
+                                <TextBlock Text="{Binding Label}" FontSize="12.5" />
+                                <TextBlock Text="{Binding ConflictWith, StringFormat='Conflicts with “{0}”'}"
+                                           IsVisible="{Binding HasConflict}" FontSize="11"
+                                           Foreground="{DynamicResource CatStatusErrorBrush}" />
+                              </StackPanel>
+
+                              <!-- Click-to-capture chip -->
+                              <ctl:ShortcutCaptureBox Grid.Column="1" MinWidth="130" VerticalAlignment="Center"
+                                                      HorizontalContentAlignment="Center"
+                                                      Gesture="{Binding Gesture, Mode=TwoWay}"
+                                                      CapturingText="{Binding $parent[Window].DataContext.Loc[ShortcutPressKeys]}"
+                                                      UnboundText="{Binding $parent[Window].DataContext.Loc[ShortcutUnbound]}"
+                                                      Classes.conflict="{Binding HasConflict}" />
+
+                              <!-- Reset-to-default (only once changed) -->
+                              <Button Grid.Column="2" Classes="Subtle" Width="28" Height="28" Padding="0"
+                                      Margin="6,0,0,0" VerticalAlignment="Center"
+                                      IsVisible="{Binding IsChanged}"
+                                      Command="{Binding ResetCommand}"
+                                      ToolTip.Tip="{Binding $parent[Window].DataContext.Loc[ShortcutResetTooltip]}">
+                                <Path Width="14" Height="14" Stretch="Uniform"
+                                      Data="M3,8 A5,5 0 1 1 4.6,11.7 M3,5 V8 H6"
+                                      Stroke="{DynamicResource CatTextSecondaryBrush}" StrokeThickness="1.4"
+                                      StrokeJoin="Round" StrokeLineCap="Round" />
+                              </Button>
+                            </Grid>
+                          </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                      </ItemsControl>
+                    </StackPanel>
+                  </DataTemplate>
+                </ItemsControl.ItemTemplate>
+              </ItemsControl>
+            </ScrollViewer>
+          </Border>
+        </Grid>
+
+        <!-- MCP server (AI query access) -->
+        <ScrollViewer IsVisible="{Binding SelectedCategory.Key, Converter={x:Static c:EqualsConverter.Instance}, ConverterParameter=Mcp}">
+          <StackPanel Spacing="10" MaxWidth="560" HorizontalAlignment="Left">
+            <TextBlock Text="{Binding Loc[SettingsMcp]}" FontSize="14" FontWeight="SemiBold" />
+            <TextBlock Text="{Binding Loc[McpDesc]}" FontSize="12" TextWrapping="Wrap"
+                       Foreground="{DynamicResource CatTextSecondaryBrush}" />
+
+            <CheckBox Content="{Binding Loc[McpEnabled]}" IsChecked="{Binding McpEnabled}" Margin="0,6,0,0" />
+
+            <Grid ColumnDefinitions="*,Auto" Margin="0,4,0,0">
+              <TextBlock Grid.Column="0" Text="{Binding Loc[McpPort]}" VerticalAlignment="Center" />
+              <NumericUpDown Grid.Column="1" Width="150" Minimum="1024" Maximum="65535" FormatString="0"
+                             Value="{Binding McpPort}" />
+            </Grid>
+            <TextBlock Text="{Binding Loc[McpBindHint]}" FontSize="11" Foreground="{DynamicResource CatTextFaintBrush}" />
+
+            <!-- Server URL: read-only, copy. Reflects the loopback bind + selected port. -->
+            <StackPanel Spacing="4" Margin="0,6,0,0">
+              <TextBlock Text="{Binding Loc[McpUrl]}" FontWeight="SemiBold" />
+              <Grid ColumnDefinitions="*,Auto">
+                <TextBox Grid.Column="0" Text="{Binding McpUrl}" IsReadOnly="True"
+                         FontFamily="Cascadia Code,Consolas,Menlo,monospace" FontSize="12" />
+                <Button Grid.Column="1" Margin="6,0,0,0" Content="{Binding Loc[Copy]}" Click="OnCopyMcpUrlClick" />
+              </Grid>
+            </StackPanel>
+
+            <CheckBox Content="{Binding Loc[McpRequireAuth]}" IsChecked="{Binding McpRequireAuth}" Margin="0,6,0,0" />
+
+            <!-- No-auth warning (plan §6): non-dismissible while auth is off. -->
+            <Border IsVisible="{Binding ShowNoAuthWarning}"
+                    Background="#22D6A545" BorderBrush="#66D6A545" BorderThickness="1" CornerRadius="5" Padding="10,6">
+              <TextBlock Text="{Binding Loc[McpNoAuthWarning]}" FontSize="12" Foreground="#E7C77A" TextWrapping="Wrap" />
+            </Border>
+
+            <!-- Bearer token: read-only, copy + regenerate. Only meaningful when auth is on. -->
+            <StackPanel Spacing="4" IsVisible="{Binding McpRequireAuth}">
+              <TextBlock Text="{Binding Loc[McpToken]}" FontWeight="SemiBold" Margin="0,6,0,0" />
+              <Grid ColumnDefinitions="*,Auto,Auto">
+                <TextBox Grid.Column="0" Text="{Binding McpToken}" IsReadOnly="True"
+                         FontFamily="Cascadia Code,Consolas,Menlo,monospace" FontSize="12"
+                         PlaceholderText="{Binding Loc[McpTokenEmpty]}" />
+                <Button Grid.Column="1" Margin="6,0,0,0" Content="{Binding Loc[Copy]}" Click="OnCopyMcpTokenClick" />
+                <Button Grid.Column="2" Margin="6,0,0,0" Content="{Binding Loc[McpRegenerate]}"
+                        Command="{Binding RegenerateMcpTokenCommand}" />
+              </Grid>
+              <TextBlock Text="{Binding Loc[McpTokenHint]}" FontSize="11" Foreground="{DynamicResource CatTextFaintBrush}" TextWrapping="Wrap" />
+            </StackPanel>
+
+            <TextBlock Text="{Binding Loc[McpCaps]}" FontWeight="SemiBold" Margin="0,10,0,0" />
+            <Grid ColumnDefinitions="*,Auto" Margin="0,2,0,0">
+              <TextBlock Grid.Column="0" Text="{Binding Loc[McpMaxRows]}" VerticalAlignment="Center" />
+              <NumericUpDown Grid.Column="1" Width="150" Minimum="1" Maximum="100000" FormatString="0"
+                             Value="{Binding McpMaxRows}" />
+            </Grid>
+            <Grid ColumnDefinitions="*,Auto">
+              <TextBlock Grid.Column="0" Text="{Binding Loc[McpTimeout]}" VerticalAlignment="Center" />
+              <NumericUpDown Grid.Column="1" Width="150" Minimum="1" Maximum="3600" FormatString="0"
+                             Value="{Binding McpTimeoutSeconds}" />
+            </Grid>
+          </StackPanel>
+        </ScrollViewer>
+
+        <!-- Plugins -->
+        <Grid RowDefinitions="Auto,Auto,*"
+              IsVisible="{Binding SelectedCategory.Key, Converter={x:Static c:EqualsConverter.Instance}, ConverterParameter=Plugins}">
+          <TextBlock Grid.Row="0" Text="{Binding Loc[SettingsPlugins]}" FontSize="14" FontWeight="SemiBold" />
+          <TextBlock Grid.Row="1" Text="{Binding Loc[PluginsDesc]}" FontSize="12" TextWrapping="Wrap"
+                     Foreground="{DynamicResource CatTextSecondaryBrush}" Margin="0,4,0,12" />
+
+          <!-- Empty state -->
+          <TextBlock Grid.Row="2" IsVisible="{Binding !HasPlugins}"
+                     Text="{Binding Loc[PluginsNoneHint]}" TextWrapping="Wrap"
+                     Foreground="{DynamicResource CatTextFaintBrush}" VerticalAlignment="Top" />
+
+          <!-- Master-detail -->
+          <Border Grid.Row="2" IsVisible="{Binding HasPlugins}"
+                  BorderBrush="{DynamicResource CatHairlineBrush}" BorderThickness="1" CornerRadius="6">
+            <Grid ColumnDefinitions="230,Auto,*">
+              <ListBox Grid.Column="0" Background="{DynamicResource CatPanelBgBrush}"
+                       ItemsSource="{Binding Plugins}" SelectedItem="{Binding SelectedPlugin}">
+                <ListBox.ItemTemplate>
+                  <DataTemplate>
+                    <StackPanel Orientation="Horizontal" Spacing="7">
+                      <Image Width="16" Height="16" VerticalAlignment="Center"
+                             Source="{Binding Icon}" IsVisible="{Binding HasImageIcon}" />
+                      <Path Width="16" Height="16" VerticalAlignment="Center" Data="{Binding FallbackIcon}"
+                            Stroke="{DynamicResource CatTextSecondaryBrush}" StrokeThickness="1.3"
+                            StrokeJoin="Round" StrokeLineCap="Round" IsVisible="{Binding !HasImageIcon}" />
+                      <TextBlock Text="{Binding DisplayName}" VerticalAlignment="Center" />
+                    </StackPanel>
+                  </DataTemplate>
+                </ListBox.ItemTemplate>
+              </ListBox>
+
+              <GridSplitter Grid.Column="1" Width="1" Background="{DynamicResource CatHairlineBrush}" />
+
+              <ScrollViewer Grid.Column="2" DataContext="{Binding SelectedPlugin}">
+                <StackPanel Margin="18,16" Spacing="4">
+                  <StackPanel Orientation="Horizontal" Spacing="8">
+                    <TextBlock Text="{Binding DisplayName}" FontSize="13" FontWeight="SemiBold"
+                               VerticalAlignment="Center" />
+                    <Border Background="{DynamicResource CatToolbarBgBrush}" CornerRadius="9" Padding="7,2"
+                            VerticalAlignment="Center">
+                      <!-- <TextBlock Text="{Binding RouteLabel}" FontSize="10" -->
+                      <!--            Foreground="{DynamicResource CatTextSecondaryBrush}" /> -->
+                    </Border>
+                  </StackPanel>
+
+                  <!-- Route A: host-rendered fields -->
+                  <ItemsControl ItemsSource="{Binding Fields}" ItemTemplate="{StaticResource PluginFieldTemplate}"
+                                IsVisible="{Binding HasFields}" Margin="0,8,0,0" />
+
+                  <!-- Route B: the plugin's own view -->
+                  <ContentControl Content="{Binding CustomView}" IsVisible="{Binding HasCustomView}" Margin="0,8,0,0" />
+                </StackPanel>
+              </ScrollViewer>
+            </Grid>
+          </Border>
+        </Grid>
+      </Panel>
+
+      <!-- Footer -->
+      <Grid Grid.Row="1" Margin="24,0,24,16" ColumnDefinitions="Auto,*,Auto,Auto,Auto">
+        <Button Grid.Column="0" Classes="Subtle" Content="{Binding Loc[RestoreDefaults]}" Command="{Binding RestoreDefaultsCommand}" />
+        <Button Grid.Column="2" Classes="Subtle" Content="{Binding Loc[Cancel]}" Command="{Binding CancelCommand}" Margin="0,0,8,0" />
+        <Button Grid.Column="3" Content="{Binding Loc[Apply]}" Command="{Binding ApplyCommand}" Margin="0,0,8,0" />
+        <Button Grid.Column="4" Classes="Accent" Content="{Binding Loc[ApplyAndClose]}" Command="{Binding ApplyAndCloseCommand}" IsDefault="True" />
+      </Grid>
+    </Grid>
+  </Grid>
+</Window>

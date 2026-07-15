@@ -1,6 +1,6 @@
-using Lionear.SqlExplorer.Sdk;
+using SqlExplorer.Sdk;
 
-namespace Lionear.SqlExplorer.Tools.UniversalBackup;
+namespace SqlExplorer.Tools.UniversalBackup;
 
 /// <summary>A table found in the schema walk: the tree path to it, its owning schema (null if none)
 /// and its name.</summary>

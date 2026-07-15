@@ -1,9 +1,0 @@
-{
-  "schemaVersion": 1,
-  "id": "sqlite",
-  "type": "provider",
-  "name": "SQLite",
-  "version": "1.0.0",
-  "hostApiVersion": 19,
-  "entryAssembly": "Lionear.SqlExplorer.Providers.Sqlite.dll"
-}

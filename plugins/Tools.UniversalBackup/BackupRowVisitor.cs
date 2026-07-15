@@ -1,6 +1,6 @@
-using Lionear.SqlExplorer.Sdk.Query;
+using SqlExplorer.Sdk.Query;
 
-namespace Lionear.SqlExplorer.Tools.UniversalBackup;
+namespace SqlExplorer.Tools.UniversalBackup;
 
 /// <summary>Bridges a provider's streamed rows (<see cref="IQueryRowVisitor"/>) into the streaming
 /// <see cref="LbakWriter"/>: scalars go inline, LOB cells stream cell-by-cell so a multi-gigabyte value

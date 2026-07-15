@@ -1,9 +1,0 @@
-{
-  "schemaVersion": 1,
-  "id": "mysql",
-  "type": "provider",
-  "name": "MySQL / MariaDB",
-  "version": "1.0.0",
-  "hostApiVersion": 19,
-  "entryAssembly": "Lionear.SqlExplorer.Providers.MySql.dll"
-}

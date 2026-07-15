@@ -31,14 +31,14 @@ an `is`-check at load — no manifest change needed:
 Both are documented under
 [Optional capabilities](#optional-capabilities-settings-ui--keyboard-shortcuts).
 All plugin contracts live in the single public SDK assembly
-`Lionear.SqlExplorer.Sdk` (`src/Sdk`, namespace `Lionear.SqlExplorer.Sdk.*`) —
+`SqlExplorer.Sdk` (`src/Sdk`, namespace `SqlExplorer.Sdk.*`) —
 the only assembly a plugin references from this repository.
 
 ## Plugin type: `provider`
 
 A provider plugin teaches the host how to talk to one database engine. It
 implements a single interface, `IDbProvider`, from the public SDK project
-`src/Sdk` (namespace `Lionear.SqlExplorer.Sdk`). `Sdk` is
+`src/Sdk` (namespace `SqlExplorer.Sdk`). `Sdk` is
 MIT-licensed specifically so third parties can build and ship their own
 providers freely — it is the *only* assembly a provider plugin references
 from this repository; no reference to `Core`, `App`, or any driver-specific
@@ -146,7 +146,7 @@ Add a new project under `src/`, e.g. `src/Providers.MyEngine/`, referencing
 <Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <RootNamespace>Lionear.SqlExplorer.Providers.MyEngine</RootNamespace>
+    <RootNamespace>SqlExplorer.Providers.MyEngine</RootNamespace>
     <!-- Required: emit the full private dependency closure (driver + its own
          dependencies) so the plugin loads correctly in its own ALC. -->
     <CopyLocalLockFileAssemblies>true</CopyLocalLockFileAssemblies>
@@ -156,7 +156,7 @@ Add a new project under `src/`, e.g. `src/Providers.MyEngine/`, referencing
     <!-- Private=false keeps Sdk.dll OUT of the plugin's own output
          folder, so the host's copy is used across the ALC boundary and
          IDbProvider keeps a single type identity. -->
-    <ProjectReference Include="..\Sdk\Lionear.SqlExplorer.Sdk.csproj" Private="false" />
+    <ProjectReference Include="..\Sdk\SqlExplorer.Sdk.csproj" Private="false" />
   </ItemGroup>
 
   <ItemGroup>
@@ -183,9 +183,9 @@ engine with server → database → schema layering, see
 Minimal skeleton:
 
 ```csharp
-using Lionear.SqlExplorer.Sdk;
+using SqlExplorer.Sdk;
 
-namespace Lionear.SqlExplorer.Providers.MyEngine;
+namespace SqlExplorer.Providers.MyEngine;
 
 public sealed class MyEngineProvider : IDbProvider
 {
@@ -231,7 +231,7 @@ Every plugin folder needs a `plugin.json` describing it:
   "name": "MyEngine",
   "version": "1.0.0",
   "hostApiVersion": 15,
-  "entryAssembly": "Lionear.SqlExplorer.Providers.MyEngine.dll"
+  "entryAssembly": "SqlExplorer.Providers.MyEngine.dll"
 }
 ```
 
@@ -253,14 +253,14 @@ A plugin is a folder next to the host executable:
 plugins/
   myengine/
     plugin.json
-    Lionear.SqlExplorer.Providers.MyEngine.dll
-    Lionear.SqlExplorer.Providers.MyEngine.deps.json
+    SqlExplorer.Providers.MyEngine.dll
+    SqlExplorer.Providers.MyEngine.deps.json
     MyEngine.Driver.dll
     ... (rest of the build output)
 ```
 
 For the first-party providers this copy is automated by an MSBuild target,
-`StageProviderPlugins`, in `src/Desktop/Lionear.SqlExplorer.Desktop.csproj`,
+`StageProviderPlugins`, in `src/Desktop/SqlExplorer.Desktop.csproj`,
 which runs after build and copies each `Providers.*` project's full output
 into `<TargetDir>/plugins/<id>/`. A genuinely third-party/out-of-tree plugin
 ships the same way manually — just place the built output (including the
@@ -311,7 +311,7 @@ sets `Private="false"` on the `Sdk` project reference — it must
 A **tool** contributes an action rather than a database engine: it shows up as a
 menu item on the schema tree, collects some inputs in a dialog, and runs against
 the selected connection/node. The Universal Backup & Restore feature is itself a
-tool plugin. Tools reference the same `Lionear.SqlExplorer.Sdk` assembly as
+tool plugin. Tools reference the same `SqlExplorer.Sdk` assembly as
 providers and are staged into `plugins/` the same way.
 
 ### The contract: `IToolPlugin`
@@ -427,7 +427,7 @@ separately from the provider contract:
   "name": "Universal Backup & Restore",
   "version": "1.0.0",
   "hostApiVersion": 1,
-  "entryAssembly": "Lionear.SqlExplorer.Tools.UniversalBackup.dll"
+  "entryAssembly": "SqlExplorer.Tools.UniversalBackup.dll"
 }
 ```
 

@@ -1,0 +1,14 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        x:Class="SqlExplorer.App.Views.AboutWindow"
+        Width="320" SizeToContent="Height"
+        WindowStartupLocation="CenterOwner"
+        CanResize="False">
+  <StackPanel Margin="20" Spacing="10" HorizontalAlignment="Center">
+    <TextBlock x:Name="TitleText" FontWeight="SemiBold" FontSize="16" HorizontalAlignment="Center" />
+    <TextBlock x:Name="VersionText" FontSize="12" Foreground="{DynamicResource CatTextSecondaryBrush}"
+               HorizontalAlignment="Center" />
+    <Button x:Name="OkButton" Classes="Accent" Content="OK" Click="OnOk"
+            HorizontalAlignment="Center" Margin="0,8,0,0" IsDefault="True" />
+  </StackPanel>
+</Window>

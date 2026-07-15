@@ -3,7 +3,7 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 
-namespace Lionear.SqlExplorer.Tools.UniversalBackup;
+namespace SqlExplorer.Tools.UniversalBackup;
 
 /// <summary>One backed-up column's definition (schema half of a table).</summary>
 public sealed record BackupColumn(string Name, string DeclaredType, bool Nullable, bool PrimaryKey);

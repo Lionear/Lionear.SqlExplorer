@@ -1,0 +1,9 @@
+{
+  "schemaVersion": 1,
+  "id": "mysql",
+  "type": "provider",
+  "name": "MySQL / MariaDB",
+  "version": "1.0.0",
+  "hostApiVersion": 19,
+  "entryAssembly": "SqlExplorer.Providers.MySql.dll"
+}

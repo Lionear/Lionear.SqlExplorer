@@ -1,6 +1,6 @@
 using System.Text;
 
-namespace Lionear.SqlExplorer.Tools.UniversalBackup;
+namespace SqlExplorer.Tools.UniversalBackup;
 
 /// <summary>
 /// Streaming writer for a <c>.lbak</c> v2 payload (created by <see cref="LbakFormat.CreateWriter"/>).
