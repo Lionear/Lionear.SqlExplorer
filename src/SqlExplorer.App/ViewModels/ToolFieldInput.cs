@@ -1,3 +1,4 @@
+using SqlExplorer.Sdk.Localization;
 using SqlExplorer.Sdk.Tools;
 using CommunityToolkit.Mvvm.ComponentModel;
 
@@ -7,9 +8,12 @@ namespace SqlExplorer.App.ViewModels;
 /// Mirrors <see cref="ConnectionFieldInput"/>, plus a per-field password reveal toggle (§7).</summary>
 public partial class ToolFieldInput : ObservableObject
 {
-    public ToolFieldInput(ToolField field)
+    private readonly IPluginLocalizer _localizer;
+
+    public ToolFieldInput(ToolField field, IPluginLocalizer localizer)
     {
         Field = field;
+        _localizer = localizer;
         _value = field.Default;
     }
 
@@ -23,8 +27,10 @@ public partial class ToolFieldInput : ObservableObject
     [NotifyPropertyChangedFor(nameof(PasswordChar))]
     private bool _revealPassword;
 
-    public string Label => Field.Required ? $"{Field.Label} *" : Field.Label;
-    public string? Watermark => Field.Placeholder;
+    private string LabelText => _localizer.Resolve(Field.LabelKey, Field.Label);
+    public string Label => Field.Required ? $"{LabelText} *" : LabelText;
+    public string? Watermark =>
+        _localizer.Resolve(Field.PlaceholderKey, Field.Placeholder ?? string.Empty) is { Length: > 0 } text ? text : null;
     public bool IsFile => Field.Type == ToolFieldType.File;
     public bool IsBool => Field.Type == ToolFieldType.Bool;
     public bool IsChoice => Field.Type == ToolFieldType.Choice;

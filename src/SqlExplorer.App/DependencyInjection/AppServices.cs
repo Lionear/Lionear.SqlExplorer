@@ -16,6 +16,7 @@ using SqlExplorer.Core.Shortcuts;
 using SqlExplorer.Core.Store;
 using SqlExplorer.Core.Tools;
 using SqlExplorer.Sdk.Shortcuts;
+using SqlExplorer.Sdk.Localization;
 using SqlExplorer.Sdk.Tools;
 using SqlExplorer.Infrastructure.Persistence;
 using SqlExplorer.Infrastructure.Secrets;
@@ -34,7 +35,11 @@ public static class AppServices
         var services = new ServiceCollection();
 
         services.AddSingleton<ISqlFormatter, BasicSqlFormatter>();
-        services.AddSingleton<ILocalizer, ResxLocalizer>();
+        // Instantiated here (not just type-registered) so the plugin loader below can hand the same live
+        // localizer to each plugin's PluginLocalizer — its culture is set later (App startup) and reflected
+        // on every lookup, so plugin strings follow a language switch just like host strings.
+        var localizer = new ResxLocalizer();
+        services.AddSingleton<ILocalizer>(localizer);
 
         // Plugins live in two roots: the read-only bundled folder staged beside the exe at build time,
         // and the writable per-user folder the Plugin Store installs into (user wins on id conflict).
@@ -70,13 +75,22 @@ public static class AppServices
         services.AddSingleton<IDbProviderRegistry>(new DbProviderRegistry(registrations));
 
         // Tool plugins (type: "tool") load from the same discovered set; one assembly may ship several.
-        var toolResults = new ToolPluginLoader().Load(enabled);
+        // The live localizer goes in so each plugin gets a PluginLocalizer over its embedded Lang/*.json.
+        var toolResults = new ToolPluginLoader(localizer).Load(enabled);
         var tools = new List<IToolPlugin>();
+        var toolLocalizers = new Dictionary<string, IPluginLocalizer>();
         foreach (var result in toolResults)
         {
             if (result.Succeeded)
             {
                 tools.AddRange(result.Tools);
+                if (result.Localizer is { } toolLocalizer)
+                {
+                    foreach (var tool in result.Tools)
+                    {
+                        toolLocalizers[tool.Id] = toolLocalizer;
+                    }
+                }
             }
             else
             {
@@ -84,7 +98,7 @@ public static class AppServices
             }
         }
 
-        services.AddSingleton<IToolRegistry>(new ToolRegistry(tools));
+        services.AddSingleton<IToolRegistry>(new ToolRegistry(tools, toolLocalizers));
 
         // MCP plugins (type: "mcp") contribute tools; the host — not any plugin — owns the server. Gather
         // the tools from every enabled MCP plugin so the host server can serve them.

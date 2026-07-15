@@ -6,7 +6,9 @@ using System.Threading;
 using System.Threading.Tasks;
 using SqlExplorer.Core.Localization;
 using SqlExplorer.Core.Plugins;
+using SqlExplorer.Core.Providers;
 using SqlExplorer.Core.Store;
+using SqlExplorer.Core.Tools;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 
@@ -27,6 +29,8 @@ public sealed partial class PluginStoreViewModel : ViewModelBase
     private readonly PluginUpdateService _updates;
     private readonly IStoreSourcesStore _sources;
     private readonly HttpClient _http;
+    private readonly IDbProviderRegistry _providers;
+    private readonly IToolRegistry _tools;
     private readonly Progress<InstallProgress> _progress;
 
     private readonly List<StoreListItem> _allBrowse = [];
@@ -83,6 +87,8 @@ public sealed partial class PluginStoreViewModel : ViewModelBase
         PluginUpdateService updates,
         IStoreSourcesStore sources,
         HttpClient http,
+        IDbProviderRegistry providers,
+        IToolRegistry tools,
         ILocalizer localizer)
     {
         _catalog = catalog;
@@ -91,6 +97,8 @@ public sealed partial class PluginStoreViewModel : ViewModelBase
         _updates = updates;
         _sources = sources;
         _http = http;
+        _providers = providers;
+        _tools = tools;
         Loc = localizer;
         _progress = new Progress<InstallProgress>(OnProgress);
     }
@@ -191,6 +199,10 @@ public sealed partial class PluginStoreViewModel : ViewModelBase
             }
 
             row.IconUrl = row.CatalogEntry?.IconUrl;
+            // Prefer the plugin's own embedded icon.png (same source as the connection tree) — built-in
+            // providers aren't in the remote catalog, so their IconUrl is null and they'd otherwise show a
+            // generic glyph. Set synchronously here; the remote URL stays a fallback for the rest.
+            row.Icon = ResolveLocalIcon(plugin);
             row.RollbackLabel = hasRollback ? Loc.Get("StoreRollbackTo", prevVersion!) : Loc["StoreRollback"];
 
             (plugin.Origin == PluginOrigin.Bundled ? BundledPlugins : UserPlugins).Add(row);
@@ -203,9 +215,13 @@ public sealed partial class PluginStoreViewModel : ViewModelBase
         OnPropertyChanged(nameof(InstalledCount));
         OnPropertyChanged(nameof(InstalledCountLabel));
 
+        // Only fetch the remote icon for rows that didn't already resolve a local one.
         foreach (var row in BundledPlugins.Concat(UserPlugins))
         {
-            _ = LoadIconAsync(row.IconUrl, image => row.Icon = image);
+            if (row.Icon is null)
+            {
+                _ = LoadIconAsync(row.IconUrl, image => row.Icon = image);
+            }
         }
 
         // Reopening the store starts a fresh VM, so re-derive "restart needed" from what's already staged.
@@ -213,6 +229,20 @@ public sealed partial class PluginStoreViewModel : ViewModelBase
         {
             RestartRequired = true;
         }
+    }
+
+    // The plugin's own embedded icon (provider or tool), or null when it has none / didn't load. Matched by
+    // manifest id — for a provider that's the registration id; for a tool, the IToolPlugin whose id equals it.
+    private Avalonia.Media.IImage? ResolveLocalIcon(InstalledPlugin plugin)
+    {
+        var icon = plugin.Type switch
+        {
+            PluginManifest.Types.Provider => _providers.All.FirstOrDefault(r => r.Id == plugin.Id)?.Provider.Icon,
+            PluginManifest.Types.Tool => _tools.All.FirstOrDefault(t => t.Id == plugin.Id)?.Icon,
+            _ => null
+        };
+
+        return PluginIconRenderer.Render(icon);
     }
 
     // Best-effort read of the kept previous version's manifest, to label the rollback button.

@@ -15,7 +15,9 @@ public sealed class ShrinkDatabaseTool : IToolPlugin, ICustomToolUi
 
     public string Id => "mssql-shrink-database";
 
-    public string Title => "Database…";
+    public string Title => "Database";
+    public string? TitleKey => "shrinkdb.title";
+    public string? DialogTitleKey => "shrinkdb.dialogTitle";
 
     public string DialogTitle => "Shrink Database";
 
@@ -40,7 +42,7 @@ public sealed class ShrinkDatabaseTool : IToolPlugin, ICustomToolUi
         CancellationToken ct)
     {
         var database = context.Node?.Name ?? context.Profile.Database
-            ?? throw new InvalidOperationException("Shrink Database needs a target database.");
+            ?? throw new InvalidOperationException(context.Localizer["shrinkdb.error.noDatabase"]);
         var literal = database.Replace("'", "''");
 
         var reorganize = inputs.TryGetValue(ReorganizeKey, out var r) && r == "true";
@@ -58,8 +60,8 @@ public sealed class ShrinkDatabaseTool : IToolPlugin, ICustomToolUi
             sql = $"DBCC SHRINKDATABASE (N'{literal}', 0, TRUNCATEONLY)";
         }
 
-        progress.Report(new ToolProgress($"Running: {sql}"));
+        progress.Report(new ToolProgress(context.Localizer.Get("shrink.progress.running", sql)));
         await context.Provider.ExecuteDdlAsync(context.Profile, sql, ct);
-        progress.Report(new ToolProgress($"Shrink complete for {database}.", 1.0));
+        progress.Report(new ToolProgress(context.Localizer.Get("shrinkdb.progress.complete", database), 1.0));
     }
 }

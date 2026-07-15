@@ -20,9 +20,11 @@ public sealed class ShrinkFileTool : IToolPlugin, ICustomToolUi
 
     public string Id => "mssql-shrink-file";
 
-    public string Title => "Files…";
+    public string Title => "Files";
+    public string? TitleKey => "shrinkfile.title";
 
     public string DialogTitle => "Shrink Files";
+    public string? DialogTitleKey => "shrinkfile.dialogTitle";
 
     // SSMS-style: Tools ▸ Shrink ▸ Files.
     public IReadOnlyList<string> MenuPath => ["Shrink"];
@@ -43,7 +45,7 @@ public sealed class ShrinkFileTool : IToolPlugin, ICustomToolUi
     {
         if (!inputs.TryGetValue(LogicalNameKey, out var name) || string.IsNullOrWhiteSpace(name))
         {
-            throw new InvalidOperationException("Select a file to shrink.");
+            throw new InvalidOperationException(context.Localizer["shrinkfile.error.noFile"]);
         }
 
         var literal = name.Replace("'", "''");
@@ -57,8 +59,8 @@ public sealed class ShrinkFileTool : IToolPlugin, ICustomToolUi
             _ => $"DBCC SHRINKFILE (N'{literal}', TRUNCATEONLY)"
         };
 
-        progress.Report(new ToolProgress($"Running: {sql}"));
+        progress.Report(new ToolProgress(context.Localizer.Get("shrink.progress.running", sql)));
         await context.Provider.ExecuteDdlAsync(context.Profile, sql, ct);
-        progress.Report(new ToolProgress($"Shrink complete for file {name}.", 1.0));
+        progress.Report(new ToolProgress(context.Localizer.Get("shrinkfile.progress.complete", name), 1.0));
     }
 }

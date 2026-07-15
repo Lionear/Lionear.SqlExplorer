@@ -1,0 +1,13 @@
+{
+  "shrinkdb.title": "Database",
+  "shrinkdb.dialogTitle": "Database verkleinen",
+  "shrinkdb.error.noDatabase": "Database verkleinen heeft een doeldatabase nodig.",
+  "shrinkdb.progress.complete": "Verkleinen voltooid voor {0}.",
+
+  "shrinkfile.title": "Bestanden",
+  "shrinkfile.dialogTitle": "Bestanden verkleinen",
+  "shrinkfile.error.noFile": "Selecteer een bestand om te verkleinen.",
+  "shrinkfile.progress.complete": "Verkleinen voltooid voor bestand {0}.",
+
+  "shrink.progress.running": "Uitvoeren: {0}"
+}

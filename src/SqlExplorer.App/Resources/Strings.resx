@@ -43,7 +43,7 @@
     <value>{0} affected · {1:F0} ms</value>
   </data>
   <data name="NewConnection" xml:space="preserve">
-    <value>New connection…</value>
+    <value>New connection</value>
   </data>
   <data name="Connections" xml:space="preserve">
     <value>Connections</value>
@@ -76,13 +76,13 @@
     <value>Close</value>
   </data>
   <data name="Properties" xml:space="preserve">
-    <value>Properties…</value>
+    <value>Properties</value>
   </data>
   <data name="Delete" xml:space="preserve">
     <value>Delete</value>
   </data>
   <data name="Browse" xml:space="preserve">
-    <value>Browse…</value>
+    <value>Browse</value>
   </data>
   <data name="TestOk" xml:space="preserve">
     <value>Connection OK</value>
@@ -130,10 +130,10 @@
     <value>View definition</value>
   </data>
   <data name="ExecuteRoutine" xml:space="preserve">
-    <value>Execute…</value>
+    <value>Execute</value>
   </data>
   <data name="ActivityMonitor" xml:space="preserve">
-    <value>Activity monitor…</value>
+    <value>Activity monitor</value>
   </data>
   <data name="ActivityMonitorTab" xml:space="preserve">
     <value>Activity Monitor — {0}</value>
@@ -145,10 +145,10 @@
     <value>Off</value>
   </data>
   <data name="KillSession" xml:space="preserve">
-    <value>Kill session…</value>
+    <value>Kill session</value>
   </data>
   <data name="CancelQuery" xml:space="preserve">
-    <value>Cancel query…</value>
+    <value>Cancel query</value>
   </data>
   <data name="ConfirmKillSessionTitle" xml:space="preserve">
     <value>Kill session</value>
@@ -169,7 +169,7 @@
     <value>Query on session {0} cancelled.</value>
   </data>
   <data name="NewUser" xml:space="preserve">
-    <value>New user…</value>
+    <value>New user</value>
   </data>
   <data name="DeleteUser" xml:space="preserve">
     <value>Delete user</value>
@@ -325,7 +325,7 @@
     <value>Import from connection string</value>
   </data>
   <data name="ImportConnectionStringHint" xml:space="preserve">
-    <value>Paste a connection string to fill the fields…</value>
+    <value>Paste a connection string to fill the fields</value>
   </data>
   <data name="ImportDone" xml:space="preserve">
     <value>Fields filled from the connection string.</value>
@@ -346,13 +346,13 @@
     <value>History</value>
   </data>
   <data name="GoToObject" xml:space="preserve">
-    <value>Go to…</value>
+    <value>Go to</value>
   </data>
   <data name="SearchObjects" xml:space="preserve">
-    <value>Search tables, views, columns, or run a command…</value>
+    <value>Search tables, views, columns, or run a command</value>
   </data>
   <data name="SearchHistory" xml:space="preserve">
-    <value>Search history…</value>
+    <value>Search history</value>
   </data>
   <data name="ClearHistory" xml:space="preserve">
     <value>Clear</value>
@@ -373,13 +373,13 @@
     <value>Max</value>
   </data>
   <data name="NewDatabase" xml:space="preserve">
-    <value>New Database…</value>
+    <value>New Database</value>
   </data>
   <data name="NewSchema" xml:space="preserve">
-    <value>New Schema…</value>
+    <value>New Schema</value>
   </data>
   <data name="NewTable" xml:space="preserve">
-    <value>New Table…</value>
+    <value>New Table</value>
   </data>
   <data name="ObjectName" xml:space="preserve">
     <value>Name</value>
@@ -406,25 +406,25 @@
     <value>Create</value>
   </data>
   <data name="DropDatabase" xml:space="preserve">
-    <value>Drop Database…</value>
+    <value>Drop Database</value>
   </data>
   <data name="DropSchema" xml:space="preserve">
-    <value>Drop Schema…</value>
+    <value>Drop Schema</value>
   </data>
   <data name="DropTable" xml:space="preserve">
-    <value>Drop Table…</value>
+    <value>Drop Table</value>
   </data>
   <data name="AddColumnTitle" xml:space="preserve">
     <value>Add Column</value>
   </data>
   <data name="AddColumnMenu" xml:space="preserve">
-    <value>Add Column…</value>
+    <value>Add Column</value>
   </data>
   <data name="DropColumn" xml:space="preserve">
-    <value>Drop Column…</value>
+    <value>Drop Column</value>
   </data>
   <data name="RenameColumn" xml:space="preserve">
-    <value>Rename Column…</value>
+    <value>Rename Column</value>
   </data>
   <data name="NewName" xml:space="preserve">
     <value>New name</value>
@@ -451,7 +451,7 @@
     <value>Explain</value>
   </data>
   <data name="Export" xml:space="preserve">
-    <value>Export…</value>
+    <value>Export</value>
   </data>
   <data name="ExportFormat" xml:space="preserve">
     <value>Export format</value>
@@ -463,7 +463,7 @@
     <value>{0} row(s), whole result</value>
   </data>
   <data name="ImportCsv" xml:space="preserve">
-    <value>Import CSV…</value>
+    <value>Import CSV</value>
   </data>
   <data name="ImportCsvTitle" xml:space="preserve">
     <value>Import CSV</value>
@@ -490,7 +490,7 @@
     <value>Settings</value>
   </data>
   <data name="Preferences" xml:space="preserve">
-    <value>Preferences…</value>
+    <value>Preferences</value>
   </data>
   <data name="SettingsGeneral" xml:space="preserve">
     <value>General app preferences.</value>
@@ -541,7 +541,7 @@
     <value>The close button hides the window and keeps the app running in the background (e.g. the MCP server). Quit from the tray icon or File &gt; Exit.</value>
   </data>
   <data name="QueryLogMenu" xml:space="preserve">
-    <value>Query Log…</value>
+    <value>Query Log</value>
   </data>
   <data name="SettingsQueryLog" xml:space="preserve">
     <value>Query Log</value>
@@ -568,7 +568,7 @@
     <value>Query Log</value>
   </data>
   <data name="QueryLogSearch" xml:space="preserve">
-    <value>Search SQL or connection…</value>
+    <value>Search SQL or connection</value>
   </data>
   <data name="QueryLogSourceAll" xml:space="preserve">
     <value>All sources</value>
@@ -589,7 +589,7 @@
     <value>Error</value>
   </data>
   <data name="QueryLogExport" xml:space="preserve">
-    <value>Export…</value>
+    <value>Export</value>
   </data>
   <data name="QueryLogClear" xml:space="preserve">
     <value>Clear log</value>
@@ -640,10 +640,10 @@
     <value>Set master password</value>
   </data>
   <data name="MasterPwChangeButton" xml:space="preserve">
-    <value>Change…</value>
+    <value>Change</value>
   </data>
   <data name="MasterPwDisableButton" xml:space="preserve">
-    <value>Disable…</value>
+    <value>Disable</value>
   </data>
   <data name="MasterPwLockAfter" xml:space="preserve">
     <value>Lock after inactivity</value>
@@ -754,7 +754,7 @@
     <value>_Help</value>
   </data>
   <data name="NewConnectionMenu" xml:space="preserve">
-    <value>New Connection…</value>
+    <value>New Connection</value>
   </data>
   <data name="Exit" xml:space="preserve">
     <value>Exit</value>
@@ -781,10 +781,10 @@
     <value>Copy as INSERT</value>
   </data>
   <data name="ManageConnections" xml:space="preserve">
-    <value>Manage Connections…</value>
+    <value>Manage Connections</value>
   </data>
   <data name="FilterConnections" xml:space="preserve">
-    <value>Filter connections…</value>
+    <value>Filter connections</value>
   </data>
   <data name="NewFolder" xml:space="preserve">
     <value>New folder</value>
@@ -841,7 +841,7 @@
     <value>Cancelled.</value>
   </data>
   <data name="ToolRunning" xml:space="preserve">
-    <value>Running…</value>
+    <value>Running</value>
   </data>
   <data name="ToolDestructiveConfirm" xml:space="preserve">
     <value>This action modifies the database and cannot be undone. Continue?</value>
@@ -889,7 +889,7 @@
     <value>Copy qualified name</value>
   </data>
   <data name="TruncateTable" xml:space="preserve">
-    <value>Truncate table…</value>
+    <value>Truncate table</value>
   </data>
   <data name="CollapseAll" xml:space="preserve">
     <value>Collapse all</value>
@@ -916,7 +916,7 @@
     <value>Click a shortcut, then press the key combination you want. Changes apply live — no restart.</value>
   </data>
   <data name="ShortcutPressKeys" xml:space="preserve">
-    <value>Press keys…</value>
+    <value>Press keys</value>
   </data>
   <data name="ShortcutUnbound" xml:space="preserve">
     <value>Unbound</value>
@@ -988,7 +988,7 @@
     <value>Tools</value>
   </data>
   <data name="PluginStoreMenu" xml:space="preserve">
-    <value>Plugin Store…</value>
+    <value>Plugin Store</value>
   </data>
   <data name="PluginStoreTitle" xml:space="preserve">
     <value>Plugin Store</value>
@@ -1003,16 +1003,16 @@
     <value>Sources</value>
   </data>
   <data name="StoreInstallFromFile" xml:space="preserve">
-    <value>Install from file…</value>
+    <value>Install from file</value>
   </data>
   <data name="StoreRestartNeeded" xml:space="preserve">
     <value>Some changes take effect after a restart.</value>
   </data>
   <data name="StoreSearch" xml:space="preserve">
-    <value>Search plugins…</value>
+    <value>Search plugins</value>
   </data>
   <data name="StoreLoading" xml:space="preserve">
-    <value>Loading…</value>
+    <value>Loading</value>
   </data>
   <data name="StoreBundleChip" xml:space="preserve">
     <value>Bundle</value>
@@ -1039,7 +1039,7 @@
     <value>Manual sources</value>
   </data>
   <data name="StoreAddSourceHint" xml:space="preserve">
-    <value>Add an index.json URL…</value>
+    <value>Add an index.json URL</value>
   </data>
   <data name="Add" xml:space="preserve">
     <value>Add</value>
@@ -1078,19 +1078,19 @@
     <value>Uninstall</value>
   </data>
   <data name="StoreDownloading" xml:space="preserve">
-    <value>Downloading…</value>
+    <value>Downloading</value>
   </data>
   <data name="StoreVerifying" xml:space="preserve">
-    <value>Verifying…</value>
+    <value>Verifying</value>
   </data>
   <data name="StoreExtracting" xml:space="preserve">
-    <value>Extracting…</value>
+    <value>Extracting</value>
   </data>
   <data name="StoreStaging" xml:space="preserve">
-    <value>Staging…</value>
+    <value>Staging</value>
   </data>
   <data name="StoreInstalling" xml:space="preserve">
-    <value>Installing…</value>
+    <value>Installing</value>
   </data>
   <data name="StoreInstall" xml:space="preserve">
     <value>Install</value>

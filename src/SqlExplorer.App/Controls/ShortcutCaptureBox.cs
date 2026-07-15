@@ -125,7 +125,7 @@ public sealed class ShortcutCaptureBox : Button
     private void UpdateContent()
     {
         Content = _capturing
-            ? (CapturingText ?? "Press keys…")
+            ? (CapturingText ?? "Press keys")
             : string.IsNullOrWhiteSpace(Gesture) ? (UnboundText ?? "Unbound") : Prettify(Gesture);
     }
 

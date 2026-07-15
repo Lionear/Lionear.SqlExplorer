@@ -5,5 +5,6 @@
   "name": "SQL Server Admin Dialogs",
   "version": "1.0.0",
   "hostApiVersion": 2,
-  "entryAssembly": "SqlExplorer.Tools.MsSqlAdmin.dll"
+  "entryAssembly": "SqlExplorer.Tools.MsSqlAdmin.dll",
+  "localization": "Lang/strings"
 }

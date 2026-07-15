@@ -7,6 +7,8 @@ using SqlExplorer.Core.Settings;
 using SqlExplorer.Sdk;
 using SqlExplorer.Sdk.Connections;
 using SqlExplorer.Sdk.Schema;
+using SqlExplorer.Core.Tools;
+using SqlExplorer.Sdk.Localization;
 using SqlExplorer.Sdk.Tools;
 using SqlExplorer.Sdk.Ui;
 using CommunityToolkit.Mvvm.ComponentModel;
@@ -26,18 +28,21 @@ public partial class ToolDialogViewModel : ViewModelBase, IToolUiContext, IToolH
     private readonly Dictionary<string, string?> _customValues = new();
 
     private readonly IPluginSettingsStore _pluginStore;
+    private readonly IToolRegistry _tools;
 
     private IToolPlugin _tool = null!;
+    private IPluginLocalizer _pluginLoc = EmptyPluginLocalizer.Instance;
     private ConnectionProfile _profile = null!;
     private DbNodeRef? _node;
     private IDbProvider _provider = null!;
     private string _providerId = string.Empty;
     private CancellationTokenSource? _cts;
 
-    public ToolDialogViewModel(ILocalizer localizer, IPluginSettingsStore pluginStore)
+    public ToolDialogViewModel(ILocalizer localizer, IPluginSettingsStore pluginStore, IToolRegistry tools)
     {
         Loc = localizer;
         _pluginStore = pluginStore;
+        _tools = tools;
         Log.CollectionChanged += (_, _) => OnPropertyChanged(nameof(HasLogArea));
     }
 
@@ -125,11 +130,12 @@ public partial class ToolDialogViewModel : ViewModelBase, IToolUiContext, IToolH
     public void Configure(IToolPlugin tool, ConnectionProfile profile, DbNodeRef? node, IDbProvider provider, string providerId)
     {
         _tool = tool;
+        _pluginLoc = _tools.LocalizerFor(tool.Id);
         _profile = profile;
         _node = node;
         _provider = provider;
         _providerId = providerId;
-        Title = tool.DialogTitle;
+        Title = _pluginLoc.Resolve(tool.DialogTitleKey, tool.DialogTitle);
 
         if (tool is ICustomToolUi customUi)
         {
@@ -139,7 +145,7 @@ public partial class ToolDialogViewModel : ViewModelBase, IToolUiContext, IToolH
         {
             foreach (var field in tool.Fields)
             {
-                var input = new ToolFieldInput(field);
+                var input = new ToolFieldInput(field, _pluginLoc);
                 input.PropertyChanged += OnFieldChanged;
                 Fields.Add(input);
             }
@@ -192,7 +198,7 @@ public partial class ToolDialogViewModel : ViewModelBase, IToolUiContext, IToolH
         var inputs = HasCustomView
             ? _customValues
             : Fields.ToDictionary(f => f.Field.Key, f => f.Value);
-        var context = new ToolExecutionContext(_profile, _node, _provider, _providerId, this);
+        var context = new ToolExecutionContext(_profile, _node, _provider, _providerId, this, _pluginLoc);
         var progress = new Progress<ToolProgress>(p =>
         {
             Log.Add(p.Message);

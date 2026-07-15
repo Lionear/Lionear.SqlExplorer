@@ -1,3 +1,4 @@
+using SqlExplorer.Sdk.Localization;
 using SqlExplorer.Sdk.Schema;
 using SqlExplorer.Sdk.Tools;
 
@@ -11,19 +12,28 @@ public interface IToolRegistry
     /// <summary>Tools applicable to a node: matched on the owning provider id and the node kind
     /// (<paramref name="nodeKind"/> null = the connection root).</summary>
     IReadOnlyList<IToolPlugin> Applicable(string providerId, DbNodeKind? nodeKind);
+
+    /// <summary>The localizer for the plugin that ships <paramref name="toolId"/>, or
+    /// <see cref="EmptyPluginLocalizer.Instance"/> when it ships no translations — never null.</summary>
+    IPluginLocalizer LocalizerFor(string toolId);
 }
 
 /// <inheritdoc />
 public sealed class ToolRegistry : IToolRegistry
 {
     private readonly List<IToolPlugin> _all;
+    private readonly IReadOnlyDictionary<string, IPluginLocalizer> _localizers;
 
-    public ToolRegistry(IEnumerable<IToolPlugin> tools)
+    public ToolRegistry(IEnumerable<IToolPlugin> tools, IReadOnlyDictionary<string, IPluginLocalizer>? localizers = null)
     {
         _all = tools.ToList();
+        _localizers = localizers ?? new Dictionary<string, IPluginLocalizer>();
     }
 
     public IReadOnlyList<IToolPlugin> All => _all;
+
+    public IPluginLocalizer LocalizerFor(string toolId) =>
+        _localizers.TryGetValue(toolId, out var localizer) ? localizer : EmptyPluginLocalizer.Instance;
 
     public IReadOnlyList<IToolPlugin> Applicable(string providerId, DbNodeKind? nodeKind) =>
         _all.Where(t => Matches(t.Target, providerId, nodeKind)).ToList();

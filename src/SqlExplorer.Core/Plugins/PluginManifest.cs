@@ -38,6 +38,12 @@ public sealed record PluginManifest
     [JsonPropertyName("entryAssembly")]
     public required string EntryAssembly { get; init; }
 
+    /// <summary>Optional embedded-resource prefix for the plugin's localization files (e.g.
+    /// <c>"Lang/strings"</c> for <c>Lang/strings.json</c> + <c>Lang/strings.nl.json</c>). Absent = the
+    /// plugin ships no translations and its hardcoded (English) strings are used as-is.</summary>
+    [JsonPropertyName("localization")]
+    public string? Localization { get; init; }
+
     private static readonly JsonSerializerOptions Options = new()
     {
         PropertyNameCaseInsensitive = true

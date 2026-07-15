@@ -25,6 +25,9 @@ public enum ToolFieldType
 /// picker filters on (e.g. "lbak"); empty = any file.</param>
 /// <param name="SaveFile">For a <see cref="ToolFieldType.File"/> field: true opens a save-file picker
 /// (a target path to write), false an open-file picker (an existing file to read).</param>
+/// <param name="LabelKey">Optional localization key for <paramref name="Label"/>; when set and the plugin
+/// ships a matching translation the host shows it, otherwise <paramref name="Label"/> stays the fallback.</param>
+/// <param name="PlaceholderKey">Optional localization key for <paramref name="Placeholder"/> (same rule).</param>
 public sealed record ToolField(
     string Key,
     string Label,
@@ -34,4 +37,6 @@ public sealed record ToolField(
     string? Placeholder = null,
     IReadOnlyList<string>? Choices = null,
     IReadOnlyList<string>? FileExtensions = null,
-    bool SaveFile = false);
+    bool SaveFile = false,
+    string? LabelKey = null,
+    string? PlaceholderKey = null);

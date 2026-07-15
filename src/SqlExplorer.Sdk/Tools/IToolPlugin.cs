@@ -18,10 +18,18 @@ public interface IToolPlugin
     /// under a "Shrink" submenu.</summary>
     string Title { get; }
 
+    /// <summary>Optional localization key for <see cref="Title"/>. When set and the plugin ships a matching
+    /// translation, the host shows it instead of <see cref="Title"/>; otherwise <see cref="Title"/> stays
+    /// the (English) fallback. Additive — a plugin that ignores it renders exactly as before.</summary>
+    string? TitleKey => null;
+
     /// <summary>Title for the tool's dialog window/header. Defaults to <see cref="Title"/>, but a tool whose
     /// menu label is a short leaf (e.g. "Database…" under "Shrink") can give the dialog a fuller standalone
     /// name (e.g. "Shrink Database").</summary>
     string DialogTitle => Title;
+
+    /// <summary>Optional localization key for <see cref="DialogTitle"/> (same rule as <see cref="TitleKey"/>).</summary>
+    string? DialogTitleKey => null;
 
     /// <summary>
     /// Optional submenu path this tool lives under, as ordered ancestor labels (e.g. <c>["Shrink"]</c> to

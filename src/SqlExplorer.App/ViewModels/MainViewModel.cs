@@ -22,6 +22,7 @@ using SqlExplorer.Core.Settings;
 using SqlExplorer.Core.Shortcuts;
 using SqlExplorer.Core.Tools;
 using SqlExplorer.Sdk;
+using SqlExplorer.Sdk.Localization;
 using SqlExplorer.Sdk.Tools;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
@@ -527,7 +528,8 @@ public partial class MainViewModel : ViewModelBase
             foreach (var tool in _tools.Applicable(connection.ProviderId, node.NodeKind))
             {
                 var captured = tool;
-                var leaf = new ToolMenuNode(tool.Title, new RelayCommand(() => RunToolCommand.Execute(captured)));
+                var title = _tools.LocalizerFor(tool.Id).Resolve(tool.TitleKey, tool.Title);
+                var leaf = new ToolMenuNode(title, new RelayCommand(() => RunToolCommand.Execute(captured)));
 
                 // Walk the tool's MenuPath, creating or reusing a group node per segment, so tools that
                 // share a path (even from different plugins) land in the same submenu.
@@ -796,28 +798,8 @@ public partial class MainViewModel : ViewModelBase
     // it; the tree otherwise falls back to a generic connection line-icon. The glyph is left to hosts
     // that can render emoji (Linux/Avalonia can't), so it is not used here. SVG needs an extra
     // renderer, so raster only for now.
-    private IImage? ResolveIconImage(string providerId)
-    {
-        var icon = _providers.Get(providerId).Icon;
-        if (icon?.ImageData is not { Length: > 0 } bytes || !CanRenderImage(icon.ImageMediaType))
-        {
-            return null;
-        }
-
-        try
-        {
-            return new Bitmap(new MemoryStream(bytes));
-        }
-        catch
-        {
-            return null;
-        }
-    }
-
-    private static bool CanRenderImage(string? mediaType) =>
-        mediaType is not null
-        && mediaType.StartsWith("image/", StringComparison.OrdinalIgnoreCase)
-        && !mediaType.Contains("svg", StringComparison.OrdinalIgnoreCase);
+    private IImage? ResolveIconImage(string providerId) =>
+        PluginIconRenderer.Render(_providers.Get(providerId).Icon);
 
     // The lazy loader every tree node calls on expand: resolve secrets, ask the provider.
     private async Task<IReadOnlyList<DbTreeNode>> LoadNodeChildrenAsync(

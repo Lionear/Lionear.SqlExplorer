@@ -1,0 +1,13 @@
+{
+  "shrinkdb.title": "Database",
+  "shrinkdb.dialogTitle": "Shrink Database",
+  "shrinkdb.error.noDatabase": "Shrink Database needs a target database.",
+  "shrinkdb.progress.complete": "Shrink complete for {0}.",
+
+  "shrinkfile.title": "Files",
+  "shrinkfile.dialogTitle": "Shrink Files",
+  "shrinkfile.error.noFile": "Select a file to shrink.",
+  "shrinkfile.progress.complete": "Shrink complete for file {0}.",
+
+  "shrink.progress.running": "Running: {0}"
+}

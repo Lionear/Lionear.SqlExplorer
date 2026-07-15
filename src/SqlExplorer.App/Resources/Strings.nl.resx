@@ -43,7 +43,7 @@
     <value>{0} gewijzigd · {1:F0} ms</value>
   </data>
   <data name="NewConnection" xml:space="preserve">
-    <value>Nieuwe connectie…</value>
+    <value>Nieuwe connectie</value>
   </data>
   <data name="Connections" xml:space="preserve">
     <value>Connecties</value>
@@ -76,13 +76,13 @@
     <value>Sluiten</value>
   </data>
   <data name="Properties" xml:space="preserve">
-    <value>Eigenschappen…</value>
+    <value>Eigenschappen</value>
   </data>
   <data name="Delete" xml:space="preserve">
     <value>Verwijderen</value>
   </data>
   <data name="Browse" xml:space="preserve">
-    <value>Bladeren…</value>
+    <value>Bladeren</value>
   </data>
   <data name="TestOk" xml:space="preserve">
     <value>Verbinding OK</value>
@@ -130,10 +130,10 @@
     <value>Definitie tonen</value>
   </data>
   <data name="ExecuteRoutine" xml:space="preserve">
-    <value>Uitvoeren…</value>
+    <value>Uitvoeren</value>
   </data>
   <data name="ActivityMonitor" xml:space="preserve">
-    <value>Activiteitenmonitor…</value>
+    <value>Activiteitenmonitor</value>
   </data>
   <data name="ActivityMonitorTab" xml:space="preserve">
     <value>Activiteitenmonitor — {0}</value>
@@ -145,10 +145,10 @@
     <value>Uit</value>
   </data>
   <data name="KillSession" xml:space="preserve">
-    <value>Sessie beëindigen…</value>
+    <value>Sessie beëindigen</value>
   </data>
   <data name="CancelQuery" xml:space="preserve">
-    <value>Query annuleren…</value>
+    <value>Query annuleren</value>
   </data>
   <data name="ConfirmKillSessionTitle" xml:space="preserve">
     <value>Sessie beëindigen</value>
@@ -169,7 +169,7 @@
     <value>Query op sessie {0} geannuleerd.</value>
   </data>
   <data name="NewUser" xml:space="preserve">
-    <value>Nieuwe gebruiker…</value>
+    <value>Nieuwe gebruiker</value>
   </data>
   <data name="DeleteUser" xml:space="preserve">
     <value>Gebruiker verwijderen</value>
@@ -325,7 +325,7 @@
     <value>Importeren uit connectiestring</value>
   </data>
   <data name="ImportConnectionStringHint" xml:space="preserve">
-    <value>Plak een connectiestring om de velden te vullen…</value>
+    <value>Plak een connectiestring om de velden te vullen</value>
   </data>
   <data name="ImportDone" xml:space="preserve">
     <value>Velden gevuld uit de connectiestring.</value>
@@ -346,13 +346,13 @@
     <value>Historie</value>
   </data>
   <data name="GoToObject" xml:space="preserve">
-    <value>Ga naar…</value>
+    <value>Ga naar</value>
   </data>
   <data name="SearchObjects" xml:space="preserve">
-    <value>Zoek tabellen, views, kolommen of voer een commando uit…</value>
+    <value>Zoek tabellen, views, kolommen of voer een commando uit</value>
   </data>
   <data name="SearchHistory" xml:space="preserve">
-    <value>Zoek in historie…</value>
+    <value>Zoek in historie</value>
   </data>
   <data name="ClearHistory" xml:space="preserve">
     <value>Wissen</value>
@@ -373,13 +373,13 @@
     <value>Max</value>
   </data>
   <data name="NewDatabase" xml:space="preserve">
-    <value>Nieuwe database…</value>
+    <value>Nieuwe database</value>
   </data>
   <data name="NewSchema" xml:space="preserve">
-    <value>Nieuw schema…</value>
+    <value>Nieuw schema</value>
   </data>
   <data name="NewTable" xml:space="preserve">
-    <value>Nieuwe tabel…</value>
+    <value>Nieuwe tabel</value>
   </data>
   <data name="ObjectName" xml:space="preserve">
     <value>Naam</value>
@@ -406,25 +406,25 @@
     <value>Aanmaken</value>
   </data>
   <data name="DropDatabase" xml:space="preserve">
-    <value>Database verwijderen…</value>
+    <value>Database verwijderen</value>
   </data>
   <data name="DropSchema" xml:space="preserve">
-    <value>Schema verwijderen…</value>
+    <value>Schema verwijderen</value>
   </data>
   <data name="DropTable" xml:space="preserve">
-    <value>Tabel verwijderen…</value>
+    <value>Tabel verwijderen</value>
   </data>
   <data name="AddColumnTitle" xml:space="preserve">
     <value>Kolom toevoegen</value>
   </data>
   <data name="AddColumnMenu" xml:space="preserve">
-    <value>Kolom toevoegen…</value>
+    <value>Kolom toevoegen</value>
   </data>
   <data name="DropColumn" xml:space="preserve">
-    <value>Kolom verwijderen…</value>
+    <value>Kolom verwijderen</value>
   </data>
   <data name="RenameColumn" xml:space="preserve">
-    <value>Kolom hernoemen…</value>
+    <value>Kolom hernoemen</value>
   </data>
   <data name="NewName" xml:space="preserve">
     <value>Nieuwe naam</value>
@@ -451,7 +451,7 @@
     <value>Explain</value>
   </data>
   <data name="Export" xml:space="preserve">
-    <value>Exporteren…</value>
+    <value>Exporteren</value>
   </data>
   <data name="ExportFormat" xml:space="preserve">
     <value>Exportformaat</value>
@@ -463,7 +463,7 @@
     <value>{0} rij(en), heel resultaat</value>
   </data>
   <data name="ImportCsv" xml:space="preserve">
-    <value>CSV importeren…</value>
+    <value>CSV importeren</value>
   </data>
   <data name="ImportCsvTitle" xml:space="preserve">
     <value>CSV importeren</value>
@@ -490,7 +490,7 @@
     <value>Instellingen</value>
   </data>
   <data name="Preferences" xml:space="preserve">
-    <value>Voorkeuren…</value>
+    <value>Voorkeuren</value>
   </data>
   <data name="SettingsGeneral" xml:space="preserve">
     <value>Algemene voorkeuren.</value>
@@ -541,7 +541,7 @@
     <value>De sluitknop verbergt het venster en houdt de app op de achtergrond actief (bijv. de MCP-server). Afsluiten via het systeemvak-icoon of Bestand &gt; Afsluiten.</value>
   </data>
   <data name="QueryLogMenu" xml:space="preserve">
-    <value>Query-log…</value>
+    <value>Query-log</value>
   </data>
   <data name="SettingsQueryLog" xml:space="preserve">
     <value>Query-log</value>
@@ -568,7 +568,7 @@
     <value>Query-log</value>
   </data>
   <data name="QueryLogSearch" xml:space="preserve">
-    <value>Zoek in SQL of connectie…</value>
+    <value>Zoek in SQL of connectie</value>
   </data>
   <data name="QueryLogSourceAll" xml:space="preserve">
     <value>Alle bronnen</value>
@@ -589,7 +589,7 @@
     <value>Fout</value>
   </data>
   <data name="QueryLogExport" xml:space="preserve">
-    <value>Exporteren…</value>
+    <value>Exporteren</value>
   </data>
   <data name="QueryLogClear" xml:space="preserve">
     <value>Log wissen</value>
@@ -640,10 +640,10 @@
     <value>Master password instellen</value>
   </data>
   <data name="MasterPwChangeButton" xml:space="preserve">
-    <value>Wijzigen…</value>
+    <value>Wijzigen</value>
   </data>
   <data name="MasterPwDisableButton" xml:space="preserve">
-    <value>Uitschakelen…</value>
+    <value>Uitschakelen</value>
   </data>
   <data name="MasterPwLockAfter" xml:space="preserve">
     <value>Vergrendelen na inactiviteit</value>
@@ -754,7 +754,7 @@
     <value>_Help</value>
   </data>
   <data name="NewConnectionMenu" xml:space="preserve">
-    <value>Nieuwe connectie…</value>
+    <value>Nieuwe connectie</value>
   </data>
   <data name="Exit" xml:space="preserve">
     <value>Afsluiten</value>
@@ -781,10 +781,10 @@
     <value>Kopiëren als INSERT</value>
   </data>
   <data name="ManageConnections" xml:space="preserve">
-    <value>Connecties beheren…</value>
+    <value>Connecties beheren</value>
   </data>
   <data name="FilterConnections" xml:space="preserve">
-    <value>Filter connecties…</value>
+    <value>Filter connecties</value>
   </data>
   <data name="NewFolder" xml:space="preserve">
     <value>Nieuwe map</value>
@@ -841,7 +841,7 @@
     <value>Geannuleerd.</value>
   </data>
   <data name="ToolRunning" xml:space="preserve">
-    <value>Bezig…</value>
+    <value>Bezig</value>
   </data>
   <data name="ToolDestructiveConfirm" xml:space="preserve">
     <value>Deze actie wijzigt de database en kan niet ongedaan worden gemaakt. Doorgaan?</value>
@@ -889,7 +889,7 @@
     <value>Volledige naam kopiëren</value>
   </data>
   <data name="TruncateTable" xml:space="preserve">
-    <value>Tabel leegmaken…</value>
+    <value>Tabel leegmaken</value>
   </data>
   <data name="CollapseAll" xml:space="preserve">
     <value>Alles inklappen</value>
@@ -916,7 +916,7 @@
     <value>Klik een sneltoets en druk de gewenste toetscombinatie in. Wijzigingen zijn direct actief — geen herstart nodig.</value>
   </data>
   <data name="ShortcutPressKeys" xml:space="preserve">
-    <value>Toets in…</value>
+    <value>Toets in</value>
   </data>
   <data name="ShortcutUnbound" xml:space="preserve">
     <value>Niet toegewezen</value>
@@ -988,7 +988,7 @@
     <value>Extra</value>
   </data>
   <data name="PluginStoreMenu" xml:space="preserve">
-    <value>Plugin Store…</value>
+    <value>Plugin Store</value>
   </data>
   <data name="PluginStoreTitle" xml:space="preserve">
     <value>Plugin Store</value>
@@ -1003,16 +1003,16 @@
     <value>Bronnen</value>
   </data>
   <data name="StoreInstallFromFile" xml:space="preserve">
-    <value>Installeren uit bestand…</value>
+    <value>Installeren uit bestand</value>
   </data>
   <data name="StoreRestartNeeded" xml:space="preserve">
     <value>Sommige wijzigingen worden pas na een herstart actief.</value>
   </data>
   <data name="StoreSearch" xml:space="preserve">
-    <value>Plugins zoeken…</value>
+    <value>Plugins zoeken</value>
   </data>
   <data name="StoreLoading" xml:space="preserve">
-    <value>Laden…</value>
+    <value>Laden</value>
   </data>
   <data name="StoreBundleChip" xml:space="preserve">
     <value>Bundel</value>
@@ -1039,7 +1039,7 @@
     <value>Handmatige bronnen</value>
   </data>
   <data name="StoreAddSourceHint" xml:space="preserve">
-    <value>Voeg een index.json-URL toe…</value>
+    <value>Voeg een index.json-URL toe</value>
   </data>
   <data name="Add" xml:space="preserve">
     <value>Toevoegen</value>
@@ -1078,19 +1078,19 @@
     <value>Verwijderen</value>
   </data>
   <data name="StoreDownloading" xml:space="preserve">
-    <value>Downloaden…</value>
+    <value>Downloaden</value>
   </data>
   <data name="StoreVerifying" xml:space="preserve">
-    <value>Verifiëren…</value>
+    <value>Verifiëren</value>
   </data>
   <data name="StoreExtracting" xml:space="preserve">
-    <value>Uitpakken…</value>
+    <value>Uitpakken</value>
   </data>
   <data name="StoreStaging" xml:space="preserve">
-    <value>Klaarzetten…</value>
+    <value>Klaarzetten</value>
   </data>
   <data name="StoreInstalling" xml:space="preserve">
-    <value>Installeren…</value>
+    <value>Installeren</value>
   </data>
   <data name="StoreInstall" xml:space="preserve">
     <value>Installeren</value>

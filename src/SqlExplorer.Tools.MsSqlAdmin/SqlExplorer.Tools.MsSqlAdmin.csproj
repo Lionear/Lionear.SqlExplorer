@@ -18,6 +18,10 @@
 
   <ItemGroup>
     <Content Include="plugin.json" CopyToOutputDirectory="PreserveNewest" />
+    <!-- Localization embedded into the main DLL. WithCulture=false stops MSBuild routing the ".nl." file
+         to a satellite assembly; LogicalName fixes the resource name the host's PluginLocalizer expects. -->
+    <EmbeddedResource Include="Lang\strings.json" LogicalName="Lang/strings.json" WithCulture="false" />
+    <EmbeddedResource Include="Lang\strings.nl.json" LogicalName="Lang/strings.nl.json" WithCulture="false" />
   </ItemGroup>
 
   <ItemGroup>
@@ -25,6 +29,7 @@
     <Using Include="SqlExplorer.Sdk.Schema" />
     <Using Include="SqlExplorer.Sdk.Query" />
     <Using Include="SqlExplorer.Sdk.Branding" />
+    <Using Include="SqlExplorer.Sdk.Localization" />
     <Using Include="SqlExplorer.Sdk.Tools" />
     <Using Include="SqlExplorer.Sdk.Ui" />
   </ItemGroup>

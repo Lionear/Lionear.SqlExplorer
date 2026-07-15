@@ -17,7 +17,9 @@ public sealed class UniversalBackupTool : IToolPlugin, IPluginSettings
 
     public string Id => "universal-backup";
 
-    public string Title => "Backup…";
+    public string Title => "Backup";
+    public string? TitleKey => "backup.title";
+    public string? DialogTitleKey => "backup.title";
 
     public IReadOnlyList<string> MenuPath => ["Backup & Restore"];
 
@@ -30,8 +32,10 @@ public sealed class UniversalBackupTool : IToolPlugin, IPluginSettings
     public IReadOnlyList<ToolField> Fields { get; } =
     [
         new("filePath", "Backup file (optional if a default folder is set)", ToolFieldType.File,
-            Required: false, Placeholder: "Leave empty to use the default backup folder", FileExtensions: ["lbak"], SaveFile: true),
-        new("passphrase", "Passphrase (optional — leave empty for an unencrypted backup)", ToolFieldType.Password)
+            Required: false, Placeholder: "Leave empty to use the default backup folder", FileExtensions: ["lbak"], SaveFile: true,
+            LabelKey: "backup.field.file.label", PlaceholderKey: "backup.field.file.placeholder"),
+        new("passphrase", "Passphrase (optional — leave empty for an unencrypted backup)", ToolFieldType.Password,
+            LabelKey: "backup.field.passphrase.label")
     ];
 
     public IReadOnlyList<PluginSettingField> SettingsFields { get; } =
@@ -51,9 +55,9 @@ public sealed class UniversalBackupTool : IToolPlugin, IPluginSettings
         var filePath = ResolveTargetPath(inputs.GetValueOrDefault("filePath"), context, databaseName, progress);
         var passphrase = inputs.GetValueOrDefault("passphrase");
 
-        progress.Report(new ToolProgress("Reading schema…"));
+        progress.Report(new ToolProgress(context.Localizer["backup.progress.readingSchema"]));
         var tableRefs = await SchemaReader.CollectTablesAsync(context.Provider, context.Profile, context.Node, ct);
-        progress.Report(new ToolProgress($"Found {tableRefs.Count} table(s)."));
+        progress.Report(new ToolProgress(context.Localizer.Get("backup.progress.foundTables", tableRefs.Count)));
 
         var meta = new LbakMeta(
             context.ProviderId,
@@ -81,7 +85,7 @@ public sealed class UniversalBackupTool : IToolPlugin, IPluginSettings
                 var columns = await SchemaReader.ReadColumnsAsync(context.Provider, context.Profile, tableRef.Path, ct);
                 if (columns.Count == 0)
                 {
-                    progress.Report(new ToolProgress($"Skipped {tableRef.Table} (no readable columns).", fraction));
+                    progress.Report(new ToolProgress(context.Localizer.Get("backup.progress.skippedTable", tableRef.Table), fraction));
                     continue;
                 }
 
@@ -92,13 +96,14 @@ public sealed class UniversalBackupTool : IToolPlugin, IPluginSettings
                 await context.Provider.StreamQueryAsync(context.Profile, $"SELECT {columnList} FROM {qualified}", visitor, ct);
 
                 tablesWritten++;
-                progress.Report(new ToolProgress($"Table {i + 1}/{tableRefs.Count}: {tableRef.Table} — {visitor.RowCount} row(s)", fraction));
+                progress.Report(new ToolProgress(
+                    context.Localizer.Get("backup.progress.table", i + 1, tableRefs.Count, tableRef.Table, visitor.RowCount), fraction));
             }
 
             return tablesWritten;
         }, ct);
 
-        progress.Report(new ToolProgress($"Saved {written} table(s) to {filePath}", 1.0));
+        progress.Report(new ToolProgress(context.Localizer.Get("backup.progress.saved", written, filePath), 1.0));
     }
 
     // Use the chosen file, or fall back to "<defaultFolder>/<database>-<timestamp>.lbak" from the setting.
@@ -112,12 +117,12 @@ public sealed class UniversalBackupTool : IToolPlugin, IPluginSettings
         var folder = context.Host.GetPluginSetting(DefaultFolderKey);
         if (string.IsNullOrWhiteSpace(folder))
         {
-            throw new InvalidOperationException("Choose a file to write to, or set a default backup folder in Settings ▸ Plugins.");
+            throw new InvalidOperationException(context.Localizer["backup.error.noFile"]);
         }
 
         var fileName = $"{Sanitize(databaseName)}-{DateTime.Now:yyyyMMdd-HHmmss}.lbak";
         var path = Path.Combine(folder, fileName);
-        progress.Report(new ToolProgress($"No file chosen — using the default folder: {path}"));
+        progress.Report(new ToolProgress(context.Localizer.Get("backup.progress.defaultFolder", path)));
         return path;
     }
 

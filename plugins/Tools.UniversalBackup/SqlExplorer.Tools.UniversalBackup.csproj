@@ -14,6 +14,12 @@
   <ItemGroup>
     <Content Include="plugin.json" CopyToOutputDirectory="PreserveNewest" />
     <EmbeddedResource Include="icon.png" LogicalName="icon.png" Condition="Exists('icon.png')" />
+    <!-- Localization: embedded so the plugin ships as one DLL; LogicalName fixes the resource name the
+         host's PluginLocalizer looks up (prefix "Lang/strings" from plugin.json). WithCulture=false is
+         essential: the ".nl." in the filename would otherwise make MSBuild route it to a satellite
+         assembly instead of the main DLL's manifest resources. -->
+    <EmbeddedResource Include="Lang\strings.json" LogicalName="Lang/strings.json" WithCulture="false" />
+    <EmbeddedResource Include="Lang\strings.nl.json" LogicalName="Lang/strings.nl.json" WithCulture="false" />
   </ItemGroup>
 
   <ItemGroup>
@@ -22,6 +28,7 @@
     <Using Include="SqlExplorer.Sdk.Query" />
     <Using Include="SqlExplorer.Sdk.Ddl" />
     <Using Include="SqlExplorer.Sdk.Branding" />
+    <Using Include="SqlExplorer.Sdk.Localization" />
     <Using Include="SqlExplorer.Sdk.Tools" />
   </ItemGroup>
 

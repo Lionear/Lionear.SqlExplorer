@@ -1,10 +1,14 @@
+using SqlExplorer.Core.Localization;
+using SqlExplorer.Sdk.Localization;
 using SqlExplorer.Sdk.Tools;
 
 namespace SqlExplorer.Core.Plugins;
 
 /// <summary>Outcome of loading one tool plugin folder: the tools it contributed (an assembly may ship
-/// several), or an error explaining why it was skipped.</summary>
-public sealed record ToolLoadResult(string PluginDirectory, string? Id, IReadOnlyList<IToolPlugin> Tools, string? Error)
+/// several), its localizer (null when the plugin ships no translations), or an error explaining why it was
+/// skipped.</summary>
+public sealed record ToolLoadResult(
+    string PluginDirectory, string? Id, IReadOnlyList<IToolPlugin> Tools, IPluginLocalizer? Localizer, string? Error)
 {
     public bool Succeeded => Error is null;
 }
@@ -17,6 +21,12 @@ public sealed record ToolLoadResult(string PluginDirectory, string? Id, IReadOnl
 /// </summary>
 public sealed class ToolPluginLoader
 {
+    private readonly ILocalizer? _localizer;
+
+    /// <summary>The <paramref name="localizer"/> is the live host localizer handed to each plugin's
+    /// <see cref="PluginLocalizer"/>; pass null to load without plugin localization (tests/tooling).</summary>
+    public ToolPluginLoader(ILocalizer? localizer = null) => _localizer = localizer;
+
     /// <summary>Single-root scan (bundled-only). Kept for callers that don't dedup across roots.</summary>
     public IReadOnlyList<ToolLoadResult> Load(string pluginsRoot) =>
         Load(PluginDiscovery.Discover(pluginsRoot, string.Empty));
@@ -39,20 +49,20 @@ public sealed class ToolPluginLoader
         return results;
     }
 
-    private static ToolLoadResult LoadOne(string dir, PluginManifest manifest)
+    private ToolLoadResult LoadOne(string dir, PluginManifest manifest)
     {
         try
         {
             if (!ToolHostApi.IsCompatible(manifest.HostApiVersion))
             {
-                return new ToolLoadResult(dir, manifest.Id, [],
+                return new ToolLoadResult(dir, manifest.Id, [], null,
                     $"Tool '{manifest.Id}' targets tool API v{manifest.HostApiVersion}, this host is v{ToolHostApi.Version}.");
             }
 
             var assemblyPath = Path.Combine(dir, manifest.EntryAssembly);
             if (!File.Exists(assemblyPath))
             {
-                return new ToolLoadResult(dir, manifest.Id, [],
+                return new ToolLoadResult(dir, manifest.Id, [], null,
                     $"Entry assembly '{manifest.EntryAssembly}' not found in '{dir}'.");
             }
 
@@ -65,13 +75,23 @@ public sealed class ToolPluginLoader
                 .OfType<IToolPlugin>()
                 .ToList();
 
-            return tools.Count == 0
-                ? new ToolLoadResult(dir, manifest.Id, [], $"Assembly '{manifest.EntryAssembly}' has no public IToolPlugin implementation.")
-                : new ToolLoadResult(dir, manifest.Id, tools, null);
+            if (tools.Count == 0)
+            {
+                return new ToolLoadResult(dir, manifest.Id, [], null,
+                    $"Assembly '{manifest.EntryAssembly}' has no public IToolPlugin implementation.");
+            }
+
+            // Build the plugin's localizer from its embedded Lang/*.json (opt-in via manifest.localization).
+            var localizer = _localizer is not null && !string.IsNullOrWhiteSpace(manifest.Localization)
+                ? PluginLocalizer.TryLoad(assembly, manifest.Localization, _localizer,
+                    warn => Console.Error.WriteLine($"[plugin] {manifest.Id}: {warn}"))
+                : null;
+
+            return new ToolLoadResult(dir, manifest.Id, tools, localizer, null);
         }
         catch (Exception ex)
         {
-            return new ToolLoadResult(dir, null, [], ex.Message);
+            return new ToolLoadResult(dir, null, [], null, ex.Message);
         }
     }
 }

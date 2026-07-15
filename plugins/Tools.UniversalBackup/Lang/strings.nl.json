@@ -1,0 +1,24 @@
+{
+  "backup.title": "Back-up",
+  "backup.field.file.label": "Back-upbestand (optioneel als er een standaardmap is ingesteld)",
+  "backup.field.file.placeholder": "Leeg laten om de standaard back-upmap te gebruiken",
+  "backup.field.passphrase.label": "Wachtwoordzin (optioneel — leeg laten voor een niet-versleutelde back-up)",
+  "backup.progress.readingSchema": "Schema lezen…",
+  "backup.progress.foundTables": "{0} tabel(len) gevonden.",
+  "backup.progress.skippedTable": "{0} overgeslagen (geen leesbare kolommen).",
+  "backup.progress.table": "Tabel {0}/{1}: {2} — {3} rij(en)",
+  "backup.progress.saved": "{0} tabel(len) opgeslagen in {1}",
+  "backup.progress.defaultFolder": "Geen bestand gekozen — standaardmap gebruikt: {0}",
+  "backup.error.noFile": "Kies een bestand om naar te schrijven, of stel een standaard back-upmap in bij Instellingen ▸ Plugins.",
+
+  "restore.title": "Terugzetten uit back-up",
+  "restore.field.file.label": "Back-upbestand",
+  "restore.field.passphrase.label": "Wachtwoordzin (alleen als de back-up versleuteld is)",
+  "restore.progress.backupInfo": "Back-up van {0} · \"{1}\" · {2} tabel(len).",
+  "restore.progress.createdTable": "Tabel {0} aangemaakt",
+  "restore.progress.inserted": "{0}: {1}/{2} rij(en) ingevoegd",
+  "restore.progress.complete": "Terugzetten voltooid. Verbind opnieuw of ververs de boom om de data te zien.",
+  "restore.error.noFile": "Kies een back-upbestand om terug te zetten.",
+  "restore.error.crossEngine": "Deze back-up komt van {0}; terugzetten naar een andere engine wordt nog niet ondersteund.",
+  "restore.error.wrongPassphrase": "Onjuiste wachtwoordzin of beschadigd back-upbestand."
+}

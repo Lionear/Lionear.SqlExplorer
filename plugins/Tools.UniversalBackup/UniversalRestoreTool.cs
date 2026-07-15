@@ -15,7 +15,9 @@ public sealed class UniversalRestoreTool : IToolPlugin
 
     public string Id => "universal-restore";
 
-    public string Title => "Restore from backup…";
+    public string Title => "Restore from backup";
+    public string? TitleKey => "restore.title";
+    public string? DialogTitleKey => "restore.title";
 
     public IReadOnlyList<string> MenuPath => ["Backup & Restore"];
 
@@ -27,8 +29,10 @@ public sealed class UniversalRestoreTool : IToolPlugin
 
     public IReadOnlyList<ToolField> Fields { get; } =
     [
-        new("filePath", "Backup file", ToolFieldType.File, Required: true, FileExtensions: ["lbak"], SaveFile: false),
-        new("passphrase", "Passphrase (only if the backup is encrypted)", ToolFieldType.Password)
+        new("filePath", "Backup file", ToolFieldType.File, Required: true, FileExtensions: ["lbak"], SaveFile: false,
+            LabelKey: "restore.field.file.label"),
+        new("passphrase", "Passphrase (only if the backup is encrypted)", ToolFieldType.Password,
+            LabelKey: "restore.field.passphrase.label")
     ];
 
     // Read the always-plaintext header as soon as a file is chosen, so the dialog shows context first.
@@ -58,17 +62,17 @@ public sealed class UniversalRestoreTool : IToolPlugin
         var filePath = inputs.GetValueOrDefault("filePath");
         if (string.IsNullOrWhiteSpace(filePath))
         {
-            throw new InvalidOperationException("Choose a backup file to restore.");
+            throw new InvalidOperationException(context.Localizer["restore.error.noFile"]);
         }
 
         var meta = LbakFormat.ReadMeta(filePath);
-        progress.Report(new ToolProgress($"Backup from {meta.EngineDisplayName} · \"{meta.DatabaseName}\" · {meta.TableCount} table(s)."));
+        progress.Report(new ToolProgress(
+            context.Localizer.Get("restore.progress.backupInfo", meta.EngineDisplayName, meta.DatabaseName, meta.TableCount)));
 
         // Cross-engine restore is intentionally blocked in v1 (dialect-specific column types).
         if (!string.Equals(meta.ProviderId, context.ProviderId, StringComparison.Ordinal))
         {
-            throw new InvalidOperationException(
-                $"This backup is from {meta.EngineDisplayName}; restoring to a different engine isn't supported yet.");
+            throw new InvalidOperationException(context.Localizer.Get("restore.error.crossEngine", meta.EngineDisplayName));
         }
 
         var passphrase = inputs.GetValueOrDefault("passphrase");
@@ -91,11 +95,11 @@ public sealed class UniversalRestoreTool : IToolPlugin
             }
             catch (CryptographicException)
             {
-                throw new InvalidOperationException("Wrong passphrase or corrupted backup file.");
+                throw new InvalidOperationException(context.Localizer["restore.error.wrongPassphrase"]);
             }
         }, ct);
 
-        progress.Report(new ToolProgress("Restore complete. Reconnect or refresh the tree to see the data.", 1.0));
+        progress.Report(new ToolProgress(context.Localizer["restore.progress.complete"], 1.0));
     }
 
     // SQL Server rowversion/timestamp columns are engine-generated: a table can hold at most one, and it
@@ -141,7 +145,7 @@ public sealed class UniversalRestoreTool : IToolPlugin
             var table = tables[i];
             var fraction = (double)(i + 1) / tables.Count;
             var keep = await CreateTableAsync(context, table, ct);
-            progress.Report(new ToolProgress($"Created table {table.TableName}", fraction));
+            progress.Report(new ToolProgress(context.Localizer.Get("restore.progress.createdTable", table.TableName), fraction));
             if (keep.Length == 0 || table.Rows.Count == 0)
             {
                 continue;
@@ -157,7 +161,7 @@ public sealed class UniversalRestoreTool : IToolPlugin
                 var statements = chunk.Select(row => BuildInsert(qualified, columnList, keep.Select(k => row[k]).ToArray())).ToList();
                 await context.Provider.ExecuteBatchAsync(context.Profile, statements, ct);
                 inserted += chunk.Count;
-                progress.Report(new ToolProgress($"{table.TableName}: inserted {inserted}/{table.Rows.Count} row(s)"));
+                progress.Report(new ToolProgress(context.Localizer.Get("restore.progress.inserted", table.TableName, inserted, table.Rows.Count)));
             }
         }
     }
