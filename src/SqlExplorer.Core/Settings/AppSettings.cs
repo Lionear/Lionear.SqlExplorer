@@ -63,6 +63,28 @@ public sealed class AppSettings
     /// available from the tray menu and File &gt; Exit. Off by default.</summary>
     public bool CloseToTray { get; set; }
 
+    /// <summary>Global query timeout in seconds for app-run queries; 0 = no limit. Applied by cancelling the
+    /// run's token after the interval (same mechanism as the Stop button). MCP has its own timeout.</summary>
+    public int QueryTimeoutSeconds { get; set; }
+
+    // ── Master password (optional app-level encryption of connection secrets) ────────────────────────
+    // All three below are NON-secret: they enable the feature and let the app verify a typed password.
+    // The derived AES key itself is never stored — only held in memory while the session is unlocked.
+
+    /// <summary>Whether an app master password guards the connection secrets (extra layer over the OS vault).</summary>
+    public bool MasterPasswordEnabled { get; set; }
+
+    /// <summary>Base64 PBKDF2 salt (16 bytes) for the master-password key derivation.</summary>
+    public string? MasterPasswordSalt { get; set; }
+
+    /// <summary>Base64 AES-GCM ciphertext of a fixed constant, used to verify a typed password without
+    /// storing the key or password.</summary>
+    public string? MasterPasswordVerifier { get; set; }
+
+    /// <summary>Auto-lock the master key after this many minutes of inactivity; 0 = never (only re-lock on
+    /// restart). Any secret access (connection resolve) resets the timer.</summary>
+    public int MasterPasswordLockMinutes { get; set; }
+
     // ── Query log (opt-in audit log, separate from the always-on re-run history) ─────────────────────
 
     /// <summary>Master switch for the query log. Off by default — nothing is written until enabled.</summary>

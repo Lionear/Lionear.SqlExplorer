@@ -494,6 +494,12 @@ public partial class MainView : UserControl
             return Task.CompletedTask;
         }
 
+        dialogViewModel.OpenInEditorRequested = entry =>
+        {
+            _viewModel?.OpenHistoryEntryCommand.Execute(entry); // resolves the connection + adds a query tab
+            owner.Activate(); // bring the main window (with the new tab) to the front
+        };
+
         var window = new QueryLogWindow { DataContext = dialogViewModel };
         window.Closed += (_, _) =>
         {

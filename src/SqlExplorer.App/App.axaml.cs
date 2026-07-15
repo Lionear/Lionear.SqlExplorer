@@ -92,6 +92,19 @@ public partial class App : Application
                         // Best-effort: never let a slow/failed stop hold the app open.
                     }
                 };
+
+                // Master password: gate the (already-shown) main window behind an unlock prompt on open, and
+                // re-prompt when the idle timeout auto-locks. Connection secrets aren't decrypted until the
+                // user actually connects, so the empty shell behind the modal reveals nothing.
+                var masterPassword = services.GetRequiredService<Core.Security.MasterPasswordService>();
+                var loc = services.GetRequiredService<ILocalizer>();
+                if (masterPassword.IsEnabled)
+                {
+                    mainWindow.Opened += async (_, _) => await GateUnlockAsync(mainWindow, masterPassword, desktop, loc);
+                }
+                services.GetRequiredService<Core.Security.IMasterKeyProvider>().Locked += () =>
+                    Avalonia.Threading.Dispatcher.UIThread.Post(
+                        () => _ = GateUnlockAsync(mainWindow, masterPassword, desktop, loc));
                 break;
             case ISingleViewApplicationLifetime singleView:
                 singleView.MainView = new MainView { DataContext = viewModel };
@@ -128,6 +141,39 @@ public partial class App : Application
         // Left-click the tray icon also restores the window (a common convention on Windows/Linux).
         tray.Clicked += (_, _) => ShowWindow(window);
         return tray;
+    }
+
+    private bool _unlocking;
+
+    // Loop the unlock dialog until the master key is provided (validated inline) or the user quits. Guarded
+    // so the startup gate and an idle-lock re-prompt can't stack two dialogs.
+    private async Task GateUnlockAsync(Window owner, Core.Security.MasterPasswordService service,
+        IClassicDesktopStyleApplicationLifetime desktop, ILocalizer loc)
+    {
+        if (_unlocking || !service.IsEnabled || service.IsUnlocked)
+        {
+            return;
+        }
+
+        _unlocking = true;
+        try
+        {
+            while (!service.IsUnlocked)
+            {
+                var dialog = new MasterPasswordDialog(MasterPasswordMode.Unlock, loc, service.TryUnlock);
+                var result = await dialog.ShowDialog<MasterPasswordDialogResult?>(owner);
+                if (result is null)
+                {
+                    desktop.Shutdown(); // user chose Quit rather than unlock
+                    return;
+                }
+                // On success the inline validator already unlocked the provider; the loop condition exits.
+            }
+        }
+        finally
+        {
+            _unlocking = false;
+        }
     }
 
     private static void ShowWindow(Window window)

@@ -1,6 +1,7 @@
 using SqlExplorer.App.Localization;
 using SqlExplorer.App.ViewModels;
 using SqlExplorer.Core.Connections;
+using SqlExplorer.Core.Security;
 using SqlExplorer.Core.Formatting;
 using SqlExplorer.Core.History;
 using SqlExplorer.Core.Logging;
@@ -127,7 +128,12 @@ public static class AppServices
         var connectionStore = new JsonConnectionStore();
         connectionStore.MigrateLegacyProviderIds();
         services.AddSingleton<IConnectionStore>(connectionStore);
-        services.AddSingleton<ISecretStore>(SecretStores.CreateForCurrentOs());
+        // Optional master-password layer: the OS vault is wrapped by an encrypting decorator keyed by the
+        // in-memory master key. With no master password set the decorator is a transparent pass-through.
+        services.AddSingleton<IMasterKeyProvider>(new MasterKeyProvider());
+        var osSecretStore = SecretStores.CreateForCurrentOs();
+        services.AddSingleton<ISecretStore>(sp =>
+            new EncryptingSecretStore(osSecretStore, sp.GetRequiredService<IMasterKeyProvider>()));
 
         // UI preferences (window geometry, sidebar width) alongside connections.json.
         services.AddSingleton<IAppSettingsStore>(new JsonAppSettingsStore());
@@ -152,6 +158,7 @@ public static class AppServices
         services.AddSingleton<Func<QueryLogViewModel>>(sp => sp.GetRequiredService<QueryLogViewModel>);
         services.AddSingleton<IOpenTabsStore>(new JsonOpenTabsStore());
         services.AddSingleton<ConnectionService>();
+        services.AddSingleton<MasterPasswordService>();
 
         // Per-connection schema snapshot (tables/views/columns), built by walking the lazy tree at
         // connect. Powers object-search and schema-aware completion.
@@ -222,6 +229,7 @@ public static class AppServices
                 sp.GetRequiredService<IDbProviderRegistry>(),
                 sp.GetRequiredService<IQueryHistoryStore>(),
                 sp.GetRequiredService<IQueryLog>(),
+                sp.GetRequiredService<MasterPasswordService>(),
                 GetSetting,
                 Audit);
 

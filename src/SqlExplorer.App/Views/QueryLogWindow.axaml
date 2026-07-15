@@ -70,8 +70,11 @@
             <TextBlock Text="{Binding Error}" Foreground="#F0B4B4" TextWrapping="Wrap"
                        IsVisible="{Binding Error, Converter={x:Static ObjectConverters.IsNotNull}}" Margin="0,4,0,0" />
 
-            <Button Content="{Binding $parent[Window].DataContext.Loc[QueryLogCopySql]}"
-                    Click="OnCopySqlClick" HorizontalAlignment="Left" Margin="0,8,0,0" />
+            <StackPanel Orientation="Horizontal" Spacing="8" Margin="0,8,0,0">
+              <Button Content="{Binding $parent[Window].DataContext.Loc[QueryLogCopySql]}" Click="OnCopySqlClick" />
+              <Button Content="{Binding $parent[Window].DataContext.Loc[QueryLogOpenInTab]}"
+                      Command="{Binding $parent[Window].DataContext.OpenInEditorCommand}" />
+            </StackPanel>
           </StackPanel>
         </ScrollViewer>
       </Border>

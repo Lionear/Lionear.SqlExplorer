@@ -2,6 +2,7 @@ using System.Diagnostics;
 using SqlExplorer.Core.Connections;
 using SqlExplorer.Core.History;
 using SqlExplorer.Core.Logging;
+using SqlExplorer.Core.Security;
 using SqlExplorer.Core.Providers;
 using SqlExplorer.Sdk.Mcp;
 using SqlExplorer.Sdk.Schema;
@@ -21,6 +22,7 @@ public sealed class McpHost(
     IDbProviderRegistry providers,
     IQueryHistoryStore history,
     IQueryLog queryLog,
+    MasterPasswordService masterPassword,
     Func<string, string?> getSetting,
     Action<string> audit) : IMcpHost
 {
@@ -72,6 +74,19 @@ public sealed class McpHost(
         {
             LogAudit(tool, connectionId, allowed: false, "connection not AI-accessible", RequireAuthOn);
             throw new McpAccessException("Connection is not available to the MCP server.");
+        }
+
+        // Master-password gate: when the app's secrets are locked (idle-locked, or not yet unlocked in the
+        // GUI) a connection that needs a stored password can't be decrypted from the background MCP server.
+        // Refuse with a clear, actionable message instead of letting the driver fail later with a confusing
+        // "login failed" error. Connections without a secret field (e.g. SQLite, trusted auth) are unaffected.
+        if (masterPassword.IsEnabled && !masterPassword.IsUnlocked
+            && providers.Get(connection.ProviderId).ConnectionFields.Any(f => f.IsSecret))
+        {
+            LogAudit(tool, connectionId, allowed: false, "master password locked", RequireAuthOn);
+            throw new McpAccessException(
+                "The connection's credentials are locked by the SQL Explorer master password. " +
+                "Open SQL Explorer and enter the master password to unlock, then retry.");
         }
 
         return connection;

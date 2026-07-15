@@ -38,6 +38,10 @@ public partial class SettingsViewModel : ViewModelBase
     private readonly KeymapService _keymap;
     private readonly Mcp.Hosting.McpService _mcp;
     private readonly Core.Logging.IQueryLog _queryLog;
+    private readonly Core.Security.MasterPasswordService _masterPassword;
+
+    // Idle auto-lock options (minutes; 0 = Never), index-matched to the Security-page dropdown.
+    private static readonly int[] LockMinuteOptions = [0, 15, 30, 60];
     private readonly List<ShortcutItem> _allShortcuts = [];
 
     [ObservableProperty]
@@ -57,6 +61,9 @@ public partial class SettingsViewModel : ViewModelBase
 
     [ObservableProperty]
     private bool _confirmBeforeSave;
+
+    [ObservableProperty]
+    private int _queryTimeoutSeconds;
 
     [ObservableProperty]
     private bool _restoreTabsOnStartup;
@@ -79,6 +86,67 @@ public partial class SettingsViewModel : ViewModelBase
 
     [ObservableProperty]
     private bool _queryLogMcp;
+
+    // ── Master password ──────────────────────────────────────────────────────────────────────────────
+    [ObservableProperty]
+    private bool _masterPasswordEnabled;
+
+    /// <summary>Index into <see cref="LockMinuteOptions"/> for the idle auto-lock dropdown.</summary>
+    [ObservableProperty]
+    private int _masterPasswordLockIndex;
+
+    [ObservableProperty]
+    private string? _masterPasswordMessage;
+
+    /// <summary>Set by the view: show the master-password dialog in the given mode, return the input.</summary>
+    public Func<Views.MasterPasswordMode, Task<Views.MasterPasswordDialogResult?>>? PromptMasterPassword { get; set; }
+
+    [RelayCommand]
+    private async Task SetMasterPasswordAsync()
+    {
+        MasterPasswordMessage = null;
+        if (PromptMasterPassword is null || await PromptMasterPassword(Views.MasterPasswordMode.Set) is not { NewPassword: { Length: > 0 } pw })
+        {
+            return;
+        }
+
+        _masterPassword.Enable(pw);
+        MasterPasswordEnabled = true;
+        MasterPasswordMessage = Loc["MasterPwEnabledMsg"];
+    }
+
+    [RelayCommand]
+    private async Task ChangeMasterPasswordAsync()
+    {
+        MasterPasswordMessage = null;
+        if (PromptMasterPassword is null || await PromptMasterPassword(Views.MasterPasswordMode.Change) is not { Current: { } oldPw, NewPassword: { Length: > 0 } newPw })
+        {
+            return;
+        }
+
+        MasterPasswordMessage = _masterPassword.Change(oldPw, newPw) ? Loc["MasterPwChangedMsg"] : Loc["MasterPwWrong"];
+    }
+
+    [RelayCommand]
+    private async Task DisableMasterPasswordAsync()
+    {
+        MasterPasswordMessage = null;
+        // Reuse the unlock dialog (single field) with no inline validator, so the service verifies it.
+        if (PromptMasterPassword is null || await PromptMasterPassword(Views.MasterPasswordMode.Unlock) is not { Current: { } pw })
+        {
+            return;
+        }
+
+        if (_masterPassword.Disable(pw))
+        {
+            MasterPasswordEnabled = false;
+            MasterPasswordMessage = Loc["MasterPwDisabledMsg"];
+        }
+        else
+        {
+            MasterPasswordMessage = Loc["MasterPwWrong"];
+        }
+    }
 
     [ObservableProperty]
     private PluginSettingsItem? _selectedPlugin;
@@ -122,6 +190,7 @@ public partial class SettingsViewModel : ViewModelBase
         KeymapService keymap,
         Mcp.Hosting.McpService mcp,
         Core.Logging.IQueryLog queryLog,
+        Core.Security.MasterPasswordService masterPassword,
         ILocalizer localizer)
     {
         _store = store;
@@ -131,6 +200,7 @@ public partial class SettingsViewModel : ViewModelBase
         _keymap = keymap;
         _mcp = mcp;
         _queryLog = queryLog;
+        _masterPassword = masterPassword;
         Loc = localizer;
 
         Categories =
@@ -142,6 +212,7 @@ public partial class SettingsViewModel : ViewModelBase
             new SettingsCategory("QueryLog", localizer["SettingsQueryLog"], NodeIcons.SettingsQuery),
             new SettingsCategory("Keyboard", localizer["SettingsKeyboard"], NodeIcons.SettingsKeyboard),
             new SettingsCategory("Mcp", localizer["SettingsMcp"], NodeIcons.SettingsPlugins),
+            new SettingsCategory("Security", localizer["SettingsSecurity"], NodeIcons.SettingsGeneral),
             new SettingsCategory("Plugins", localizer["SettingsPlugins"], NodeIcons.SettingsPlugins),
         ];
         _selectedCategory = Categories[0];
@@ -180,6 +251,7 @@ public partial class SettingsViewModel : ViewModelBase
         EditorFontSize = settings.EditorFontSize;
         EditorWordWrap = settings.EditorWordWrap;
         ConfirmBeforeSave = settings.ConfirmBeforeSave;
+        QueryTimeoutSeconds = settings.QueryTimeoutSeconds;
         RestoreTabsOnStartup = settings.RestoreTabsOnStartup;
         ShowSystemDatabases = settings.ShowSystemDatabases;
         ConfirmOnExit = settings.ConfirmOnExit;
@@ -187,6 +259,9 @@ public partial class SettingsViewModel : ViewModelBase
         QueryLogEnabled = settings.QueryLogEnabled;
         QueryLogApp = settings.QueryLogApp;
         QueryLogMcp = settings.QueryLogMcp;
+        MasterPasswordEnabled = settings.MasterPasswordEnabled;
+        MasterPasswordLockIndex = Math.Max(0, Array.IndexOf(LockMinuteOptions, settings.MasterPasswordLockMinutes));
+        MasterPasswordMessage = null;
         McpEnabled = settings.McpEnabled;
         McpPort = settings.McpPort;
         McpRequireAuth = settings.McpRequireAuth;
@@ -315,6 +390,7 @@ public partial class SettingsViewModel : ViewModelBase
         EditorFontSize = defaults.EditorFontSize;
         EditorWordWrap = defaults.EditorWordWrap;
         ConfirmBeforeSave = defaults.ConfirmBeforeSave;
+        QueryTimeoutSeconds = defaults.QueryTimeoutSeconds;
         RestoreTabsOnStartup = defaults.RestoreTabsOnStartup;
         ShowSystemDatabases = defaults.ShowSystemDatabases;
         ConfirmOnExit = defaults.ConfirmOnExit;
@@ -360,6 +436,7 @@ public partial class SettingsViewModel : ViewModelBase
         settings.EditorFontSize = EditorFontSize;
         settings.EditorWordWrap = EditorWordWrap;
         settings.ConfirmBeforeSave = ConfirmBeforeSave;
+        settings.QueryTimeoutSeconds = QueryTimeoutSeconds;
         settings.RestoreTabsOnStartup = RestoreTabsOnStartup;
         settings.ShowSystemDatabases = ShowSystemDatabases;
         settings.ConfirmOnExit = ConfirmOnExit;
@@ -367,6 +444,9 @@ public partial class SettingsViewModel : ViewModelBase
         settings.QueryLogEnabled = QueryLogEnabled;
         settings.QueryLogApp = QueryLogApp;
         settings.QueryLogMcp = QueryLogMcp;
+        // Master-password enable/change/disable persist themselves immediately; here we only carry the
+        // idle-lock interval (a plain preference) and re-apply it.
+        settings.MasterPasswordLockMinutes = LockMinuteOptions[Math.Clamp(MasterPasswordLockIndex, 0, LockMinuteOptions.Length - 1)];
         // Generate a token on enabling auth if none is set yet, so the field is never empty when required.
         if (McpEnabled && McpRequireAuth && string.IsNullOrEmpty(McpToken))
         {
@@ -386,6 +466,9 @@ public partial class SettingsViewModel : ViewModelBase
 
         // Apply the query-log policy immediately so toggling it takes effect without a restart.
         _queryLog.Configure(QueryLogEnabled, QueryLogApp, QueryLogMcp);
+
+        // Re-apply the idle auto-lock interval (no-op when master password is off).
+        _masterPassword.ApplyIdleTimeout();
 
         // Plugin settings live in their own file, keyed by plugin id.
         foreach (var plugin in Plugins)

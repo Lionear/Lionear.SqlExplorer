@@ -39,6 +39,10 @@ public partial class QueryLogViewModel : ObservableObject, IDisposable
     [ObservableProperty]
     private string _summary = string.Empty;
 
+    /// <summary>Set by the view: open the given logged query in a new editor tab (reuses the main window's
+    /// history-open path, which resolves the connection and adds a query tab).</summary>
+    public Action<QueryHistoryEntry>? OpenInEditorRequested { get; set; }
+
     public QueryLogViewModel(IQueryLog log, ILocalizer localizer)
     {
         _log = log;
@@ -90,6 +94,15 @@ public partial class QueryLogViewModel : ObservableObject, IDisposable
 
     [RelayCommand]
     private void Clear() => _log.Clear(); // Changed → Reload repaints the empty list.
+
+    [RelayCommand]
+    private void OpenInEditor()
+    {
+        if (SelectedEntry is { } row)
+        {
+            OpenInEditorRequested?.Invoke(row.Entry);
+        }
+    }
 
     // Detach from the store's Changed event when the window closes so the (transient) VM can be collected.
     public void Dispose() => _log.Changed -= OnLogChanged;

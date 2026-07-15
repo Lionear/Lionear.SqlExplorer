@@ -16,6 +16,9 @@ public partial class SettingsWindow : Window
             if (DataContext is SettingsViewModel vm)
             {
                 vm.CloseRequested = Close;
+                // Master-password prompts (Set/Change/Disable) — no inline validator; the service verifies.
+                vm.PromptMasterPassword = mode =>
+                    new MasterPasswordDialog(mode, vm.Loc, null).ShowDialog<MasterPasswordDialogResult?>(this);
             }
         };
     }

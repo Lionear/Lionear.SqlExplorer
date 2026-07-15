@@ -121,6 +121,38 @@ public sealed class ConnectionService
             Database = database
         };
 
+    /// <summary>Every stored connection secret (connection id, field key, current value), read through the
+    /// secret store. Used by the master-password flow to re-encrypt/decrypt all secrets in one pass; the
+    /// value comes back plaintext or decrypted depending on the store's current key state.</summary>
+    public IReadOnlyList<ConnectionSecret> ExportSecrets()
+    {
+        var list = new List<ConnectionSecret>();
+        foreach (var connection in _store.GetAll())
+        {
+            foreach (var field in _providers.Get(connection.ProviderId).ConnectionFields.Where(f => f.IsSecret))
+            {
+                list.Add(new ConnectionSecret(connection.Id, field.Key, _secrets.Get(SecretKey(connection.Id, field.Key))));
+            }
+        }
+
+        return list;
+    }
+
+    /// <summary>Write one secret back through the store (Set, or Delete when empty). The store decides
+    /// whether it lands encrypted, based on its current key state.</summary>
+    public void ImportSecret(ConnectionSecret secret)
+    {
+        var key = SecretKey(secret.ConnectionId, secret.FieldKey);
+        if (string.IsNullOrEmpty(secret.Value))
+        {
+            _secrets.Delete(key);
+        }
+        else
+        {
+            _secrets.Set(key, secret.Value);
+        }
+    }
+
     private Dictionary<string, string?> WithSecrets(SavedConnection connection)
     {
         var values = new Dictionary<string, string?>(connection.Values);

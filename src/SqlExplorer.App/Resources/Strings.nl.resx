@@ -525,6 +525,12 @@
   <data name="ConfirmBeforeSave" xml:space="preserve">
     <value>Toon een controlevenster vóór het opslaan van wijzigingen</value>
   </data>
+  <data name="QueryTimeout" xml:space="preserve">
+    <value>Query-timeout (seconden, 0 = geen)</value>
+  </data>
+  <data name="QueryTimeoutHint" xml:space="preserve">
+    <value>Annuleer een lopende query na dit aantal seconden. 0 schakelt de timeout uit. Geldt voor queries vanuit de app; de MCP-server heeft een eigen timeout.</value>
+  </data>
   <data name="ConfirmOnExit" xml:space="preserve">
     <value>Vraag om bevestiging bij afsluiten</value>
   </data>
@@ -591,6 +597,9 @@
   <data name="QueryLogCopySql" xml:space="preserve">
     <value>SQL kopiëren</value>
   </data>
+  <data name="QueryLogOpenInTab" xml:space="preserve">
+    <value>Openen in query-tab</value>
+  </data>
   <data name="QueryLogColTime" xml:space="preserve">
     <value>Tijd</value>
   </data>
@@ -614,6 +623,96 @@
   </data>
   <data name="QueryLogSummary" xml:space="preserve">
     <value>{0} vermeldingen</value>
+  </data>
+  <data name="SettingsSecurity" xml:space="preserve">
+    <value>Beveiliging</value>
+  </data>
+  <data name="MasterPwSectionDesc" xml:space="preserve">
+    <value>Bescherm je opgeslagen connectiewachtwoorden optioneel met een app-master-password, bovenop de OS-keychain.</value>
+  </data>
+  <data name="MasterPwNotSet" xml:space="preserve">
+    <value>Er is geen master password ingesteld. Je connectie-secrets worden alleen door de OS-keychain beschermd.</value>
+  </data>
+  <data name="MasterPwIsSet" xml:space="preserve">
+    <value>Er is een master password ingesteld.</value>
+  </data>
+  <data name="MasterPwSetButton" xml:space="preserve">
+    <value>Master password instellen</value>
+  </data>
+  <data name="MasterPwChangeButton" xml:space="preserve">
+    <value>Wijzigen…</value>
+  </data>
+  <data name="MasterPwDisableButton" xml:space="preserve">
+    <value>Uitschakelen…</value>
+  </data>
+  <data name="MasterPwLockAfter" xml:space="preserve">
+    <value>Vergrendelen na inactiviteit</value>
+  </data>
+  <data name="MasterPwLockNever" xml:space="preserve">
+    <value>Nooit</value>
+  </data>
+  <data name="MasterPwLock15" xml:space="preserve">
+    <value>15 minuten</value>
+  </data>
+  <data name="MasterPwLock30" xml:space="preserve">
+    <value>30 minuten</value>
+  </data>
+  <data name="MasterPwLock60" xml:space="preserve">
+    <value>60 minuten</value>
+  </data>
+  <data name="MasterPwNoRecovery" xml:space="preserve">
+    <value>Er is geen herstel: als je het master password vergeet, kunnen opgeslagen secrets niet ontsleuteld worden en moeten connecties opnieuw ingevoerd worden.</value>
+  </data>
+  <data name="MasterPwEnabledMsg" xml:space="preserve">
+    <value>Master password ingeschakeld — connectie-secrets opnieuw versleuteld.</value>
+  </data>
+  <data name="MasterPwChangedMsg" xml:space="preserve">
+    <value>Master password gewijzigd.</value>
+  </data>
+  <data name="MasterPwDisabledMsg" xml:space="preserve">
+    <value>Master password uitgeschakeld.</value>
+  </data>
+  <data name="MasterPwUnlockTitle" xml:space="preserve">
+    <value>SQL Explorer ontgrendelen</value>
+  </data>
+  <data name="MasterPwSetTitle" xml:space="preserve">
+    <value>Master password instellen</value>
+  </data>
+  <data name="MasterPwChangeTitle" xml:space="preserve">
+    <value>Master password wijzigen</value>
+  </data>
+  <data name="MasterPwUnlockDesc" xml:space="preserve">
+    <value>Voer je master password in om je opgeslagen connecties te ontgrendelen.</value>
+  </data>
+  <data name="MasterPwSetDesc" xml:space="preserve">
+    <value>Kies een master password. Het versleutelt je opgeslagen connectiewachtwoorden. Er is geen herstel als je het vergeet.</value>
+  </data>
+  <data name="MasterPwChangeDesc" xml:space="preserve">
+    <value>Voer je huidige en een nieuw master password in. Alle connectie-secrets worden opnieuw versleuteld.</value>
+  </data>
+  <data name="MasterPwPassword" xml:space="preserve">
+    <value>Wachtwoord</value>
+  </data>
+  <data name="MasterPwCurrent" xml:space="preserve">
+    <value>Huidig wachtwoord</value>
+  </data>
+  <data name="MasterPwNew" xml:space="preserve">
+    <value>Nieuw wachtwoord</value>
+  </data>
+  <data name="MasterPwConfirm" xml:space="preserve">
+    <value>Bevestig nieuw wachtwoord</value>
+  </data>
+  <data name="MasterPwUnlock" xml:space="preserve">
+    <value>Ontgrendelen</value>
+  </data>
+  <data name="MasterPwQuit" xml:space="preserve">
+    <value>Afsluiten</value>
+  </data>
+  <data name="MasterPwWrong" xml:space="preserve">
+    <value>Onjuist wachtwoord.</value>
+  </data>
+  <data name="MasterPwMismatch" xml:space="preserve">
+    <value>De nieuwe wachtwoorden komen niet overeen.</value>
   </data>
   <data name="ExitConfirmTitle" xml:space="preserve">
     <value>Afsluiten</value>

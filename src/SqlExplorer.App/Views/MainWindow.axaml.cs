@@ -170,6 +170,27 @@ public partial class MainWindow : Window
         Body.RestoreSidebarWidth(settings.SidebarWidth);
     }
 
+    // A restored position (RestoreLayout) can land off every monitor after a display change/unplug, which
+    // would show the window somewhere invisible. Once opened (Screens is reliable then), if the window's
+    // top-left is on no screen, recentre it on the primary/first screen's working area.
+    protected override void OnOpened(EventArgs e)
+    {
+        base.OnOpened(e);
+
+        if (Screens is not { All.Count: > 0 } screens || screens.All.Any(s => s.Bounds.Contains(Position)))
+        {
+            return;
+        }
+
+        var target = screens.Primary ?? screens.All[0];
+        var area = target.WorkingArea;
+        var width = (int)Math.Min(area.Width, FrameSize?.Width ?? area.Width);
+        var height = (int)Math.Min(area.Height, FrameSize?.Height ?? area.Height);
+        Position = new PixelPoint(
+            area.X + Math.Max(0, (area.Width - width) / 2),
+            area.Y + Math.Max(0, (area.Height - height) / 2));
+    }
+
     private bool _forceClose;
 
     protected override void OnClosing(WindowClosingEventArgs e)

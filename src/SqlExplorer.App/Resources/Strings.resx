@@ -525,6 +525,12 @@
   <data name="ConfirmBeforeSave" xml:space="preserve">
     <value>Show a review dialog before saving changes</value>
   </data>
+  <data name="QueryTimeout" xml:space="preserve">
+    <value>Query timeout (seconds, 0 = none)</value>
+  </data>
+  <data name="QueryTimeoutHint" xml:space="preserve">
+    <value>Cancel a running query after this many seconds. 0 disables the timeout. Applies to queries run from the app; the MCP server has its own.</value>
+  </data>
   <data name="ConfirmOnExit" xml:space="preserve">
     <value>Ask for confirmation before quitting</value>
   </data>
@@ -591,6 +597,9 @@
   <data name="QueryLogCopySql" xml:space="preserve">
     <value>Copy SQL</value>
   </data>
+  <data name="QueryLogOpenInTab" xml:space="preserve">
+    <value>Open in query tab</value>
+  </data>
   <data name="QueryLogColTime" xml:space="preserve">
     <value>Time</value>
   </data>
@@ -614,6 +623,96 @@
   </data>
   <data name="QueryLogSummary" xml:space="preserve">
     <value>{0} entries</value>
+  </data>
+  <data name="SettingsSecurity" xml:space="preserve">
+    <value>Security</value>
+  </data>
+  <data name="MasterPwSectionDesc" xml:space="preserve">
+    <value>Optionally protect your saved connection passwords with an app master password, on top of the OS keychain.</value>
+  </data>
+  <data name="MasterPwNotSet" xml:space="preserve">
+    <value>No master password is set. Your connection secrets are protected only by the OS keychain.</value>
+  </data>
+  <data name="MasterPwIsSet" xml:space="preserve">
+    <value>A master password is set.</value>
+  </data>
+  <data name="MasterPwSetButton" xml:space="preserve">
+    <value>Set master password</value>
+  </data>
+  <data name="MasterPwChangeButton" xml:space="preserve">
+    <value>Change…</value>
+  </data>
+  <data name="MasterPwDisableButton" xml:space="preserve">
+    <value>Disable…</value>
+  </data>
+  <data name="MasterPwLockAfter" xml:space="preserve">
+    <value>Lock after inactivity</value>
+  </data>
+  <data name="MasterPwLockNever" xml:space="preserve">
+    <value>Never</value>
+  </data>
+  <data name="MasterPwLock15" xml:space="preserve">
+    <value>15 minutes</value>
+  </data>
+  <data name="MasterPwLock30" xml:space="preserve">
+    <value>30 minutes</value>
+  </data>
+  <data name="MasterPwLock60" xml:space="preserve">
+    <value>60 minutes</value>
+  </data>
+  <data name="MasterPwNoRecovery" xml:space="preserve">
+    <value>There is no recovery: if you forget the master password, saved secrets cannot be decrypted and connections must be re-entered.</value>
+  </data>
+  <data name="MasterPwEnabledMsg" xml:space="preserve">
+    <value>Master password enabled — connection secrets re-encrypted.</value>
+  </data>
+  <data name="MasterPwChangedMsg" xml:space="preserve">
+    <value>Master password changed.</value>
+  </data>
+  <data name="MasterPwDisabledMsg" xml:space="preserve">
+    <value>Master password disabled.</value>
+  </data>
+  <data name="MasterPwUnlockTitle" xml:space="preserve">
+    <value>Unlock SQL Explorer</value>
+  </data>
+  <data name="MasterPwSetTitle" xml:space="preserve">
+    <value>Set master password</value>
+  </data>
+  <data name="MasterPwChangeTitle" xml:space="preserve">
+    <value>Change master password</value>
+  </data>
+  <data name="MasterPwUnlockDesc" xml:space="preserve">
+    <value>Enter your master password to unlock your saved connections.</value>
+  </data>
+  <data name="MasterPwSetDesc" xml:space="preserve">
+    <value>Choose a master password. It encrypts your saved connection passwords. There is no recovery if you forget it.</value>
+  </data>
+  <data name="MasterPwChangeDesc" xml:space="preserve">
+    <value>Enter your current and a new master password. All connection secrets will be re-encrypted.</value>
+  </data>
+  <data name="MasterPwPassword" xml:space="preserve">
+    <value>Password</value>
+  </data>
+  <data name="MasterPwCurrent" xml:space="preserve">
+    <value>Current password</value>
+  </data>
+  <data name="MasterPwNew" xml:space="preserve">
+    <value>New password</value>
+  </data>
+  <data name="MasterPwConfirm" xml:space="preserve">
+    <value>Confirm new password</value>
+  </data>
+  <data name="MasterPwUnlock" xml:space="preserve">
+    <value>Unlock</value>
+  </data>
+  <data name="MasterPwQuit" xml:space="preserve">
+    <value>Quit</value>
+  </data>
+  <data name="MasterPwWrong" xml:space="preserve">
+    <value>Incorrect password.</value>
+  </data>
+  <data name="MasterPwMismatch" xml:space="preserve">
+    <value>The new passwords do not match.</value>
   </data>
   <data name="ExitConfirmTitle" xml:space="preserve">
     <value>Quit</value>

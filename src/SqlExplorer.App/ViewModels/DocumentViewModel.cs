@@ -989,6 +989,12 @@ public partial class DocumentViewModel : ViewModelBase
     private async Task RunTracked(CancellationToken outerCt, Func<CancellationToken, Task> body)
     {
         using var cts = CancellationTokenSource.CreateLinkedTokenSource(outerCt);
+        // Optional global query timeout (Settings › Query): 0 = no limit. CancelAfter on the linked source
+        // aborts the provider call (ADO.NET honours the token) — the same path the Stop button uses.
+        if (_settingsStore.Load().QueryTimeoutSeconds is > 0 and var timeout)
+        {
+            cts.CancelAfter(TimeSpan.FromSeconds(timeout));
+        }
         _runCts = cts;
         IsRunning = true;
         try
