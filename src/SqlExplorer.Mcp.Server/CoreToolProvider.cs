@@ -82,8 +82,30 @@ public sealed class CoreToolProvider : IMcpToolProvider
                 var connectionId = RequireString(args, "connectionId");
                 var sql = RequireString(args, "sql");
                 return await host.ExplainAsync(connectionId, sql, ct);
-            })
+            }),
+
+        new McpToolDefinition(
+            "get_query_log",
+            "List recently executed queries from the on-disk query log (SQL + timing/outcome), newest first. Only entries for connections the AI may use are returned; empty when query logging is disabled. Never returns result data or secrets.",
+            """
+            {
+              "type": "object",
+              "properties": {
+                "limit": { "type": "integer", "description": "Max entries to return (1-1000, default 100)." },
+                "source": { "type": "string", "enum": ["app", "mcp"], "description": "Filter by who ran the query: 'app' (user) or 'mcp' (AI). Omit for both." }
+              },
+              "additionalProperties": false
+            }
+            """,
+            (args, host, _) => Task.FromResult<object?>(host.GetQueryLog(ReadInt(args, "limit"), ReadString(args, "source"))))
     ];
+
+    private static string? ReadString(JsonElement args, string name) =>
+        args.ValueKind == JsonValueKind.Object
+        && args.TryGetProperty(name, out var value)
+        && value.ValueKind == JsonValueKind.String
+            ? value.GetString()
+            : null;
 
     private static string RequireString(JsonElement args, string name) =>
         args.ValueKind == JsonValueKind.Object

@@ -18,6 +18,19 @@ public sealed record McpQueryResult(
     double DurationMs,
     bool Truncated);
 
+/// <summary>One entry from the query log as an MCP client may see it. Only entries for MCP-reachable
+/// connections are ever returned (same fail-closed rule as the rest of the surface), and only the SQL and
+/// timing/outcome — never result data or secrets. <see cref="Source"/> is "User" (app) or "Ai" (MCP).</summary>
+public sealed record McpQueryLogEntry(
+    DateTime TimestampUtc,
+    string Source,
+    string ConnectionName,
+    string Sql,
+    long DurationMs,
+    int RowCount,
+    bool Success,
+    string? Error);
+
 /// <summary>Thrown by <see cref="IMcpHost"/> when a call is refused by the host-side guards (connection not
 /// MCP-reachable, statement not permitted for the access mode, DDL/multi-statement, missing connection).
 /// The plugin maps it to an MCP error — the refusal happens in the host, never at the driver.</summary>

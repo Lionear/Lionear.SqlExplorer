@@ -756,8 +756,8 @@
   <data name="Refresh" xml:space="preserve">
     <value>Vernieuwen</value>
   </data>
-  <data name="SelectTop100" xml:space="preserve">
-    <value>Selecteer top 100</value>
+  <data name="SelectTop1000" xml:space="preserve">
+    <value>Selecteer top 1000</value>
   </data>
   <data name="Copy" xml:space="preserve">
     <value>Kopiëren</value>

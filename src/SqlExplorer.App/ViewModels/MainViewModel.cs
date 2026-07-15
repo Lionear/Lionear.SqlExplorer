@@ -1748,7 +1748,7 @@ public partial class MainViewModel : ViewModelBase
             var sql = kind switch
             {
                 "Select" => $"SELECT * FROM {qualified};",
-                "SelectTop" => $"{dialect.Paginate($"SELECT * FROM {qualified}", 100, 0)};",
+                "SelectTop" => $"{dialect.Paginate($"SELECT * FROM {qualified}", 1000, 0)};",
                 "Count" => $"SELECT COUNT(*) FROM {qualified};",
                 _ => SqlTemplateBuilder.Build(kind ?? "Select", qualified, dialect, await FetchColumnsAsync(connection, node.DatabaseName, qualified))
             };
@@ -1757,6 +1757,13 @@ public partial class MainViewModel : ViewModelBase
             document.InitQuery(connection);
             document.Sql = sql;
             AddDocument(document);
+
+            // "Select top 1000" is a read-only convenience — run it straight away. The other kinds
+            // (INSERT/UPDATE/DELETE templates) are only scaffolding and must never auto-execute.
+            if (kind == "SelectTop")
+            {
+                await document.RunCommand.ExecuteAsync(null);
+            }
         }
         catch (Exception ex)
         {

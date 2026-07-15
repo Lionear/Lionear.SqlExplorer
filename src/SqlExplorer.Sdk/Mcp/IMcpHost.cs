@@ -30,6 +30,13 @@ public interface IMcpHost
     /// Backs <c>explain_query</c>.</summary>
     Task<McpQueryResult> ExplainAsync(string connectionId, string sql, CancellationToken ct);
 
+    /// <summary>Recent entries from the query log, newest first, capped by <paramref name="limit"/> and
+    /// optionally filtered by <paramref name="source"/> ("app"/"user" or "mcp"/"ai"; null = both). Only
+    /// entries for MCP-reachable connections are returned — the same fail-closed rule as the rest of the
+    /// surface, so the log never leaks connections or SQL the AI could not otherwise see. Empty when query
+    /// logging is disabled. Backs <c>get_query_log</c>.</summary>
+    IReadOnlyList<McpQueryLogEntry> GetQueryLog(int? limit, string? source);
+
     /// <summary>Record one MCP transport call for the audit trail — including refused/unauthorized/excluded
     /// ones, and whether auth was required at the time — so an unauthenticated window is recognisable after
     /// the fact (plan §8 / CRIT-3).</summary>

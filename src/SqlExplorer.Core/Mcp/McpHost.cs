@@ -36,6 +36,33 @@ public sealed class McpHost(
             .Select(c => new McpConnectionInfo(c.Id, c.Name, c.ProviderId, c.ReadOnly, c.AiAccess.ToString()))
             .ToList();
 
+    public IReadOnlyList<McpQueryLogEntry> GetQueryLog(int? limit, string? source)
+    {
+        // Fail-closed: only surface log entries for connections that are MCP-reachable right now, so the log
+        // never reveals a connection (or the SQL run against it) the AI could not otherwise reach.
+        var reachable = connections.List().Where(c => c.IsMcpReachable).Select(c => c.Id).ToHashSet();
+
+        var want = Math.Clamp(limit ?? 100, 1, 1000);
+        var filter = new QueryLogFilter
+        {
+            Source = source?.ToLowerInvariant() switch
+            {
+                "app" or "user" => QueryHistorySource.User,
+                "mcp" or "ai" => QueryHistorySource.Ai,
+                _ => null
+            },
+            // Read a generous window, then narrow to reachable connections and take the requested count.
+            Limit = 5000
+        };
+
+        return queryLog.Read(filter)
+            .Where(e => reachable.Contains(e.ConnectionId))
+            .Take(want)
+            .Select(e => new McpQueryLogEntry(
+                e.TimestampUtc, e.Source.ToString(), e.ConnectionName, e.Sql, e.DurationMs, e.RowCount, e.Success, e.Error))
+            .ToList();
+    }
+
     // Resolve a reachable connection by id or throw — the shared fail-closed gate for every tool. A missing
     // or non-reachable id is refused identically (no distinction that could confirm an excluded id exists).
     private SavedConnection RequireReachable(string connectionId, string tool)
