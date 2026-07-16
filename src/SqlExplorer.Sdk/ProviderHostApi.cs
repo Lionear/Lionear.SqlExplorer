@@ -1,10 +1,11 @@
 namespace SqlExplorer.Sdk;
 
 /// <summary>
-/// Versioning contract between the host and provider plugins. A plugin manifest
-/// declares the host API version it was built against; the loader refuses a plugin
-/// whose version this host cannot satisfy. Bump <see cref="Version"/> on a breaking
-/// change to <see cref="IDbProvider"/> or the shared DTOs.
+/// Versioning contract between the host and provider plugins. A plugin manifest declares the host API
+/// version it was built against; the loader accepts any version in [<see cref="MinimumSupported"/>,
+/// <see cref="Version"/>]. Additive changes (new default-interface members, enum values, DTOs) stay
+/// binary-compatible — plugins built against an older version keep loading — so they bump only
+/// <see cref="Version"/>. A breaking change bumps <see cref="MinimumSupported"/> too.
 /// </summary>
 public static class ProviderHostApi
 {
@@ -75,6 +76,14 @@ public static class ProviderHostApi
     //                   shell text instead of SELECT/DROP; SQL providers are unchanged (defaults).
     public const int Version = 20;
 
-    /// <summary>True when this host can load a plugin built for <paramref name="pluginVersion"/>.</summary>
-    public static bool IsCompatible(int pluginVersion) => pluginVersion == Version;
+    /// <summary>Oldest plugin ABI this host still loads. Additive bumps (v11→v20 style) keep this fixed;
+    /// only a breaking change raises it. Kept at 20 deliberately: pre-v20 versions added some abstract
+    /// members (v12/v14), so a full default-implementation audit is needed before lowering it. Last
+    /// breaking change: v10 (removed DatabaseKind).</summary>
+    public const int MinimumSupported = 20;
+
+    /// <summary>True when this host can load a plugin built for <paramref name="pluginVersion"/> — any
+    /// version in [<see cref="MinimumSupported"/>, <see cref="Version"/>].</summary>
+    public static bool IsCompatible(int pluginVersion) =>
+        pluginVersion >= MinimumSupported && pluginVersion <= Version;
 }

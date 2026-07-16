@@ -1110,8 +1110,8 @@
   <data name="StoreInstallAll" xml:space="preserve">
     <value>Alles installeren</value>
   </data>
-  <data name="StoreIncompatRange" xml:space="preserve">
-    <value>Vereist host-API {0}–{1}; deze build is {2}.</value>
+  <data name="StoreIncompatOld" xml:space="preserve">
+    <value>Gebouwd voor host-API {0}, niet meer ondersteund (minimaal {1}).</value>
   </data>
   <data name="StoreIncompatMin" xml:space="preserve">
     <value>Vereist host-API {0}+; deze build is {1}.</value>

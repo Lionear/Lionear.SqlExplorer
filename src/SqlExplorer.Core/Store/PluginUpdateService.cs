@@ -27,7 +27,7 @@ public sealed class PluginUpdateService(IPluginInstaller installer)
                 continue;
             }
 
-            var target = entry.HighestCompatibleVersion(HostApiVersions.For(entry.Type));
+            var target = entry.HighestCompatibleVersion(HostApiVersions.CompatFor(entry.Type));
             if (target is not null && SemVer.Compare(target.Version, plugin.Version) > 0)
             {
                 updates.Add(new PluginUpdate(plugin.Id, plugin.Version, entry, target));

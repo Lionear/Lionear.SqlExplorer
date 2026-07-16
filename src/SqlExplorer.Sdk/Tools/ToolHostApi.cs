@@ -12,5 +12,10 @@ public static class ToolHostApi
     //                  IToolUiContext.QueryAsync (Route-B live-data hook). Both additive.
     public const int Version = 2;
 
-    public static bool IsCompatible(int pluginVersion) => pluginVersion == Version;
+    /// <summary>Oldest tool ABI this host still loads. v1→v2 was additive (IToolPlugin.MenuPath default [],
+    /// IToolUiContext.QueryAsync on the host-provided context), so v1 tools load on a v2 host.</summary>
+    public const int MinimumSupported = 1;
+
+    public static bool IsCompatible(int pluginVersion) =>
+        pluginVersion >= MinimumSupported && pluginVersion <= Version;
 }

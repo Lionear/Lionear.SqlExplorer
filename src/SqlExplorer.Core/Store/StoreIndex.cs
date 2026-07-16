@@ -67,10 +67,10 @@ public sealed record StoreEntry
     [JsonPropertyName("versions")]
     public IReadOnlyList<StoreVersion> Versions { get; init; } = [];
 
-    /// <summary>The highest SemVer version compatible with the given host API version, or null if none.</summary>
-    public StoreVersion? HighestCompatibleVersion(int hostApiVersion) =>
+    /// <summary>The highest SemVer version this host can load, or null if none.</summary>
+    public StoreVersion? HighestCompatibleVersion(HostApiCompat host) =>
         Versions
-            .Where(v => v.IsCompatible(hostApiVersion))
+            .Where(v => v.IsCompatible(host))
             .OrderByDescending(v => v.Version, Comparer<string?>.Create(SemVer.Compare))
             .FirstOrDefault();
 }
@@ -81,13 +81,12 @@ public sealed record StoreVersion
     [JsonPropertyName("version")]
     public required string Version { get; init; }
 
-    /// <summary>Lowest host API version this build supports (inclusive). Defaults to 1.</summary>
+    /// <summary>The host API version this build was made against — the single compatibility fact a plugin
+    /// declares. The host decides loadability from its own [MinimumSupported, Version] window; a plugin
+    /// never declares an upper bound (it can't know which future host breaks it — that's the host's floor).
+    /// Defaults to 1.</summary>
     [JsonPropertyName("minHostApiVersion")]
     public int MinHostApiVersion { get; init; } = 1;
-
-    /// <summary>Highest host API version this build supports (inclusive); null = no upper bound.</summary>
-    [JsonPropertyName("maxHostApiVersion")]
-    public int? MaxHostApiVersion { get; init; }
 
     [JsonPropertyName("downloadUrl")]
     public required string DownloadUrl { get; init; }
@@ -100,10 +99,8 @@ public sealed record StoreVersion
     [JsonPropertyName("size")]
     public long Size { get; init; }
 
-    /// <summary>True when this build's [min,max] host-API range includes <paramref name="hostApiVersion"/>.</summary>
-    public bool IsCompatible(int hostApiVersion) =>
-        hostApiVersion >= MinHostApiVersion
-        && (MaxHostApiVersion is not { } max || hostApiVersion <= max);
+    /// <summary>True when this host's acceptance window includes this build's <see cref="MinHostApiVersion"/>.</summary>
+    public bool IsCompatible(HostApiCompat host) => host.Accepts(MinHostApiVersion);
 }
 
 /// <summary>

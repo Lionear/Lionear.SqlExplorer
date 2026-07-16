@@ -271,7 +271,7 @@ public sealed partial class PluginStoreViewModel : ViewModelBase
         {
             var children = bundle.Bundle.PluginIds
                 .Select(id => entriesById.TryGetValue(id, out var e)
-                    ? new BundleChild(e.Name, e.HighestCompatibleVersion(HostApiVersions.For(e.Type))?.Version ?? e.Versions.FirstOrDefault()?.Version)
+                    ? new BundleChild(e.Name, e.HighestCompatibleVersion(HostApiVersions.CompatFor(e.Type))?.Version ?? e.Versions.FirstOrDefault()?.Version)
                     : new BundleChild(id, null))
                 .ToList();
             _allBrowse.Add(new StoreListItem(bundle.Bundle, bundle.SourceName, bundle.SourceUrl, children, Loc));
@@ -281,7 +281,7 @@ public sealed partial class PluginStoreViewModel : ViewModelBase
         {
             var installedVersion = installedById.GetValueOrDefault(entry.Entry.Id);
             _allBrowse.Add(new StoreListItem(entry.Entry, entry.SourceName, entry.SourceUrl, installedVersion,
-                HostApiVersions.For(entry.Entry.Type), Loc));
+                HostApiVersions.CompatFor(entry.Entry.Type), Loc));
         }
 
         ApplyBrowseFilter();
@@ -423,7 +423,7 @@ public sealed partial class PluginStoreViewModel : ViewModelBase
         var children = bundleItem.BundlePluginIds
             .Select(id => _lastCatalog?.Entries.FirstOrDefault(e => e.Entry.Id == id)?.Entry)
             .OfType<StoreEntry>()
-            .Select(e => (Entry: e, Version: e.HighestCompatibleVersion(HostApiVersions.For(e.Type))))
+            .Select(e => (Entry: e, Version: e.HighestCompatibleVersion(HostApiVersions.CompatFor(e.Type))))
             .Where(x => x.Version is not null)
             .ToList();
 

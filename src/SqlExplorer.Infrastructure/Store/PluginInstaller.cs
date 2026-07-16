@@ -26,7 +26,7 @@ public sealed class PluginInstaller(HttpClient http, IPluginStateStore stateStor
     public async Task<InstallOutcome> InstallAsync(
         StoreEntry entry, StoreVersion version, IProgress<InstallProgress>? progress, CancellationToken ct)
     {
-        if (!version.IsCompatible(HostApiVersions.For(entry.Type)))
+        if (!version.IsCompatible(HostApiVersions.CompatFor(entry.Type)))
         {
             return InstallOutcome.Fail(entry.Id,
                 $"Version {version.Version} needs a host API this build doesn't provide.");

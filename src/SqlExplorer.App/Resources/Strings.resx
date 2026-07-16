@@ -1110,8 +1110,8 @@
   <data name="StoreInstallAll" xml:space="preserve">
     <value>Install all</value>
   </data>
-  <data name="StoreIncompatRange" xml:space="preserve">
-    <value>Requires host API {0}–{1}; this build is {2}.</value>
+  <data name="StoreIncompatOld" xml:space="preserve">
+    <value>Built for host API {0}, no longer supported (minimum {1}).</value>
   </data>
   <data name="StoreIncompatMin" xml:space="preserve">
     <value>Requires host API {0}+; this build is {1}.</value>

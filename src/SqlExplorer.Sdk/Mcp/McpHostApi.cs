@@ -11,5 +11,10 @@ public static class McpHostApi
     //                  explain_query, host-side authz (AiAccess + SQL classification + caps + audit).
     public const int Version = 1;
 
-    public static bool IsCompatible(int pluginVersion) => pluginVersion == Version;
+    /// <summary>Oldest MCP ABI this host still loads. Only one version exists so far; a future additive
+    /// bump keeps this at 1, a breaking change raises it.</summary>
+    public const int MinimumSupported = 1;
+
+    public static bool IsCompatible(int pluginVersion) =>
+        pluginVersion >= MinimumSupported && pluginVersion <= Version;
 }

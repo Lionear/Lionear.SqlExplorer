@@ -15,7 +15,7 @@ namespace SqlExplorer.App.ViewModels;
 /// </summary>
 public sealed partial class StoreListItem : ObservableObject
 {
-    private readonly int _hostApiVersion;
+    private readonly HostApiCompat _host;
     private readonly ILocalizer _loc;
 
     // Non-null for a plugin card; null for a bundle card.
@@ -71,10 +71,10 @@ public sealed partial class StoreListItem : ObservableObject
     private bool _isStaged;
 
     // Plugin card
-    public StoreListItem(StoreEntry entry, string? sourceName, string? sourceUrl, string? installedVersion, int hostApiVersion, ILocalizer loc)
+    public StoreListItem(StoreEntry entry, string? sourceName, string? sourceUrl, string? installedVersion, HostApiCompat host, ILocalizer loc)
     {
         Entry = entry;
-        _hostApiVersion = hostApiVersion;
+        _host = host;
         _loc = loc;
         Id = entry.Id;
         Name = entry.Name;
@@ -93,7 +93,7 @@ public sealed partial class StoreListItem : ObservableObject
         }
 
         _installedVersion = installedVersion;
-        _selectedVersion = entry.HighestCompatibleVersion(hostApiVersion) ?? Versions.FirstOrDefault();
+        _selectedVersion = entry.HighestCompatibleVersion(host) ?? Versions.FirstOrDefault();
         var top = Versions.FirstOrDefault()?.Version;
         SubLine = string.IsNullOrEmpty(Author) ? $"v{top}" : $"v{top} · {Author}";
         Recompute();
@@ -144,13 +144,15 @@ public sealed partial class StoreListItem : ObservableObject
             return;
         }
 
-        if (!version.IsCompatible(_hostApiVersion))
+        if (!version.IsCompatible(_host))
         {
             CanInstall = false;
             ActionLabel = _loc["StoreIncompatible"];
-            IncompatibleReason = version.MaxHostApiVersion is { } max
-                ? _loc.Get("StoreIncompatRange", version.MinHostApiVersion, max, _hostApiVersion)
-                : _loc.Get("StoreIncompatMin", version.MinHostApiVersion, _hostApiVersion);
+            // Either the build needs a newer host (min above our current) or it is too old (min below the
+            // floor the host still supports). No upper bound exists any more — the host owns compatibility.
+            IncompatibleReason = version.MinHostApiVersion > _host.Current
+                ? _loc.Get("StoreIncompatMin", version.MinHostApiVersion, _host.Current)
+                : _loc.Get("StoreIncompatOld", version.MinHostApiVersion, _host.MinSupported);
             return;
         }
 
