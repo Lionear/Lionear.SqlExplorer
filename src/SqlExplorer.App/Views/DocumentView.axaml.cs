@@ -717,12 +717,14 @@ public partial class DocumentView : UserControl
                 ? _viewModel.SortDescending ? " ▼" : " ▲"
                 : string.Empty;
 
+            // Resolve the column's action-capability once here (cheap, by name) rather than per cell.
+            var mayHaveActions = _viewModel.ColumnMayHaveCellActions(column.Name);
             var gridColumn = new DataGridTemplateColumn
             {
                 Header = column.Name + arrow,
                 IsReadOnly = column.IsReadOnly,
                 CanUserSort = sortable,
-                CellTemplate = BuildCellTemplate(i),
+                CellTemplate = BuildCellTemplate(i, mayHaveActions),
                 CellEditingTemplate = column.IsReadOnly ? null : BuildCellEditingTemplate(i)
             };
 
@@ -744,9 +746,13 @@ public partial class DocumentView : UserControl
 
     // Per-row template: a cell the provider marks actionable (ICustomCellActionUi — e.g. MSSQL's
     // blocking_session_id > 0) renders as a clickable link; every other cell is the plain value.
-    private IDataTemplate BuildCellTemplate(int index) =>
+    // <paramref name="mayHaveActions"/> is the provider's cheap, value-independent column pre-filter,
+    // resolved ONCE per column in SetGridColumns — a column that can never carry an action skips the
+    // per-cell HasCellAction call entirely, so the scroll/render hot path pays no provider lookup or
+    // context allocation on the vast majority of cells (the fix for sluggish large-grid scrolling).
+    private IDataTemplate BuildCellTemplate(int index, bool mayHaveActions) =>
         new FuncDataTemplate<EditableRow>((row, _) =>
-            row is not null && _viewModel?.HasCellAction(index, row) == true
+            mayHaveActions && row is not null && _viewModel?.HasCellAction(index, row) == true
                 ? BuildActionCell(index)
                 : BuildTextCell(index));
 

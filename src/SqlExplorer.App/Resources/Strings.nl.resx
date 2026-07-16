@@ -546,6 +546,12 @@
   <data name="QueryTimeoutHint" xml:space="preserve">
     <value>Annuleer een lopende query na dit aantal seconden. 0 schakelt de timeout uit. Geldt voor queries vanuit de app; de MCP-server heeft een eigen timeout.</value>
   </data>
+  <data name="BrowsePageSize" xml:space="preserve">
+    <value>Bladergrootte (rijen per pagina)</value>
+  </data>
+  <data name="BrowsePageSizeHint" xml:space="preserve">
+    <value>Aantal rijen per pagina bij het bladeren door een tabel. Geldt voor nieuw geopende bladertabbladen.</value>
+  </data>
   <data name="ConfirmOnExit" xml:space="preserve">
     <value>Vraag om bevestiging bij afsluiten</value>
   </data>

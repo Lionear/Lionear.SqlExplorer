@@ -67,6 +67,10 @@ public sealed class AppSettings
     /// run's token after the interval (same mechanism as the Stop button). MCP has its own timeout.</summary>
     public int QueryTimeoutSeconds { get; set; }
 
+    /// <summary>Rows fetched per page when browsing a table/collection/index (the "Browse table" grid).
+    /// Applied to newly opened browse tabs. Default 200.</summary>
+    public int BrowsePageSize { get; set; } = 200;
+
     // ── Master password (optional app-level encryption of connection secrets) ────────────────────────
     // All three below are NON-secret: they enable the feature and let the app verify a typed password.
     // The derived AES key itself is never stored — only held in memory while the session is unlocked.

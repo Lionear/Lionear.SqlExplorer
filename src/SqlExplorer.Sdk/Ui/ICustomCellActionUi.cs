@@ -21,6 +21,18 @@ namespace SqlExplorer.Sdk.Ui;
 /// </remarks>
 public interface ICustomCellActionUi
 {
+    /// <summary>
+    /// Cheap, value-independent column pre-filter: true when a column named <paramref name="columnName"/>
+    /// could ever carry a cell action. The host calls this once per column when building the grid and only
+    /// runs the per-cell (value-dependent) <see cref="HasCellAction"/> on columns that pass — so the grid's
+    /// hot render/scroll path stays free of per-cell provider calls for the vast majority of columns that
+    /// never have actions. Return false for those columns. The default (every column may have an action)
+    /// preserves behaviour for a provider that doesn't override it, but overriding it is strongly
+    /// recommended: a provider that only actions, say, <c>blocking_session_id</c> should return true only
+    /// for that name.
+    /// </summary>
+    bool ColumnMayHaveCellActions(string columnName) => true;
+
     /// <summary>True when the cell described by <paramref name="context"/> has an action (renders as a link).</summary>
     bool HasCellAction(CellActionContext context);
 

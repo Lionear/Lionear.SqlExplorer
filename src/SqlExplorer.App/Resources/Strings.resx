@@ -546,6 +546,12 @@
   <data name="QueryTimeoutHint" xml:space="preserve">
     <value>Cancel a running query after this many seconds. 0 disables the timeout. Applies to queries run from the app; the MCP server has its own.</value>
   </data>
+  <data name="BrowsePageSize" xml:space="preserve">
+    <value>Browse page size (rows)</value>
+  </data>
+  <data name="BrowsePageSizeHint" xml:space="preserve">
+    <value>Number of rows fetched per page when browsing a table. Applies to newly opened browse tabs.</value>
+  </data>
   <data name="ConfirmOnExit" xml:space="preserve">
     <value>Ask for confirmation before quitting</value>
   </data>
