@@ -3,7 +3,7 @@
   "id": "mysql",
   "type": "provider",
   "name": "MySQL / MariaDB",
-  "version": "1.0.0",
+  "version": "0.1.0",
   "hostApiVersion": 20,
   "entryAssembly": "SqlExplorer.Providers.MySql.dll"
 }

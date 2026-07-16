@@ -3,7 +3,7 @@
   "id": "sqlite",
   "type": "provider",
   "name": "SQLite",
-  "version": "1.0.0",
+  "version": "0.1.0",
   "hostApiVersion": 20,
   "entryAssembly": "SqlExplorer.Providers.Sqlite.dll"
 }
