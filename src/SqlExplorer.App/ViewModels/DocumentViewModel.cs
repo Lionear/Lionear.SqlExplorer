@@ -235,6 +235,9 @@ public partial class DocumentViewModel : ViewModelBase
         var settings = _settingsStore.Load();
         EditorFontSize = settings.EditorFontSize;
         EditorWordWrap = settings.EditorWordWrap;
+        // Browse page size is a global preference read once per tab (like the editor font size); a changed
+        // value applies to newly opened browse tabs. Guard against a zero/negative stored value.
+        _pageSize = settings.BrowsePageSize > 0 ? settings.BrowsePageSize : 200;
     }
 
     /// <summary>SQL editor font size/word-wrap, read once from settings at document creation
@@ -720,6 +723,12 @@ public partial class DocumentViewModel : ViewModelBase
     /// <summary>True when the provider recognises the cell at <paramref name="columnIndex"/> in
     /// <paramref name="row"/> as actionable (e.g. MSSQL's blocking_session_id &gt; 0) — the view renders it
     /// as a link. Cheap and side-effect-free; called per cell while building the grid.</summary>
+    // Cheap, value-independent check the grid makes ONCE per column when building it: a column that can
+    // never carry an action gets a plain text cell template with no per-cell provider call, keeping the
+    // scroll path fast. Only columns that pass here fall through to the per-cell HasCellAction below.
+    public bool ColumnMayHaveCellActions(string columnName) =>
+        _providers.Get(Connection.ProviderId) is ICustomCellActionUi ui && ui.ColumnMayHaveCellActions(columnName);
+
     public bool HasCellAction(int columnIndex, EditableRow row)
     {
         if (_providers.Get(Connection.ProviderId) is not ICustomCellActionUi ui

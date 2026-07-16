@@ -50,6 +50,32 @@ public partial class SettingsViewModel : ViewModelBase
     [ObservableProperty]
     private string? _language;
 
+    /// <summary>A selectable UI language for the General-page dropdown. Names are endonyms (shown in the
+    /// language itself), so they are deliberately not localized.</summary>
+    public sealed record LanguageOption(string Code, string Name);
+
+    public IReadOnlyList<LanguageOption> Languages { get; } =
+    [
+        new("nl", "Nederlands"),
+        new("en", "English")
+    ];
+
+    /// <summary>Two-way bridge between the language dropdown (<see cref="LanguageOption"/> items) and the
+    /// stored <see cref="Language"/> code — kept in sync both ways so Restore-defaults/Load also move it.</summary>
+    public LanguageOption? SelectedLanguage
+    {
+        get => Languages.FirstOrDefault(l => l.Code == Language);
+        set
+        {
+            if (value is not null && value.Code != Language)
+            {
+                Language = value.Code;
+            }
+        }
+    }
+
+    partial void OnLanguageChanged(string? value) => OnPropertyChanged(nameof(SelectedLanguage));
+
     [ObservableProperty]
     private AppTheme _theme;
 
@@ -64,6 +90,9 @@ public partial class SettingsViewModel : ViewModelBase
 
     [ObservableProperty]
     private int _queryTimeoutSeconds;
+
+    [ObservableProperty]
+    private int _browsePageSize;
 
     [ObservableProperty]
     private bool _restoreTabsOnStartup;
@@ -252,6 +281,7 @@ public partial class SettingsViewModel : ViewModelBase
         EditorWordWrap = settings.EditorWordWrap;
         ConfirmBeforeSave = settings.ConfirmBeforeSave;
         QueryTimeoutSeconds = settings.QueryTimeoutSeconds;
+        BrowsePageSize = settings.BrowsePageSize;
         RestoreTabsOnStartup = settings.RestoreTabsOnStartup;
         ShowSystemDatabases = settings.ShowSystemDatabases;
         ConfirmOnExit = settings.ConfirmOnExit;
@@ -375,9 +405,6 @@ public partial class SettingsViewModel : ViewModelBase
     }
 
     [RelayCommand]
-    private void SetLanguage(string code) => Language = code;
-
-    [RelayCommand]
     private void SetTheme(AppTheme theme) => Theme = theme;
 
     [RelayCommand]
@@ -391,6 +418,7 @@ public partial class SettingsViewModel : ViewModelBase
         EditorWordWrap = defaults.EditorWordWrap;
         ConfirmBeforeSave = defaults.ConfirmBeforeSave;
         QueryTimeoutSeconds = defaults.QueryTimeoutSeconds;
+        BrowsePageSize = defaults.BrowsePageSize;
         RestoreTabsOnStartup = defaults.RestoreTabsOnStartup;
         ShowSystemDatabases = defaults.ShowSystemDatabases;
         ConfirmOnExit = defaults.ConfirmOnExit;
@@ -437,6 +465,7 @@ public partial class SettingsViewModel : ViewModelBase
         settings.EditorWordWrap = EditorWordWrap;
         settings.ConfirmBeforeSave = ConfirmBeforeSave;
         settings.QueryTimeoutSeconds = QueryTimeoutSeconds;
+        settings.BrowsePageSize = BrowsePageSize;
         settings.RestoreTabsOnStartup = RestoreTabsOnStartup;
         settings.ShowSystemDatabases = ShowSystemDatabases;
         settings.ConfirmOnExit = ConfirmOnExit;

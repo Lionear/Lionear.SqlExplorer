@@ -14,6 +14,10 @@ public sealed class MsSqlProvider : IDbProvider, ICustomConnectionUi, ICustomNod
 {
     // Route B, fourth capability: make the Activity Monitor's blocking_session_id cell actionable when it
     // points at a real blocker (> 0) — click opens the blocking session's details with a Kill button.
+    // Column-level pre-filter (keeps the grid's per-cell/scroll path free of provider calls on every other
+    // column): only blocking_session_id is ever actionable.
+    public bool ColumnMayHaveCellActions(string columnName) => columnName == "blocking_session_id";
+
     public bool HasCellAction(CellActionContext context) =>
         context.ColumnName == "blocking_session_id"
         && int.TryParse(Convert.ToString(context.CellValue, CultureInfo.InvariantCulture), out var id) && id > 0;
