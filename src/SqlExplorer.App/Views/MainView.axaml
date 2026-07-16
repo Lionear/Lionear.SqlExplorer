@@ -178,6 +178,7 @@
                                Fill="{Binding State, Converter={x:Static cvt:ConnectionStateBrushConverter.Instance}}" />
                     </Panel>
                     <Image Width="16" Height="16" VerticalAlignment="Center"
+                           RenderOptions.BitmapInterpolationMode="HighQuality"
                            Source="{Binding IconImage}" IsVisible="{Binding HasImageIcon}" />
                     <Path Width="16" Height="16" VerticalAlignment="Center"
                           Data="{Binding IconGeometry}"

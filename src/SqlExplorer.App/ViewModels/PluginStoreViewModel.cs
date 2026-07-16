@@ -381,7 +381,9 @@ public sealed partial class PluginStoreViewModel : ViewModelBase
         {
             var bytes = await _http.GetByteArrayAsync(url);
             using var stream = new MemoryStream(bytes);
-            set(new Avalonia.Media.Imaging.Bitmap(stream));
+            // Same downsample-at-load as embedded icons — remote store icons render just as small.
+            set(Avalonia.Media.Imaging.Bitmap.DecodeToWidth(
+                stream, PluginIconRenderer.IconDecodeWidth, Avalonia.Media.Imaging.BitmapInterpolationMode.HighQuality));
         }
         catch (Exception)
         {

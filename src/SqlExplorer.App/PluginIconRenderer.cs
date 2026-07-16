@@ -14,6 +14,9 @@ namespace SqlExplorer.App;
 /// </summary>
 public static class PluginIconRenderer
 {
+    /// <summary>Decode width for plugin icons — icons render at 16-20px, so this covers ~3x HiDPI with headroom.</summary>
+    public const int IconDecodeWidth = 64;
+
     public static IImage? Render(ProviderIcon? icon)
     {
         if (icon?.ImageData is not { Length: > 0 } bytes || !CanRender(icon.ImageMediaType))
@@ -23,7 +26,10 @@ public static class PluginIconRenderer
 
         try
         {
-            return new Bitmap(new MemoryStream(bytes));
+            // Decode straight to a small size (icons render at 16-20px, up to ~2x on HiDPI). A brand logo
+            // ships at 512px; decoding it full-size and letting the Image control downscale it looks blurry
+            // and wastes ~64x the memory. DecodeToWidth downsamples once, high-quality, at load.
+            return Bitmap.DecodeToWidth(new MemoryStream(bytes), IconDecodeWidth, BitmapInterpolationMode.HighQuality);
         }
         catch
         {
