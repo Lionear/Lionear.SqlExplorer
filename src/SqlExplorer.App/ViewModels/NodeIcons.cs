@@ -72,6 +72,30 @@ public static class NodeIcons
     public static readonly Geometry Plus =
         Parse("M8,3.5 V12.5 M3.5,8 H12.5");
 
+    // --- Document tab-strip glyphs (SE-123). Same stroked 16x16 style as the node icons. ---
+
+    // Document with folded corner + text lines → query tab.
+    public static readonly Geometry TabQuery =
+        Parse("M4,2.5 H9.5 L13,6 V13.5 H4 Z M9.5,2.5 V6 H13 M6,9 H10 M6,11 H8");
+
+    // Table (rows + one column split) → browse tab.
+    public static readonly Geometry TabBrowse =
+        Parse("M2,3 H14 V13 H2 Z M2,6.5 H14 M6,6.5 V13");
+
+    // Clock face + hour+minute hand → monitor tab.
+    public static readonly Geometry TabMonitor =
+        Parse("M2,8 A6,6 0 1 0 14,8 A6,6 0 1 0 2,8 M8,4.5 V8 L10.5,9.5");
+
+    // --- Tool-window glyphs (SE-123). Shown on the stripe / status-bar toggles. ---
+
+    // Panel with a header bar + log lines → the Output tool-window.
+    public static readonly Geometry ToolOutput =
+        Parse("M2,3 H14 V13 H2 Z M2,6.5 H14 M4.5,9 H8.5 M4.5,11 H10.5");
+
+    // Clock → the History tool-window (same shape as the monitor tab; both are "over time").
+    public static readonly Geometry ToolHistory =
+        Parse("M2,8 A6,6 0 1 0 14,8 A6,6 0 1 0 2,8 M8,4.5 V8 L10.5,9.5");
+
     // Folder with a plus → new folder.
     public static readonly Geometry FolderPlus =
         Parse("M2.5,5 H6 L7.2,6.4 H13.5 V12.5 H2.5 Z M8,8.4 V11 M6.7,9.7 H9.3");

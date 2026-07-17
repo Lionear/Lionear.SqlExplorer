@@ -1,6 +1,7 @@
 using System.Collections.ObjectModel;
 using SqlExplorer.Core.Connections;
 using SqlExplorer.Core.Localization;
+using SqlExplorer.Core.Providers;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 
@@ -12,6 +13,15 @@ public enum ManagerPane
     Empty,
     Connection,
     Folder
+}
+
+/// <summary>Where a drag lands relative to the hovered node: inside a folder (reparent, default) or
+/// as a sibling immediately before/after it (reorder within the same parent).</summary>
+public enum DropPosition
+{
+    Inside,
+    Before,
+    After
 }
 
 /// <summary>
@@ -26,6 +36,7 @@ public partial class ConnectionManagerViewModel : ViewModelBase
 {
     private readonly ConnectionService _connections;
     private readonly Func<ConnectionDialogViewModel> _detailFactory;
+    private readonly IDbProviderRegistry _providers;
 
     // Folder paths that have no connection under them yet (New Folder / emptied by a move). Without this
     // they'd vanish on the next rebuild, since a folder is otherwise just a prefix on a connection.
@@ -33,10 +44,19 @@ public partial class ConnectionManagerViewModel : ViewModelBase
 
     private ConnectionManagerNode? _selectedFolder;
 
-    public ConnectionManagerViewModel(ConnectionService connections, Func<ConnectionDialogViewModel> detailFactory, ILocalizer localizer)
+    // Cached at each RebuildTree so folder rows can be inserted alphabetically among peers that share the
+    // fallback rank, but before those with a manually assigned lower index. Full-path → index; smaller wins.
+    private IReadOnlyDictionary<string, int> _folderOrder = new Dictionary<string, int>();
+
+    public ConnectionManagerViewModel(
+        ConnectionService connections,
+        Func<ConnectionDialogViewModel> detailFactory,
+        ILocalizer localizer,
+        IDbProviderRegistry providers)
     {
         _connections = connections;
         _detailFactory = detailFactory;
+        _providers = providers;
         Loc = localizer;
         RebuildTree();
     }
@@ -168,6 +188,7 @@ public partial class ConnectionManagerViewModel : ViewModelBase
         _emptyFolders.Remove(saved.Folder ?? string.Empty);
         RebuildTree(saved.Id);
         OnPropertyChanged(nameof(Summary));
+        ConnectionsChanged?.Invoke();
     }
 
     [RelayCommand]
@@ -192,6 +213,7 @@ public partial class ConnectionManagerViewModel : ViewModelBase
         var copy = _connections.Duplicate(connection.Id, $"{connection.Name} {Loc["CopySuffix"]}");
         RebuildTree(copy.Id);
         OnPropertyChanged(nameof(Summary));
+        ConnectionsChanged?.Invoke();
         await Task.CompletedTask;
     }
 
@@ -215,6 +237,7 @@ public partial class ConnectionManagerViewModel : ViewModelBase
         Pane = ManagerPane.Empty;
         RebuildTree();
         OnPropertyChanged(nameof(Summary));
+        ConnectionsChanged?.Invoke();
     }
 
     // --- Folder actions ---
@@ -247,6 +270,7 @@ public partial class ConnectionManagerViewModel : ViewModelBase
         var newPath = parent is null ? newName : $"{parent}/{newName}";
         MoveFolderPath(oldPath, newPath);
         RebuildTree(selectFolderPath: newPath);
+        ConnectionsChanged?.Invoke();
     }
 
     [RelayCommand]
@@ -278,61 +302,298 @@ public partial class ConnectionManagerViewModel : ViewModelBase
         Pane = ManagerPane.Empty;
         RebuildTree();
         OnPropertyChanged(nameof(Summary));
+        if (affected.Count > 0)
+        {
+            ConnectionsChanged?.Invoke();
+        }
     }
 
     // --- Drag & drop (invoked by the window) ---
 
-    /// <summary>True when <paramref name="dragged"/> may be dropped onto <paramref name="targetFolder"/>
-    /// (or the root when null): never onto itself, its own descendant, or its current parent (a no-op).</summary>
-    public bool CanDrop(ConnectionManagerNode dragged, ConnectionManagerNode? targetFolder)
+    /// <summary>True when <paramref name="dragged"/> may be dropped at <paramref name="position"/> relative
+    /// to <paramref name="target"/> (a root drop = target null + Inside): never onto itself, its own
+    /// descendant, or a spot that would be a no-op.</summary>
+    public bool CanDrop(ConnectionManagerNode dragged, ConnectionManagerNode? target, DropPosition position)
     {
-        if (targetFolder is not null && !targetFolder.IsFolder)
+        var parent = ResolveParent(target, position);
+        if (parent is not null && !parent.IsFolder)
+        {
+            return false; // parent must be a folder (or null = root)
+        }
+
+        var parentPath = parent?.FolderPath;
+
+        // Reordering next to the dragged node itself in its current parent = no-op.
+        if (position != DropPosition.Inside && ReferenceEquals(dragged, target))
         {
             return false;
         }
 
-        var targetPath = targetFolder?.FolderPath;
         if (dragged.IsConnection)
         {
-            return !string.Equals(dragged.Connection!.Folder, targetPath, StringComparison.Ordinal);
+            var current = dragged.Connection!.Folder;
+            if (position == DropPosition.Inside)
+            {
+                // Inside is only a valid drop for connections when it actually reparents them.
+                return !string.Equals(current, parentPath, StringComparison.Ordinal);
+            }
+
+            // Before/After on a sibling: parent match is fine (pure reorder) or reparent (change folder).
+            return true;
         }
 
-        // A folder can't move into itself or one of its own descendants, nor stay where it already is.
-        if (dragged.FolderPath is not { } sourcePath || string.Equals(ParentPath(sourcePath), targetPath, StringComparison.Ordinal))
+        if (dragged.FolderPath is not { } sourcePath)
         {
             return false;
         }
 
-        return targetPath is null || (!string.Equals(targetPath, sourcePath, StringComparison.OrdinalIgnoreCase)
-            && !IsUnderOrEqual(targetPath, sourcePath));
+        // Folder can't drop onto itself or one of its descendants (would create a cycle).
+        if (parentPath is not null
+            && (string.Equals(parentPath, sourcePath, StringComparison.OrdinalIgnoreCase)
+                || IsUnderOrEqual(parentPath, sourcePath)))
+        {
+            return false;
+        }
+
+        if (position == DropPosition.Inside)
+        {
+            // Inside its current parent = no-op.
+            return !string.Equals(ParentPath(sourcePath), parentPath, StringComparison.Ordinal);
+        }
+
+        return true;
     }
 
     /// <summary>The folder node for a given path (null path/empty = the root, returns null).</summary>
     public ConnectionManagerNode? FindFolderNode(string? path) =>
         string.IsNullOrEmpty(path) ? null : FindFolder(Nodes, path);
 
-    /// <summary>Reparent a dragged connection/folder under <paramref name="targetFolder"/> (root when null).</summary>
-    public void Drop(ConnectionManagerNode dragged, ConnectionManagerNode? targetFolder)
+    /// <summary>Reparent and/or reorder a dragged node relative to <paramref name="target"/>.</summary>
+    public void Drop(ConnectionManagerNode dragged, ConnectionManagerNode? target, DropPosition position)
     {
-        if (!CanDrop(dragged, targetFolder))
+        if (!CanDrop(dragged, target, position))
         {
             return;
         }
 
-        var targetPath = targetFolder?.FolderPath;
-        if (dragged.IsConnection)
+        var parent = ResolveParent(target, position);
+        var parentPath = parent?.FolderPath;
+
+        ApplyDrop(dragged, target, position, parentPath);
+        OnPropertyChanged(nameof(Summary));
+        ConnectionsChanged?.Invoke();
+    }
+
+    /// <summary>Raised when the tree contents change (Save, drop-reorder, delete, folder rename). The
+    /// sidebar hooks this to <see cref="MainViewModel.SyncConnectionsFromStore"/> so its schema tree
+    /// updates without waiting for the dialog to close — and without collapsing open subtrees.</summary>
+    public event Action? ConnectionsChanged;
+
+    // The parent scope for a drop: Inside → the target itself (or root); Before/After → the target's parent.
+    private ConnectionManagerNode? ResolveParent(ConnectionManagerNode? target, DropPosition position)
+    {
+        if (target is null)
         {
-            _connections.SetFolder(dragged.Connection!, targetPath);
-            RebuildTree(dragged.Connection!.Id);
-        }
-        else if (dragged.FolderPath is { } sourcePath)
-        {
-            var newPath = targetPath is null ? dragged.Name : $"{targetPath}/{dragged.Name}";
-            MoveFolderPath(sourcePath, newPath);
-            RebuildTree(selectFolderPath: newPath);
+            return null;
         }
 
-        OnPropertyChanged(nameof(Summary));
+        if (position == DropPosition.Inside)
+        {
+            return target.IsFolder ? target : FindFolderNode(target.Connection!.Folder);
+        }
+
+        // Sibling drop: parent of the target row.
+        return target.IsFolder
+            ? FindFolderNode(ParentPath(target.FolderPath!))
+            : FindFolderNode(target.Connection!.Folder);
+    }
+
+    // A single row's identity for the mixed-scope reorder: either a saved connection or a folder path.
+    // Kept as a discriminated pair so scope-siblings can be interleaved and restamped in one pass.
+    private readonly record struct ScopeItem(SavedConnection? Connection, string? FolderPath)
+    {
+        public bool IsConnection => Connection is not null;
+    }
+
+    // Mixed-scope reorder: folders and connections share the numeric order in `parentPath`, so a drag can
+    // land a connection between two folders (or the other way around). Restamps the affected scope 1..N
+    // for both SortOrder (connections) and folderOrder[path], then writes both back in one file operation.
+    private void ApplyDrop(ConnectionManagerNode dragged, ConnectionManagerNode? target, DropPosition position, string? parentPath)
+    {
+        var (moved, oldFolderPath, newFolderPath) = PrepareMovedItem(dragged, parentPath);
+
+        // If a folder is being renamed/reparented, rewrite its descendants' Folder before we snapshot the
+        // scope siblings — otherwise nested-connection paths would be stale on write.
+        if (oldFolderPath is not null && newFolderPath is not null
+            && !string.Equals(oldFolderPath, newFolderPath, StringComparison.Ordinal))
+        {
+            MoveFolderPath(oldFolderPath, newFolderPath);
+        }
+
+        // Scope siblings straight out of the current tree, in their current visual order, minus the
+        // dragged row (which we'll insert fresh at the requested spot).
+        var siblings = ScopeSiblings(parentPath, exclude: dragged, renamedFolder: (oldFolderPath, newFolderPath));
+
+        var insertAt = ResolveInsertIndex(siblings, target, position, oldFolderPath, newFolderPath);
+        siblings.Insert(insertAt, moved);
+
+        RestampAndPersist(siblings, parentPath, dragged, moved);
+
+        if (moved.IsConnection)
+        {
+            RebuildTree(moved.Connection!.Id);
+        }
+        else
+        {
+            RebuildTree(selectFolderPath: moved.FolderPath);
+        }
+    }
+
+    // Build the "moved" scope-item and the old/new folder paths for a folder drag (both null for a
+    // connection drag). The moved connection carries its new Folder inline so the restamp sees the right
+    // scope; the moved folder carries its new full path.
+    private static (ScopeItem Moved, string? OldFolderPath, string? NewFolderPath) PrepareMovedItem(
+        ConnectionManagerNode dragged, string? parentPath)
+    {
+        if (dragged.IsConnection)
+        {
+            var updated = dragged.Connection! with { Folder = parentPath };
+            return (new ScopeItem(updated, null), null, null);
+        }
+
+        var sourcePath = dragged.FolderPath!;
+        var newPath = parentPath is null ? dragged.Name : $"{parentPath}/{dragged.Name}";
+        return (new ScopeItem(null, newPath), sourcePath, newPath);
+    }
+
+    // The scope-siblings for a given parent, in current visual order. When a folder drag renamed itself,
+    // the "old" path is filtered out (its new path is inserted separately by the caller).
+    private List<ScopeItem> ScopeSiblings(string? parentPath, ConnectionManagerNode exclude, (string? Old, string? New) renamedFolder)
+    {
+        var parentChildren = parentPath is null ? Nodes : (FindFolderNode(parentPath)?.Children ?? Nodes);
+        var items = new List<ScopeItem>();
+        foreach (var node in parentChildren)
+        {
+            if (ReferenceEquals(node, exclude))
+            {
+                continue;
+            }
+
+            if (node.IsFolder)
+            {
+                var path = node.FolderPath!;
+                if (renamedFolder.Old is not null && string.Equals(path, renamedFolder.Old, StringComparison.Ordinal))
+                {
+                    continue;
+                }
+
+                items.Add(new ScopeItem(null, path));
+            }
+            else if (node.Connection is { } c)
+            {
+                items.Add(new ScopeItem(c, null));
+            }
+        }
+
+        return items;
+    }
+
+    private static int ResolveInsertIndex(
+        List<ScopeItem> siblings, ConnectionManagerNode? target, DropPosition position,
+        string? oldFolderPath, string? newFolderPath)
+    {
+        if (target is null || position == DropPosition.Inside)
+        {
+            return siblings.Count;
+        }
+
+        var targetIndex = IndexOfTarget(siblings, target, oldFolderPath, newFolderPath);
+        if (targetIndex < 0)
+        {
+            return siblings.Count;
+        }
+
+        return position == DropPosition.Before ? targetIndex : targetIndex + 1;
+    }
+
+    private static int IndexOfTarget(List<ScopeItem> siblings, ConnectionManagerNode target, string? oldFolderPath, string? newFolderPath)
+    {
+        for (var i = 0; i < siblings.Count; i++)
+        {
+            var item = siblings[i];
+            if (target.IsFolder && item.FolderPath is { } fp)
+            {
+                var effective = oldFolderPath is not null && string.Equals(target.FolderPath, oldFolderPath, StringComparison.Ordinal)
+                    ? newFolderPath
+                    : target.FolderPath;
+                if (string.Equals(fp, effective, StringComparison.Ordinal))
+                {
+                    return i;
+                }
+            }
+            else if (target.IsConnection && item.Connection is { } c
+                && string.Equals(c.Id, target.Connection!.Id, StringComparison.Ordinal))
+            {
+                return i;
+            }
+        }
+
+        return -1;
+    }
+
+    // Stamp 1..N onto the mixed scope, merge the untouched connections in, and write both maps in a
+    // single store call so the file stays consistent even under a crash mid-write.
+    private void RestampAndPersist(List<ScopeItem> siblings, string? parentPath, ConnectionManagerNode dragged, ScopeItem moved)
+    {
+        var folderOrder = new Dictionary<string, int>(_connections.ListFolderOrder(), StringComparer.Ordinal);
+
+        // Wipe existing indices for every folder currently in this scope — they'll get restamped below,
+        // or drop out of the map entirely (falling back to alphabetical) if they left the scope.
+        foreach (var path in _folderOrder.Keys
+            .Where(p => string.Equals(ParentPath(p), parentPath, StringComparison.Ordinal))
+            .ToList())
+        {
+            folderOrder.Remove(path);
+        }
+
+        // Restamp connections in the scope; other connections keep their SortOrder as-is.
+        var draggedId = dragged.IsConnection ? dragged.Connection!.Id : null;
+        var scopeConnectionIds = siblings
+            .Where(s => s.IsConnection)
+            .Select(s => s.Connection!.Id)
+            .ToHashSet();
+
+        var final = new List<SavedConnection>();
+        foreach (var connection in _connections.List())
+        {
+            if (draggedId is not null && string.Equals(connection.Id, draggedId, StringComparison.Ordinal))
+            {
+                continue; // will be re-added from the restamped scope
+            }
+
+            if (scopeConnectionIds.Contains(connection.Id))
+            {
+                continue; // will be re-added from the restamped scope
+            }
+
+            final.Add(connection);
+        }
+
+        for (var i = 0; i < siblings.Count; i++)
+        {
+            var item = siblings[i];
+            var index = i + 1;
+            if (item.Connection is { } c)
+            {
+                final.Add(c with { SortOrder = index });
+            }
+            else if (item.FolderPath is { } fp)
+            {
+                folderOrder[fp] = index;
+            }
+        }
+
+        _connections.ApplyReorder(final, folderOrder);
     }
 
     // --- Tree building ---
@@ -340,6 +601,7 @@ public partial class ConnectionManagerViewModel : ViewModelBase
     private void RebuildTree(string? selectConnectionId = null, string? selectFolderPath = null)
     {
         Nodes.Clear();
+        _folderOrder = _connections.ListFolderOrder();
 
         var filter = Filter.Trim();
         var connections = _connections.List()
@@ -347,11 +609,13 @@ public partial class ConnectionManagerViewModel : ViewModelBase
                 || c.Name.Contains(filter, StringComparison.OrdinalIgnoreCase)
                 || (c.Folder?.Contains(filter, StringComparison.OrdinalIgnoreCase) ?? false))
             .OrderBy(c => c.Folder ?? string.Empty, StringComparer.OrdinalIgnoreCase)
+            .ThenBy(c => c.SortOrder)
             .ThenBy(c => c.Name, StringComparer.OrdinalIgnoreCase);
 
         foreach (var connection in connections)
         {
-            ResolveFolderChildren(connection.Folder).Add(ConnectionManagerNode.ForConnection(connection));
+            ResolveFolderChildren(connection.Folder).Add(
+                ConnectionManagerNode.ForConnection(connection, ResolveIcon(connection.ProviderId)));
         }
 
         // Keep still-empty folders visible (hidden while filtering, since they can't match a query).
@@ -385,6 +649,11 @@ public partial class ConnectionManagerViewModel : ViewModelBase
         }
     }
 
+    // TryGet keeps a saved connection to an uninstalled provider from throwing here (Store-only providers,
+    // see Codebase.md gotcha #7 / startup-crash fix); missing provider → null image → generic vector fallback.
+    private Avalonia.Media.IImage? ResolveIcon(string providerId) =>
+        _providers.TryGet(providerId, out var provider) ? PluginIconRenderer.Render(provider.Icon) : null;
+
     // Walk the /-path, creating folder nodes as needed; return the collection the connection lives in.
     private ObservableCollection<ConnectionManagerNode> ResolveFolderChildren(string? folderPath)
     {
@@ -414,8 +683,10 @@ public partial class ConnectionManagerViewModel : ViewModelBase
         }
     }
 
-    // Folders sort before connections, each alphabetically — keeps the tree stable across rebuilds.
-    private static ConnectionManagerNode AddSorted(ObservableCollection<ConnectionManagerNode> container, ConnectionManagerNode node)
+    // Folders sort before connections; within each group the manual sort index (folder-order map for
+    // folders, SortOrder for connections) wins, with the display name as a stable tiebreaker for the
+    // unsorted-legacy case (both indices 0 → alphabetical).
+    private ConnectionManagerNode AddSorted(ObservableCollection<ConnectionManagerNode> container, ConnectionManagerNode node)
     {
         var index = 0;
         while (index < container.Count && Ranks(container[index], node) <= 0)
@@ -427,8 +698,18 @@ public partial class ConnectionManagerViewModel : ViewModelBase
         return node;
     }
 
-    private static int Ranks(ConnectionManagerNode existing, ConnectionManagerNode incoming)
+    private int Ranks(ConnectionManagerNode existing, ConnectionManagerNode incoming)
     {
+        // Folders and connections share the same numeric slot per scope, so a manual drag can place a
+        // connection between two folders (or vice versa). Fallback for the unsorted-legacy case (both
+        // indices int.MaxValue / 0 → alphabetical), with folders winning the tie so a fresh install
+        // still shows folders above connections until something is dragged.
+        var manualDelta = ManualIndex(existing) - ManualIndex(incoming);
+        if (manualDelta != 0)
+        {
+            return manualDelta;
+        }
+
         if (existing.IsFolder != incoming.IsFolder)
         {
             return existing.IsFolder ? -1 : 1;
@@ -437,9 +718,28 @@ public partial class ConnectionManagerViewModel : ViewModelBase
         return string.Compare(existing.Name, incoming.Name, StringComparison.OrdinalIgnoreCase);
     }
 
+    // Manual sort indices are 1-based (see ApplyDrop). 0 / missing means "unsorted" and pushes the node
+    // into the alphabetical tail — so a scope with no drags stays purely alphabetical, and a partial drag
+    // still puts the reordered items at the top of their scope in the exact requested order.
+    private int ManualIndex(ConnectionManagerNode node)
+    {
+        if (node.IsFolder)
+        {
+            return node.FolderPath is { } path
+                && _folderOrder.TryGetValue(path, out var idx) && idx > 0
+                    ? idx
+                    : int.MaxValue;
+        }
+
+        var sortOrder = node.Connection?.SortOrder ?? 0;
+        return sortOrder > 0 ? sortOrder : int.MaxValue;
+    }
+
     // --- Folder path helpers ---
 
-    // Rewrite every connection (and empty-folder entry) under oldPath so it hangs off newPath instead.
+    // Rewrite every connection (and empty-folder entry) under oldPath so it hangs off newPath instead —
+    // and re-key the folder-order map so a rename/reparent keeps its manual sort position (otherwise the
+    // map would still point at the old path and the folder would fall back to alphabetical).
     private void MoveFolderPath(string oldPath, string newPath)
     {
         foreach (var connection in _connections.List().Where(c => IsUnderOrEqual(c.Folder, oldPath)).ToList())
@@ -452,6 +752,26 @@ public partial class ConnectionManagerViewModel : ViewModelBase
         {
             _emptyFolders.Remove(path);
             _emptyFolders.Add(newPath + path[oldPath.Length..]);
+        }
+
+        var existingOrder = _connections.ListFolderOrder();
+        var remapped = new Dictionary<string, int>(existingOrder, StringComparer.Ordinal);
+        var changed = false;
+        foreach (var (path, idx) in existingOrder)
+        {
+            if (!IsUnderOrEqual(path, oldPath))
+            {
+                continue;
+            }
+
+            remapped.Remove(path);
+            remapped[newPath + path[oldPath.Length..]] = idx;
+            changed = true;
+        }
+
+        if (changed)
+        {
+            _connections.ApplyReorder(_connections.List(), remapped);
         }
     }
 

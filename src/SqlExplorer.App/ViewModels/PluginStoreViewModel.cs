@@ -27,8 +27,8 @@ public sealed partial class PluginStoreViewModel : ViewModelBase
     private readonly IPluginInstaller _installer;
     private readonly PluginCatalogService _installed;
     private readonly PluginUpdateService _updates;
-    private readonly IStoreSourcesStore _sources;
     private readonly HttpClient _http;
+    private readonly IPluginPinStore _pins;
     private readonly IDbProviderRegistry _providers;
     private readonly IToolRegistry _tools;
     private readonly Progress<InstallProgress> _progress;
@@ -38,8 +38,29 @@ public sealed partial class PluginStoreViewModel : ViewModelBase
     private TaskCompletionSource<bool>? _consent;
     private InstallPhase? _lastPhase;
 
+    /// <summary>Top-level tab: Browse / Installed / Sources. Categories live inside Browse as a chip-row
+    /// filter (see <see cref="SelectedCategory"/>) — VS Code / JetBrains / DBeaver pattern, so the tab
+    /// strip stays compact and adding a new category doesn't add a top-level tab.</summary>
     [ObservableProperty]
-    private string _selectedTab = "Browse";
+    [NotifyPropertyChangedFor(nameof(HasBrowseItems))]
+    [NotifyPropertyChangedFor(nameof(IsBrowseTabActive))]
+    private string _selectedTab = TabBrowse;
+
+    /// <summary>Active category chip inside Browse. Backed by <see cref="PluginManifest.Types"/> so the
+    /// chip set stays canonical — a new category = new <c>type</c> = deliberate SDK-bump. Default
+    /// <see cref="CategoryAll"/> so nothing is hidden by default.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasBrowseItems))]
+    private string _selectedCategory = CategoryAll;
+
+    public const string TabBrowse = "Browse";
+    public const string TabInstalled = "Installed";
+
+    public const string CategoryAll = "All";
+    public const string CategoryProviders = "Providers";
+    public const string CategoryTools = "Tools";
+    public const string CategoryMcpTools = "McpTools";
+    public const string CategoryOther = "Other";
 
     [ObservableProperty]
     private bool _isLoading;
@@ -77,16 +98,20 @@ public sealed partial class PluginStoreViewModel : ViewModelBase
     [ObservableProperty]
     private string? _consentChecksum;
 
-    [ObservableProperty]
-    private string? _newSourceUrl;
+    /// <summary>Deep-link from the Store's "Manage sources…" button — opens Settings on the
+    /// PluginSources category so all app-wide preferences live in one place (SE-122).</summary>
+    public Action? ManageSourcesRequested { get; set; }
+
+    [RelayCommand]
+    private void ManageSources() => ManageSourcesRequested?.Invoke();
 
     public PluginStoreViewModel(
         IStoreCatalog catalog,
         IPluginInstaller installer,
         PluginCatalogService installed,
         PluginUpdateService updates,
-        IStoreSourcesStore sources,
         HttpClient http,
+        IPluginPinStore pins,
         IDbProviderRegistry providers,
         IToolRegistry tools,
         ILocalizer localizer)
@@ -95,8 +120,8 @@ public sealed partial class PluginStoreViewModel : ViewModelBase
         _installer = installer;
         _installed = installed;
         _updates = updates;
-        _sources = sources;
         _http = http;
+        _pins = pins;
         _providers = providers;
         _tools = tools;
         Loc = localizer;
@@ -108,20 +133,26 @@ public sealed partial class PluginStoreViewModel : ViewModelBase
     public ObservableCollection<StoreListItem> BrowseItems { get; } = [];
     public ObservableCollection<InstalledListItem> BundledPlugins { get; } = [];
     public ObservableCollection<InstalledListItem> UserPlugins { get; } = [];
-    public ObservableCollection<SourceRow> DiscoverySources { get; } = [];
-    public ObservableCollection<SourceRow> ManualSources { get; } = [];
     public ObservableCollection<string> ConsentCapabilities { get; } = [];
 
     /// <summary>One line per install phase entered (Downloading/Verifying/…) — the mini install log.</summary>
     public ObservableCollection<string> ProgressLog { get; } = [];
 
     public bool HasBrowseItems => BrowseItems.Count > 0;
+
+    public bool IsBrowseTabActive => SelectedTab == TabBrowse;
+
+    // Chip counts. Recomputed on every rebuild; XAML binds to these to render "Providers (8)" etc.
+    public int AllCount => _allBrowse.Count(i => !i.IsBundle);
+    public int ProvidersCount => _allBrowse.Count(i => TabForItem(i) == CategoryProviders);
+    public int ToolsCount => _allBrowse.Count(i => TabForItem(i) == CategoryTools);
+    public int McpToolsCount => _allBrowse.Count(i => TabForItem(i) == CategoryMcpTools);
+    public int OtherCount => _allBrowse.Count(i => !i.IsBundle && TabForItem(i) == CategoryOther);
     public bool HasUserPlugins => UserPlugins.Count > 0;
     public int UpdateCount => UserPlugins.Count(p => p.UpdateAvailable);
     public bool HasUpdates => UpdateCount > 0;
     public string UpdateAllLabel => Loc.Get("StoreUpdateAll", UpdateCount);
     public int InstalledCount => BundledPlugins.Count + UserPlugins.Count;
-    public int SourcesCount => DiscoverySources.Count + ManualSources.Count;
     public string InstalledCountLabel => Loc.Get("StoreInstalledCount", InstalledCount);
 
     /// <summary>Set by the view: pick a local .zip to install; returns null if cancelled.</summary>
@@ -153,7 +184,6 @@ public sealed partial class PluginStoreViewModel : ViewModelBase
             _lastCatalog = await _catalog.FetchAsync(CancellationToken.None);
             BuildInstalled(_lastCatalog);
             BuildBrowse(_lastCatalog);
-            BuildSources(_lastCatalog);
         }
         catch (Exception ex)
         {
@@ -173,6 +203,7 @@ public sealed partial class PluginStoreViewModel : ViewModelBase
         var updates = _updates.DetectUpdates(_installed.Installed, catalog)
             .ToDictionary(u => u.Id, u => u, StringComparer.Ordinal);
         var entriesById = catalog.Entries.ToDictionary(e => e.Entry.Id, e => e.Entry, StringComparer.Ordinal);
+        var pinnedIds = _pins.GetAll();
 
         foreach (var plugin in _installed.Installed.OrderBy(p => p.Name ?? p.Id, StringComparer.OrdinalIgnoreCase))
         {
@@ -204,6 +235,7 @@ public sealed partial class PluginStoreViewModel : ViewModelBase
             // generic glyph. Set synchronously here; the remote URL stays a fallback for the rest.
             row.Icon = ResolveLocalIcon(plugin);
             row.RollbackLabel = hasRollback ? Loc.Get("StoreRollbackTo", prevVersion!) : Loc["StoreRollback"];
+            row.IsPinned = pinnedIds.ContainsKey(plugin.Id);
 
             (plugin.Origin == PluginOrigin.Bundled ? BundledPlugins : UserPlugins).Add(row);
         }
@@ -286,6 +318,13 @@ public sealed partial class PluginStoreViewModel : ViewModelBase
 
         ApplyBrowseFilter();
 
+        OnPropertyChanged(nameof(AllCount));
+        OnPropertyChanged(nameof(ProvidersCount));
+        OnPropertyChanged(nameof(ToolsCount));
+        OnPropertyChanged(nameof(McpToolsCount));
+        OnPropertyChanged(nameof(OtherCount));
+        OnPropertyChanged(nameof(HasOtherItems));
+
         foreach (var item in _allBrowse)
         {
             _ = LoadIconAsync(item.IconUrl, image => item.Icon = image);
@@ -293,6 +332,15 @@ public sealed partial class PluginStoreViewModel : ViewModelBase
     }
 
     partial void OnSearchTextChanged(string? value) => ApplyBrowseFilter();
+
+    partial void OnSelectedCategoryChanged(string value) => ApplyBrowseFilter();
+
+    /// <summary>True when any browsable item has an unknown <c>type</c> — the "Other" chip surfaces so a
+    /// mistyped or forward-compat plugin doesn't silently disappear from the Store.</summary>
+    public bool HasOtherItems => OtherCount > 0;
+
+    [RelayCommand]
+    private void SelectCategory(string category) => SelectedCategory = category;
 
     // Keep the selected-card highlight in sync (ItemsControl has no built-in selection).
     partial void OnSelectedBrowseItemChanged(StoreListItem? oldValue, StoreListItem? newValue)
@@ -308,11 +356,37 @@ public sealed partial class PluginStoreViewModel : ViewModelBase
         }
     }
 
+    // Bundles are cross-type (they can bundle a provider + a tool), so they show on every category
+    // chip except "Other". Single-plugin cards are filtered by their declared type; an unknown/absent
+    // type lands in "Other" so a mistyped or forward-compat plugin stays visible.
+    private bool BelongsToActiveCategory(StoreListItem item)
+    {
+        if (SelectedCategory == CategoryAll)
+        {
+            return true;
+        }
+
+        if (item.IsBundle)
+        {
+            return SelectedCategory != CategoryOther;
+        }
+
+        return TabForItem(item) == SelectedCategory;
+    }
+
+    private static string TabForItem(StoreListItem item) => item.Entry?.Type switch
+    {
+        PluginManifest.Types.Provider => CategoryProviders,
+        PluginManifest.Types.Tool => CategoryTools,
+        PluginManifest.Types.Mcp => CategoryMcpTools,
+        _ => CategoryOther
+    };
+
     private void ApplyBrowseFilter()
     {
         BrowseItems.Clear();
         var query = SearchText?.Trim();
-        IEnumerable<StoreListItem> items = _allBrowse;
+        IEnumerable<StoreListItem> items = _allBrowse.Where(BelongsToActiveCategory);
         if (!string.IsNullOrEmpty(query))
         {
             items = items.Where(i =>
@@ -324,6 +398,8 @@ public sealed partial class PluginStoreViewModel : ViewModelBase
         {
             BrowseItems.Add(item);
         }
+
+        OnPropertyChanged(nameof(HasOtherItems));
 
         // Default to the first card, and keep it selected if the current one was filtered out.
         if (SelectedBrowseItem is null || !BrowseItems.Contains(SelectedBrowseItem))
@@ -339,33 +415,6 @@ public sealed partial class PluginStoreViewModel : ViewModelBase
         }
 
         OnPropertyChanged(nameof(HasBrowseItems));
-    }
-
-    private void BuildSources(StoreCatalog catalog)
-    {
-        DiscoverySources.Clear();
-        ManualSources.Clear();
-
-        var statusByUrl = catalog.Sources.ToDictionary(s => s.Url, s => s, StringComparer.OrdinalIgnoreCase);
-
-        foreach (var source in catalog.Sources.Where(s => s.IsDiscovery))
-        {
-            DiscoverySources.Add(new SourceRow(source.Url, source.Name, isDiscovery: true, source.Ok, source.Error, source.IconUrl));
-        }
-
-        foreach (var url in _sources.GetManualSources())
-        {
-            var ok = statusByUrl.TryGetValue(url, out var status) && status.Ok;
-            var error = status?.Error;
-            ManualSources.Add(new SourceRow(url, name: null, isDiscovery: false, ok, error, iconUrl: null));
-        }
-
-        OnPropertyChanged(nameof(SourcesCount));
-
-        foreach (var row in DiscoverySources)
-        {
-            _ = LoadIconAsync(row.IconUrl, image => row.Icon = image);
-        }
     }
 
     // Icons load lazily and best-effort from a remote URL — any failure (offline, 404, not an image)
@@ -415,6 +464,22 @@ public sealed partial class PluginStoreViewModel : ViewModelBase
         if (outcome.Success)
         {
             item.MarkStaged(version.Version);
+            // Pin whenever the user picks a version that isn't the highest compatible one — that's an
+            // explicit "hold this version" signal. Picking that version clears any prior pin so
+            // Update All resumes auto-updates without a separate button.
+            //
+            // Compare against the highest *compatible* version, not item.Versions[0] (the newest published
+            // one, compatible or not) — those differ whenever the newest release needs a host API this build
+            // predates, and then installing the pre-selected default silently pinned it (SE-130).
+            var top = entry.HighestCompatibleVersion(HostApiVersions.CompatFor(entry.Type))?.Version;
+            if (top is not null && version.Version != top)
+            {
+                _pins.Pin(item.Id, version.Version);
+            }
+            else
+            {
+                _pins.Unpin(item.Id);
+            }
         }
     }
 
@@ -583,29 +648,32 @@ public sealed partial class PluginStoreViewModel : ViewModelBase
 
         _installed.RequestUninstall(item.Id);
         item.Pending = PluginPendingAction.Remove;
+        // Clearing the pin on uninstall keeps state tidy — a reinstall shouldn't inherit an old pin
+        // that the user probably forgot about.
+        _pins.Unpin(item.Id);
+        item.IsPinned = false;
         RestartRequired = true;
     }
 
-    // --- Sources ------------------------------------------------------------------------------------
-
+    /// <summary>Clear the version-pin on an installed plugin so "Update all" resumes for it. Does not
+    /// change what's currently on disk — just re-enables auto-updates on the next detect pass (SE-120).</summary>
     [RelayCommand]
-    private async Task AddSourceAsync()
+    private void Unpin(InstalledListItem item)
     {
-        if (string.IsNullOrWhiteSpace(NewSourceUrl))
+        if (!item.IsPinned)
         {
             return;
         }
 
-        _sources.AddManualSource(NewSourceUrl);
-        NewSourceUrl = null;
-        await RefreshAsync();
-    }
+        _pins.Unpin(item.Id);
+        item.IsPinned = false;
 
-    [RelayCommand]
-    private async Task RemoveSourceAsync(SourceRow row)
-    {
-        _sources.RemoveManualSource(row.Url);
-        await RefreshAsync();
+        // A pinned plugin was excluded from update detection; refresh so an available higher version
+        // shows up immediately (without waiting for the user to hit Refresh).
+        if (_lastCatalog is not null)
+        {
+            BuildInstalled(_lastCatalog);
+        }
     }
 
     // --- Capability consent overlay ----------------------------------------------------------------

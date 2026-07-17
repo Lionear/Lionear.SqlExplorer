@@ -13,16 +13,24 @@ public sealed record PluginUpdate(string Id, string? CurrentVersion, StoreEntry 
 /// <see cref="UpdateAllAsync"/> reuses the single-plugin install step per update and keeps going when one
 /// fails, returning a per-plugin outcome.
 /// </summary>
-public sealed class PluginUpdateService(IPluginInstaller installer)
+public sealed class PluginUpdateService(IPluginInstaller installer, IPluginPinStore pins)
 {
     public IReadOnlyList<PluginUpdate> DetectUpdates(IReadOnlyList<InstalledPlugin> installed, StoreCatalog catalog)
     {
         var byId = catalog.Entries.ToDictionary(e => e.Entry.Id, e => e.Entry, StringComparer.Ordinal);
+        var allPins = pins.GetAll();
         var updates = new List<PluginUpdate>();
 
         foreach (var plugin in installed)
         {
             if (plugin.Origin != PluginOrigin.UserInstalled || !byId.TryGetValue(plugin.Id, out var entry))
+            {
+                continue;
+            }
+
+            // Pinned = user opted out of auto-updates; skip regardless of what's on the catalog. Clearing
+            // the pin (Store UI) re-enables updates on the next detect pass.
+            if (allPins.ContainsKey(plugin.Id))
             {
                 continue;
             }

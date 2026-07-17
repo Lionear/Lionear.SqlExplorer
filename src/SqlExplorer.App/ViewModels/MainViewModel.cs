@@ -42,6 +42,7 @@ public partial class MainViewModel : ViewModelBase
     private readonly IQueryHistoryStore _history;
     private readonly IQueryLog _queryLog;
     private readonly Func<QueryLogViewModel> _queryLogFactory;
+    private readonly Func<AboutViewModel> _aboutFactory;
     private readonly ISchemaCache _schemaCache;
     private readonly Func<ConnectionManagerViewModel> _connectionManagerFactory;
     private readonly Func<CreateObjectDialogViewModel> _createDialogFactory;
@@ -68,15 +69,7 @@ public partial class MainViewModel : ViewModelBase
     private DocumentViewModel? _selectedDocument;
 
     [ObservableProperty]
-    private bool _isHistoryVisible;
-
-    [ObservableProperty]
     private string _historySearch = string.Empty;
-
-    // Output/log panel (toggleable): the single place every execution outcome — connection results,
-    // query row counts, and failures — is surfaced. A failure also pops the panel open (see ReportOutput).
-    [ObservableProperty]
-    private bool _isOutputVisible;
 
     [ObservableProperty]
     private bool _isSearchVisible;
@@ -91,6 +84,7 @@ public partial class MainViewModel : ViewModelBase
         IQueryHistoryStore history,
         IQueryLog queryLog,
         Func<QueryLogViewModel> queryLogFactory,
+        Func<AboutViewModel> aboutFactory,
         ISchemaCache schemaCache,
         Func<ConnectionManagerViewModel> connectionManagerFactory,
         Func<CreateObjectDialogViewModel> createDialogFactory,
@@ -113,6 +107,7 @@ public partial class MainViewModel : ViewModelBase
         _history = history;
         _queryLog = queryLog;
         _queryLogFactory = queryLogFactory;
+        _aboutFactory = aboutFactory;
         _schemaCache = schemaCache;
         _connectionManagerFactory = connectionManagerFactory;
         _createDialogFactory = createDialogFactory;
@@ -129,11 +124,23 @@ public partial class MainViewModel : ViewModelBase
         _openTabsStore = openTabsStore;
         Loc = localizer;
 
+        // Tool windows: sizes come from settings (null = the default the panel declares), so a resize
+        // survives a restart the same way the sidebar width already does.
+        var settings = settingsStore.Load();
+        OutputWindow = new ToolWindow(
+            "Output", ToolWindowEdge.Bottom, localizer["Output"], NodeIcons.ToolOutput,
+            settings.OutputHeight ?? 170);
+        HistoryWindow = new ToolWindow(
+            "History", ToolWindowEdge.Right, localizer["History"], NodeIcons.ToolHistory,
+            settings.HistoryWidth ?? 300);
+        ToolWindows = [OutputWindow, HistoryWindow];
+
         _history.Changed += OnHistoryChanged;
         RefreshConnections();
         RestoreOpenTabs();
         EvaluatePluginRestart();
     }
+
 
     // Reopen the query tabs from the previous session (skipping any whose connection no longer exists).
     private void RestoreOpenTabs()
@@ -183,14 +190,28 @@ public partial class MainViewModel : ViewModelBase
         }
     }
 
+    // --- Tool windows (SE-123) ---------------------------------------------------------------------
+    // Each panel declares its edge/title/icon; the view renders the toggle on that edge (right stripe
+    // for Right, status bar for Bottom), the splitter and the size binding from these two objects.
+
+    /// <summary>The Output log, docked bottom. Its toggle lives in the status bar.</summary>
+    public ToolWindow OutputWindow { get; }
+
+    /// <summary>Query history, docked right. Its toggle lives in the right-hand stripe.</summary>
+    public ToolWindow HistoryWindow { get; }
+
+    /// <summary>Every tool window, in stripe order — the view binds the right-hand stripe to the
+    /// Right-edge ones and the status bar to the Bottom-edge ones, so a third panel needs no XAML.</summary>
+    public IReadOnlyList<ToolWindow> ToolWindows { get; }
+
     /// <summary>Query-history rows shown in the (toggleable) history panel, newest first.</summary>
     public ObservableCollection<QueryHistoryEntry> HistoryEntries { get; } = [];
 
     [RelayCommand]
     private void ToggleHistory()
     {
-        IsHistoryVisible = !IsHistoryVisible;
-        if (IsHistoryVisible)
+        HistoryWindow.IsVisible = !HistoryWindow.IsVisible;
+        if (HistoryWindow.IsVisible)
         {
             RefreshHistory();
         }
@@ -203,10 +224,38 @@ public partial class MainViewModel : ViewModelBase
     public ObservableCollection<OutputLogEntry> OutputEntries { get; } = [];
 
     [RelayCommand]
-    private void ToggleOutput() => IsOutputVisible = !IsOutputVisible;
+    private void ToggleOutput() => OutputWindow.IsVisible = !OutputWindow.IsVisible;
+
+    /// <summary>Toggle any tool window from its edge control (stripe button / status-bar toggle) —
+    /// the generic path a third panel gets for free.</summary>
+    [RelayCommand]
+    private void ToggleToolWindow(ToolWindow? window)
+    {
+        if (window is null)
+        {
+            return;
+        }
+
+        if (ReferenceEquals(window, HistoryWindow))
+        {
+            ToggleHistory();
+        }
+        else if (ReferenceEquals(window, OutputWindow))
+        {
+            ToggleOutput();
+        }
+        else
+        {
+            window.IsVisible = !window.IsVisible;
+        }
+    }
 
     [RelayCommand]
-    private void ClearOutput() => OutputEntries.Clear();
+    private void ClearOutput()
+    {
+        OutputEntries.Clear();
+        RefreshOutputBadge();
+    }
 
     // Copy a single output line to the clipboard (right-click ▸ Copy). Reuses the same clipboard hook the
     // schema tree's copy actions go through (wired by the view).
@@ -236,8 +285,18 @@ public partial class MainViewModel : ViewModelBase
         Append(level, source, message);
         if (level == OutputLevel.Error)
         {
-            IsOutputVisible = true;
+            OutputWindow.IsVisible = true;
         }
+
+        RefreshOutputBadge();
+    }
+
+    // Badge = errors currently in the log, so a failure stays visible on the status-bar toggle even
+    // after the user collapses the panel again (SE-123). Cleared by Clear Output.
+    private void RefreshOutputBadge()
+    {
+        var errors = OutputEntries.Count(e => e.IsError);
+        OutputWindow.Badge = errors > 0 ? errors : null;
     }
 
     private void ReportError(string? source, string message) => ReportOutput(OutputLevel.Error, source, message);
@@ -281,7 +340,7 @@ public partial class MainViewModel : ViewModelBase
 
     partial void OnHistorySearchChanged(string value)
     {
-        if (IsHistoryVisible)
+        if (HistoryWindow.IsVisible)
         {
             RefreshHistory();
         }
@@ -289,7 +348,7 @@ public partial class MainViewModel : ViewModelBase
 
     private void OnHistoryChanged()
     {
-        if (IsHistoryVisible)
+        if (HistoryWindow.IsVisible)
         {
             Dispatcher.UIThread.Post(RefreshHistory);
         }
@@ -581,11 +640,12 @@ public partial class MainViewModel : ViewModelBase
     private void RefreshConnections()
     {
         ConnectionNodes.Clear();
-        // Ungrouped first (Folder null sorts before names), then folder groups, each alphabetical.
-        foreach (var connection in _connections.List().OrderBy(c => c.Folder ?? string.Empty).ThenBy(c => c.Name))
+        foreach (var connection in _connections.List())
         {
             PlaceConnectionNode(BuildConnectionNode(connection));
         }
+
+        SortConnectionsTree();
     }
 
     private TreeNodeViewModel BuildConnectionNode(SavedConnection connection)
@@ -804,8 +864,59 @@ public partial class MainViewModel : ViewModelBase
             }
         }
 
+        SortConnectionsTree();
+
         // The selected connection may have been edited or removed; refresh the status-bar binding.
         SelectedConnection = SelectedNode?.Connection;
+    }
+
+    // Reconcile every scope's visible order with the manager's manual SortOrder / folder-order — in
+    // place (ObservableCollection.Move) so an expanded/loaded subtree survives. Folders and connections
+    // share the same numeric slot per scope, so a manual drag can interleave them.
+    private void SortConnectionsTree()
+    {
+        var folderOrder = _connections.ListFolderOrder();
+        SortScope(ConnectionNodes, folderOrder);
+    }
+
+    private static void SortScope(ObservableCollection<TreeNodeViewModel> children, IReadOnlyDictionary<string, int> folderOrder)
+    {
+        var desired = children
+            .OrderBy(n => ManualSlot(n, folderOrder))
+            .ThenBy(n => n.IsFolder ? 0 : 1) // fallback tie: folders above connections
+            .ThenBy(n => n.Name, StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
+        for (var i = 0; i < desired.Count; i++)
+        {
+            var target = desired[i];
+            var currentIndex = children.IndexOf(target);
+            if (currentIndex != i)
+            {
+                children.Move(currentIndex, i);
+            }
+        }
+
+        foreach (var folder in children.Where(n => n.IsFolder))
+        {
+            SortScope(folder.Children, folderOrder);
+        }
+    }
+
+    // 1-based manual index (0 / missing = unsorted → alphabetical tail). Mirrors the manager's
+    // ConnectionManagerViewModel.ManualIndex so both panes agree on the sort.
+    private static int ManualSlot(TreeNodeViewModel node, IReadOnlyDictionary<string, int> folderOrder)
+    {
+        if (node.IsFolder)
+        {
+            return node.FolderPath is { } path
+                && folderOrder.TryGetValue(path, out var idx) && idx > 0
+                    ? idx
+                    : int.MaxValue;
+        }
+
+        var sortOrder = node.Connection.SortOrder;
+        return sortOrder > 0 ? sortOrder : int.MaxValue;
     }
 
     // A provider may ship a brand image and/or a glyph. We render the image when the host can decode
@@ -884,7 +995,18 @@ public partial class MainViewModel : ViewModelBase
 
         var manager = _connectionManagerFactory();
         position?.Invoke(manager);
-        await ConnectionManagerRequested(manager);
+        // Live-sync the sidebar tree while the manager is open (Save/drop/delete/rename) so changes show
+        // up immediately without waiting for the dialog to close — and without collapsing open subtrees.
+        manager.ConnectionsChanged += SyncConnectionsFromStore;
+        try
+        {
+            await ConnectionManagerRequested(manager);
+        }
+        finally
+        {
+            manager.ConnectionsChanged -= SyncConnectionsFromStore;
+        }
+
         SyncConnectionsFromStore();
     }
 
@@ -1943,21 +2065,38 @@ public partial class MainViewModel : ViewModelBase
             return;
         }
 
-        await PluginStoreRequested(_pluginStoreFactory());
+        var store = _pluginStoreFactory();
+        // Deep-link from the Store's "Manage sources…" button: open Settings on PluginSources.
+        // Best-effort — a missing settings-dialog callback just leaves the button as a no-op.
+        store.ManageSourcesRequested = () => _ = OpenSettingsOnAsync("PluginSources");
+        await PluginStoreRequested(store);
 
         // The store may have staged installs/removes/toggles — refresh the main-window banner.
         EvaluatePluginRestart();
     }
 
+    // Opens Settings pre-navigated to a given category key. Used by the Plugin Store's deep-link.
+    private async Task OpenSettingsOnAsync(string categoryKey)
+    {
+        if (SettingsDialogRequested is null)
+        {
+            return;
+        }
+
+        var vm = _settingsDialogFactory();
+        vm.SelectCategoryByKey(categoryKey);
+        await SettingsDialogRequested(vm);
+    }
+
     /// <summary>Set by the view so the VM can show the About window.</summary>
-    public Func<Task>? AboutRequested { get; set; }
+    public Func<AboutViewModel, Task>? AboutRequested { get; set; }
 
     [RelayCommand]
     private async Task ShowAboutAsync()
     {
         if (AboutRequested is not null)
         {
-            await AboutRequested();
+            await AboutRequested(_aboutFactory());
         }
     }
 

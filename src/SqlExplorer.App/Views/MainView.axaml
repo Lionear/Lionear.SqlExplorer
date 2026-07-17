@@ -2,6 +2,7 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:conv="using:Avalonia.Data.Converters"
              xmlns:cvt="using:SqlExplorer.App.Converters"
+             xmlns:vm="using:SqlExplorer.App.ViewModels"
              xmlns:views="using:SqlExplorer.App.Views"
              x:Class="SqlExplorer.App.Views.MainView">
   <UserControl.Resources>
@@ -16,7 +17,77 @@
       <Setter Property="ItemContainerTheme" Value="{DynamicResource ToolMenuNodeTheme}" />
     </ControlTheme>
   </UserControl.Resources>
-  <Grid RowDefinitions="Auto,*,Auto,Auto">
+  <UserControl.Styles>
+    <!-- "Go to object" reads as a search-field, not a button — muted background + hover border only. -->
+    <Style Selector="Button.Search">
+      <Setter Property="Background" Value="{DynamicResource SESecondaryBgBrush}" />
+      <Setter Property="BorderBrush" Value="{DynamicResource SEHairlineBrush}" />
+      <Setter Property="BorderThickness" Value="1" />
+      <Setter Property="CornerRadius" Value="6" />
+      <Setter Property="Foreground" Value="{DynamicResource SETextFaintBrush}" />
+      <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+    </Style>
+    <Style Selector="Button.Search:pointerover /template/ ContentPresenter">
+      <Setter Property="Background" Value="{DynamicResource SESecondaryBgBrush}" />
+      <Setter Property="BorderBrush" Value="{DynamicResource SETextFaintBrush}" />
+    </Style>
+    <!-- Document tab-strip: 16px vector icon in front of the title. -->
+    <Style Selector="Path.TabIcon">
+      <Setter Property="Width" Value="14" />
+      <Setter Property="Height" Value="14" />
+      <Setter Property="Stroke" Value="{DynamicResource SETextSecondaryBrush}" />
+      <Setter Property="StrokeThickness" Value="1.3" />
+      <Setter Property="StrokeJoin" Value="Round" />
+      <Setter Property="StrokeLineCap" Value="Round" />
+    </Style>
+
+    <!-- Right-hand tool-window stripe buttons (SE-123): icon + vertical label, selection-filled when
+         the panel is open. JetBrains-style. -->
+    <Style Selector="Button.Stripe">
+      <Setter Property="Background" Value="Transparent" />
+      <Setter Property="BorderThickness" Value="0" />
+      <Setter Property="CornerRadius" Value="4" />
+      <Setter Property="Padding" Value="4,8" />
+      <Setter Property="Margin" Value="3,0,3,4" />
+      <Setter Property="Foreground" Value="{DynamicResource SETextSecondaryBrush}" />
+    </Style>
+    <Style Selector="Button.Stripe:pointerover /template/ ContentPresenter">
+      <Setter Property="Background" Value="{DynamicResource SEHoverBgBrush}" />
+      <Setter Property="TextElement.Foreground" Value="{DynamicResource SETextPrimaryBrush}" />
+    </Style>
+    <Style Selector="Button.Stripe.on">
+      <Setter Property="Background" Value="{DynamicResource SESelectionBgBrush}" />
+      <Setter Property="Foreground" Value="{DynamicResource SETextPrimaryBrush}" />
+    </Style>
+
+    <!-- Status-bar toggles for Edge.Bottom tool-windows: compact pill, selection-filled when open. -->
+    <Style Selector="Button.StatusToggle">
+      <Setter Property="Background" Value="Transparent" />
+      <Setter Property="BorderThickness" Value="0" />
+      <Setter Property="CornerRadius" Value="4" />
+      <Setter Property="Padding" Value="8,2" />
+      <Setter Property="FontSize" Value="12" />
+      <Setter Property="Foreground" Value="{DynamicResource SETextSecondaryBrush}" />
+    </Style>
+    <Style Selector="Button.StatusToggle:pointerover /template/ ContentPresenter">
+      <Setter Property="Background" Value="{DynamicResource SEHoverBgBrush}" />
+      <Setter Property="TextElement.Foreground" Value="{DynamicResource SETextPrimaryBrush}" />
+    </Style>
+    <Style Selector="Button.StatusToggle.on">
+      <Setter Property="Background" Value="{DynamicResource SESelectionBgBrush}" />
+      <Setter Property="Foreground" Value="{DynamicResource SETextPrimaryBrush}" />
+    </Style>
+  </UserControl.Styles>
+  <!-- Row 2 = splitter for the bottom tool-window, row 3 = the panel itself (its height is restored
+       and persisted in code-behind, same as the sidebar width), row 4 = status bar. -->
+  <Grid x:Name="RootGrid">
+    <Grid.RowDefinitions>
+      <RowDefinition Height="Auto" />
+      <RowDefinition Height="*" />
+      <RowDefinition Height="Auto" />
+      <RowDefinition Height="170" />
+      <RowDefinition Height="Auto" />
+    </Grid.RowDefinitions>
 
     <StackPanel Grid.Row="0">
       <!-- Plugin "restart needed" banner (amber) — shown when the Store staged install/enable/remove changes. -->
@@ -29,19 +100,39 @@
         </StackPanel>
       </Border>
 
-      <!-- Top toolbar: new query tab + quick actions. Language/theme live in the menu bar now;
-           connection actions live in the sidebar. -->
+      <!-- Top toolbar (SE-123): back to two items. History and Output moved to the toggle on the edge
+           where their panel lives (right stripe / status bar). "Go to object" reads as a search-field
+           with a ⌘K hint — it IS a quick-open, not an action. -->
       <Border Background="{DynamicResource SEToolbarBgBrush}"
               BorderBrush="{DynamicResource SEHairlineBrush}" BorderThickness="0,0,0,1">
         <StackPanel Orientation="Horizontal" Spacing="8" Margin="8,6">
           <Button Classes="Accent"
-                  Content="{Binding Loc[NewQueryTab]}" Command="{Binding NewQueryTabCommand}" />
-          <Button Classes="Subtle"
-                  Content="{Binding Loc[GoToObject]}" ToolTip.Tip="Ctrl+K" Command="{Binding ToggleSearchCommand}" />
-          <Button Classes="Subtle"
-                  Content="{Binding Loc[History]}" Command="{Binding ToggleHistoryCommand}" />
-          <Button Classes="Subtle"
-                  Content="{Binding Loc[Output]}" Command="{Binding ToggleOutputCommand}" />
+                  Command="{Binding NewQueryTabCommand}">
+            <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
+              <Path Width="12" Height="12" Stretch="Uniform" Data="{x:Static vm:NodeIcons.Plus}"
+                    Stroke="{DynamicResource SEAccentFgBrush}" StrokeThickness="1.4"
+                    StrokeJoin="Round" StrokeLineCap="Round" VerticalAlignment="Center" />
+              <TextBlock Text="{Binding Loc[NewQueryTab]}" VerticalAlignment="Center" />
+            </StackPanel>
+          </Button>
+          <Button Classes="Search" Padding="9,5" MinWidth="280" ToolTip.Tip="Ctrl+K"
+                  Command="{Binding ToggleSearchCommand}">
+            <Grid ColumnDefinitions="Auto,*,Auto">
+              <Path Grid.Column="0" Width="14" Height="14" VerticalAlignment="Center"
+                    Data="M7,3 A4,4 0 1 0 7,11 A4,4 0 1 0 7,3 M10,10 L13.5,13.5"
+                    Stroke="{DynamicResource SETextFaintBrush}" StrokeThickness="1.3"
+                    StrokeJoin="Round" StrokeLineCap="Round" />
+              <TextBlock Grid.Column="1" Margin="7,0,0,0" VerticalAlignment="Center"
+                         Text="{Binding Loc[GoToObject]}" FontSize="12.5"
+                         Foreground="{DynamicResource SETextFaintBrush}" />
+              <Border Grid.Column="2" Padding="4,1" CornerRadius="3"
+                      BorderBrush="{DynamicResource SEHairlineBrush}" BorderThickness="1"
+                      VerticalAlignment="Center">
+                <TextBlock Text="⌘K" FontSize="10.5" FontFamily="Cascadia Code,Consolas,Menlo,monospace"
+                           Foreground="{DynamicResource SETextFaintBrush}" />
+              </Border>
+            </Grid>
+          </Button>
         </StackPanel>
       </Border>
     </StackPanel>
@@ -52,20 +143,27 @@
         <ColumnDefinition Width="280" MinWidth="180" />
         <ColumnDefinition Width="Auto" />
         <ColumnDefinition Width="*" />
+        <!-- History tool-window: splitter + panel + the right-hand stripe holding its toggle.
+             The panel column's width is restored/persisted in code-behind (same as the sidebar). -->
+        <ColumnDefinition Width="Auto" />
+        <ColumnDefinition Width="300" />
         <ColumnDefinition Width="Auto" />
       </Grid.ColumnDefinitions>
 
       <!-- Left sidebar: one unified tree (DBeaver-style), loaded lazily on expand. -->
-      <Border Grid.Column="0" Background="{DynamicResource SEPanelBgBrush}"
-              BorderBrush="{DynamicResource SEHairlineBrush}" BorderThickness="0,0,1,0">
+      <Border Grid.Column="0" Background="{DynamicResource SEPanelBgBrush}">
         <Grid RowDefinitions="Auto,*">
           <Grid Grid.Row="0" ColumnDefinitions="*,Auto" Margin="10,8,8,6">
             <TextBlock Grid.Column="0" Text="{Binding Loc[Connections]}"
                        FontWeight="SemiBold" FontSize="12"
                        Foreground="{DynamicResource SETextSecondaryBrush}" VerticalAlignment="Center" />
-            <Button Grid.Column="1" Classes="Accent" Content="＋" Padding="8,2"
+            <Button Grid.Column="1" Classes="Accent" Padding="8,4"
                     ToolTip.Tip="{Binding Loc[NewConnection]}"
-                    Command="{Binding NewConnectionCommand}" />
+                    Command="{Binding NewConnectionCommand}">
+              <Path Width="12" Height="12" Stretch="Uniform" Data="{x:Static vm:NodeIcons.Plus}"
+                    Stroke="{DynamicResource SEAccentFgBrush}" StrokeThickness="1.5"
+                    StrokeJoin="Round" StrokeLineCap="Round" />
+            </Button>
           </Grid>
 
           <TreeView Grid.Row="1"
@@ -207,8 +305,7 @@
         </Grid>
       </Border>
 
-      <GridSplitter Grid.Column="1" Width="4" ResizeDirection="Columns"
-                    Background="Transparent" />
+      <GridSplitter Grid.Column="1" Width="3" ResizeDirection="Columns" />
 
       <!-- Right: editor tabs (query panes + table-browse panes). Failures no longer show an inline
            banner here — every outcome (errors and successes alike) surfaces in the Output panel below. -->
@@ -235,6 +332,7 @@
                               Command="{Binding $parent[TabControl].DataContext.CloseAllTabsCommand}" />
                   </ContextMenu>
                 </StackPanel.ContextMenu>
+                <Path Classes="TabIcon" Data="{Binding TabIcon}" VerticalAlignment="Center" />
                 <TextBlock Text="{Binding Title}" VerticalAlignment="Center" />
                 <Button Content="×" Classes="Subtle" Padding="6,0" FontSize="15"
                         VerticalAlignment="Center"
@@ -257,10 +355,12 @@
         </Panel>
       </Grid>
 
-      <!-- History panel (toggled from the toolbar): search + list, double-click re-runs into a query tab. -->
-      <Border Grid.Column="3" Width="300" IsVisible="{Binding IsHistoryVisible}"
-              Background="{DynamicResource SEPanelBgBrush}"
-              BorderBrush="{DynamicResource SEHairlineBrush}" BorderThickness="1,0,0,0">
+      <!-- History tool-window (Edge.Right): splitter, then the panel, then the stripe with its toggle. -->
+      <GridSplitter Grid.Column="3" Width="3" ResizeDirection="Columns"
+                    IsVisible="{Binding HistoryWindow.IsVisible}" />
+
+      <Border Grid.Column="4" IsVisible="{Binding HistoryWindow.IsVisible}"
+              Background="{DynamicResource SEPanelBgBrush}">
         <Grid RowDefinitions="Auto,Auto,*">
           <Grid Grid.Row="0" ColumnDefinitions="*,Auto" Margin="10,8,8,6">
             <TextBlock Grid.Column="0" Text="{Binding Loc[History]}" FontWeight="SemiBold" FontSize="12"
@@ -301,6 +401,37 @@
           </ListBox>
         </Grid>
       </Border>
+
+      <!-- Right-hand tool-window stripe (SE-123): one vertical button per Edge.Right panel. Its toggle
+           sits on the same edge the panel opens on — that's the whole point of the redesign. Bound to
+           ToolWindows so a third right-docked panel needs no XAML here. -->
+      <Border Grid.Column="5" Background="{DynamicResource SEPanelBgBrush}"
+              BorderBrush="{DynamicResource SEHairlineBrush}" BorderThickness="1,0,0,0">
+        <ItemsControl ItemsSource="{Binding ToolWindows}" Margin="0,8,0,0">
+          <ItemsControl.ItemTemplate>
+            <DataTemplate>
+              <Button Classes="Stripe" Classes.on="{Binding IsVisible}"
+                      IsVisible="{Binding Edge, Converter={x:Static cvt:EqualsConverter.Instance}, ConverterParameter={x:Static vm:ToolWindowEdge.Right}}"
+                      Command="{Binding $parent[ItemsControl].DataContext.ToggleToolWindowCommand}"
+                      CommandParameter="{Binding}">
+                <StackPanel Spacing="6" HorizontalAlignment="Center">
+                  <Path Width="15" Height="15" Stretch="Uniform" Data="{Binding Icon}"
+                        Stroke="{Binding $parent[Button].Foreground}" StrokeThickness="1.3"
+                        StrokeJoin="Round" StrokeLineCap="Round" HorizontalAlignment="Center" />
+                  <!-- LayoutTransformControl (not RenderTransform): rotation must affect layout so the
+                       stripe reserves the rotated text's height instead of overlapping the next button. -->
+                  <LayoutTransformControl HorizontalAlignment="Center">
+                    <LayoutTransformControl.LayoutTransform>
+                      <RotateTransform Angle="90" />
+                    </LayoutTransformControl.LayoutTransform>
+                    <TextBlock Text="{Binding Title}" FontSize="11.5" />
+                  </LayoutTransformControl>
+                </StackPanel>
+              </Button>
+            </DataTemplate>
+          </ItemsControl.ItemTemplate>
+        </ItemsControl>
+      </Border>
     </Grid>
 
     <!-- Quick-open overlay (Ctrl+K / toolbar button): fuzzy search tables/views/columns across every
@@ -332,10 +463,13 @@
       </Border>
     </Border>
 
-    <!-- Output/log panel (toggled from the toolbar): timestamped connection results + errors. -->
-    <Border Grid.Row="2" Height="170" IsVisible="{Binding IsOutputVisible}"
-            Background="{DynamicResource SEPanelBgBrush}"
-            BorderBrush="{DynamicResource SEHairlineBrush}" BorderThickness="0,1,0,0">
+    <!-- Output tool-window (Edge.Bottom): timestamped connection results + errors. Its toggle lives in
+         the status bar right below; the splitter sits on the row above. -->
+    <GridSplitter Grid.Row="2" Height="3" ResizeDirection="Rows"
+                  IsVisible="{Binding OutputWindow.IsVisible}" />
+
+    <Border Grid.Row="3" IsVisible="{Binding OutputWindow.IsVisible}"
+            Background="{DynamicResource SEPanelBgBrush}">
       <Grid RowDefinitions="Auto,*">
         <Grid Grid.Row="0" ColumnDefinitions="*,Auto" Margin="10,6,8,4">
           <TextBlock Grid.Column="0" Text="{Binding Loc[Output]}" FontWeight="SemiBold" FontSize="12"
@@ -371,11 +505,11 @@
       </Grid>
     </Border>
 
-    <!-- Bottom status bar: connection state dot + active connection. Execution messages live in the
-         Output panel now, not here. -->
-    <Border Grid.Row="3" Background="{DynamicResource SEToolbarBgBrush}"
+    <!-- Bottom status bar (SE-123): connection state on the left, the Edge.Bottom tool-window toggles
+         next to it (so the toggle sits on the edge its panel opens on), run stats on the right. -->
+    <Border Grid.Row="4" Background="{DynamicResource SEToolbarBgBrush}"
             BorderBrush="{DynamicResource SEHairlineBrush}" BorderThickness="0,1,0,0">
-      <Grid ColumnDefinitions="Auto,*" Margin="10,4">
+      <Grid ColumnDefinitions="Auto,Auto,*,Auto" Margin="10,3">
         <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="7" VerticalAlignment="Center">
           <Ellipse Width="8" Height="8" VerticalAlignment="Center"
                    Fill="{DynamicResource SEStatusConnectedBrush}"
@@ -386,6 +520,44 @@
           <TextBlock VerticalAlignment="Center" FontSize="12"
                      Foreground="{DynamicResource SETextSecondaryBrush}"
                      Text="{Binding SelectedConnection.Name, FallbackValue={x:Null}, TargetNullValue=—}" />
+        </StackPanel>
+
+        <!-- Bottom-edge tool-window toggles. Bound to ToolWindows, so a second bottom panel (Query Log,
+             …) shows up here without touching this XAML. -->
+        <ItemsControl Grid.Column="1" ItemsSource="{Binding ToolWindows}" Margin="14,0,0,0">
+          <ItemsControl.ItemsPanel>
+            <ItemsPanelTemplate>
+              <StackPanel Orientation="Horizontal" Spacing="4" />
+            </ItemsPanelTemplate>
+          </ItemsControl.ItemsPanel>
+          <ItemsControl.ItemTemplate>
+            <DataTemplate>
+              <Button Classes="StatusToggle" Classes.on="{Binding IsVisible}"
+                      IsVisible="{Binding Edge, Converter={x:Static cvt:EqualsConverter.Instance}, ConverterParameter={x:Static vm:ToolWindowEdge.Bottom}}"
+                      Command="{Binding $parent[ItemsControl].DataContext.ToggleToolWindowCommand}"
+                      CommandParameter="{Binding}">
+                <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
+                  <Path Width="14" Height="14" Stretch="Uniform" Data="{Binding Icon}"
+                        Stroke="{Binding $parent[Button].Foreground}" StrokeThickness="1.3"
+                        StrokeJoin="Round" StrokeLineCap="Round" VerticalAlignment="Center" />
+                  <TextBlock Text="{Binding Title}" VerticalAlignment="Center" />
+                  <!-- Red error-count badge: a failure stays visible even with the panel collapsed. -->
+                  <Border IsVisible="{Binding HasBadge}" Background="{DynamicResource SEStatusErrorBrush}"
+                          CornerRadius="8" MinWidth="15" Height="15" VerticalAlignment="Center">
+                    <TextBlock Text="{Binding Badge}" FontSize="9.5" FontWeight="Bold" Foreground="White"
+                               HorizontalAlignment="Center" VerticalAlignment="Center" Margin="5,0" />
+                  </Border>
+                </StackPanel>
+              </Button>
+            </DataTemplate>
+          </ItemsControl.ItemTemplate>
+        </ItemsControl>
+
+        <!-- Run stats for the active document: rows · duration · engine. -->
+        <StackPanel Grid.Column="3" Orientation="Horizontal" Spacing="7" VerticalAlignment="Center"
+                    IsVisible="{Binding SelectedDocument, Converter={x:Static conv:ObjectConverters.IsNotNull}}">
+          <TextBlock FontSize="12" Foreground="{DynamicResource SETextSecondaryBrush}"
+                     Text="{Binding SelectedDocument.StatusLine}" />
         </StackPanel>
       </Grid>
     </Border>

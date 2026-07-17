@@ -127,15 +127,8 @@ public partial class MainWindow : Window
         }
     }
 
-    private async Task ShowAboutAsync()
-    {
-        if (DataContext is not MainViewModel vm)
-        {
-            return;
-        }
-
-        await new AboutWindow(vm.Loc).ShowDialog(this);
-    }
+    private async Task ShowAboutAsync(ViewModels.AboutViewModel viewModel) =>
+        await new AboutWindow(viewModel).ShowDialog(this);
 
     private void RestoreLayout()
     {
@@ -285,6 +278,15 @@ public partial class MainWindow : Window
         }
 
         settings.SidebarWidth = Body.SidebarWidth;
+
+        // Tool-window sizes (SE-123): read the live grid sizes back into the VM, then persist them
+        // alongside the sidebar so a resize survives a restart.
+        Body.CaptureToolWindowSizes();
+        if (Body.DataContext is ViewModels.MainViewModel vm)
+        {
+            settings.OutputHeight = vm.OutputWindow.Size;
+            settings.HistoryWidth = vm.HistoryWindow.Size;
+        }
 
         try
         {

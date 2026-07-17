@@ -39,6 +39,12 @@
   <data name="StatusRows" xml:space="preserve">
     <value>{0} rows · {1:F0} ms</value>
   </data>
+  <data name="StatusBarRows" xml:space="preserve">
+    <value>{0} rows</value>
+  </data>
+  <data name="StatusBarMs" xml:space="preserve">
+    <value>{0} ms</value>
+  </data>
   <data name="StatusAffected" xml:space="preserve">
     <value>{0} affected · {1:F0} ms</value>
   </data>
@@ -739,7 +745,7 @@
     <value>Quit</value>
   </data>
   <data name="ExitConfirmMessage" xml:space="preserve">
-    <value>Are you sure you want to quit Lionear SQL Explorer?</value>
+    <value>Are you sure you want to quit SQL Explorer?</value>
   </data>
   <data name="ExitConfirmQuit" xml:space="preserve">
     <value>Quit</value>
@@ -787,7 +793,73 @@
     <value>About</value>
   </data>
   <data name="AboutText" xml:space="preserve">
-    <value>Lionear SQL Explorer</value>
+    <value>SQL Explorer</value>
+  </data>
+  <data name="AboutTagline" xml:space="preserve">
+    <value>A cross-platform, multilingual SQL explorer built in .NET. Database drivers ship as plugins.</value>
+  </data>
+  <data name="AboutVersion" xml:space="preserve">
+    <value>Version {0}</value>
+  </data>
+  <data name="AboutHostApiChip" xml:space="preserve">
+    <value>Host API {0} · min {1}</value>
+  </data>
+  <data name="AboutSystem" xml:space="preserve">
+    <value>System</value>
+  </data>
+  <data name="AboutOs" xml:space="preserve">
+    <value>OS</value>
+  </data>
+  <data name="AboutRuntime" xml:space="preserve">
+    <value>Runtime</value>
+  </data>
+  <data name="AboutAvalonia" xml:space="preserve">
+    <value>Avalonia</value>
+  </data>
+  <data name="AboutLanguage" xml:space="preserve">
+    <value>Language</value>
+  </data>
+  <data name="AboutConfig" xml:space="preserve">
+    <value>Config</value>
+  </data>
+  <data name="AboutPlugins" xml:space="preserve">
+    <value>Plugins</value>
+  </data>
+  <data name="AboutPluginCount" xml:space="preserve">
+    <value>{0} loaded · {1} disabled</value>
+  </data>
+  <data name="AboutSourceBundled" xml:space="preserve">
+    <value>bundled</value>
+  </data>
+  <data name="AboutSourceStore" xml:space="preserve">
+    <value>store</value>
+  </data>
+  <data name="AboutFlagDisabled" xml:space="preserve">
+    <value>disabled</value>
+  </data>
+  <data name="AboutFlagPinned" xml:space="preserve">
+    <value>pinned</value>
+  </data>
+  <data name="AboutWebsite" xml:space="preserve">
+    <value>Website</value>
+  </data>
+  <data name="AboutRepository" xml:space="preserve">
+    <value>Repository</value>
+  </data>
+  <data name="AboutLicense" xml:space="preserve">
+    <value>License</value>
+  </data>
+  <data name="AboutThirdParty" xml:space="preserve">
+    <value>Third-party notices</value>
+  </data>
+  <data name="AboutCopyright" xml:space="preserve">
+    <value>© 2026 Lionear · Licensed under the Commons Clause License Condition v1.0</value>
+  </data>
+  <data name="AboutCopyDiagnostics" xml:space="preserve">
+    <value>Copy diagnostics</value>
+  </data>
+  <data name="AboutCopied" xml:space="preserve">
+    <value>Copied</value>
   </data>
   <data name="CopyAsCsv" xml:space="preserve">
     <value>Copy as CSV</value>
@@ -842,6 +914,18 @@
   </data>
   <data name="SettingsPlugins" xml:space="preserve">
     <value>Plugins</value>
+  </data>
+  <data name="SettingsPluginSources" xml:space="preserve">
+    <value>Plugin sources</value>
+  </data>
+  <data name="StoreManageSources" xml:space="preserve">
+    <value>Manage sources…</value>
+  </data>
+  <data name="StorePinned" xml:space="preserve">
+    <value>Pinned</value>
+  </data>
+  <data name="StoreUnpin" xml:space="preserve">
+    <value>Unpin</value>
   </data>
   <data name="AppearanceDesc" xml:space="preserve">
     <value>Theme applies live — no restart needed.</value>
@@ -1017,6 +1101,21 @@
   <data name="StoreTabBrowse" xml:space="preserve">
     <value>Browse</value>
   </data>
+  <data name="StoreCategoryAll" xml:space="preserve">
+    <value>All</value>
+  </data>
+  <data name="StoreCategoryProviders" xml:space="preserve">
+    <value>Providers</value>
+  </data>
+  <data name="StoreCategoryTools" xml:space="preserve">
+    <value>Tools</value>
+  </data>
+  <data name="StoreCategoryMcpTools" xml:space="preserve">
+    <value>MCP Tools</value>
+  </data>
+  <data name="StoreCategoryOther" xml:space="preserve">
+    <value>Other</value>
+  </data>
   <data name="StoreTabInstalled" xml:space="preserve">
     <value>Installed</value>
   </data>
@@ -1153,7 +1252,10 @@
     <value>{0} plugins installed</value>
   </data>
   <data name="StoreManualHint" xml:space="preserve">
-    <value>For stores not (yet) in Discovery — private, internal, or intentionally unregistered. Fully self-managed.</value>
+    <value>For stores not (yet) in Discovery — private, internal, or intentionally unregistered. Fully self-managed. Plugins from a source run inside the app with access to your saved connections, so only add sources you trust. https only.</value>
+  </data>
+  <data name="StoreSourceInsecure" xml:space="preserve">
+    <value>Store sources must be an https URL (http is only allowed for localhost). Plugin code is run in-process, so it is not fetched over an unprotected connection.</value>
   </data>
   <data name="StoreReadOnly" xml:space="preserve">
     <value>read-only</value>

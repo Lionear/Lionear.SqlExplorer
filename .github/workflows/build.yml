@@ -1,21 +1,35 @@
 name: Build
 
-# Runs nightly at 02:00 UTC and on manual dispatch. To pause the nightly build,
-# comment out the `schedule` block below; `workflow_dispatch` keeps manual runs.
+# Two rolling builds, one workflow:
+#   schedule    -> builds `develop`, publishes the `nightly` release  (what we are working on)
+#   push main   -> builds `main`,    publishes the `preview` release  (what has been merged)
+#
+# GitHub only fires `schedule` from the default branch, so the nightly cannot live on develop: this
+# file has to sit on main and check develop out explicitly. Consequence worth remembering — the nightly
+# always runs the workflow *as committed on main*, so workflow edits made on develop only take effect
+# once merged. Cron is a hint, not a promise: GitHub delays scheduled runs under load, routinely by
+# hours (02:00 UTC has been landing near 05:00).
+#
+# To pause the nightly, comment out the `schedule` block; `workflow_dispatch` keeps manual runs.
 on:
   workflow_dispatch:
     inputs:
+      ref:
+        description: "Branch to build"
+        type: choice
+        options: [develop, main]
+        default: develop
       version:
-        description: "Version stamp (leave empty for nightly-<date>-<run>)"
+        description: "Version stamp (leave empty to derive from Directory.Build.props)"
         required: false
         default: ""
       publish_release:
-        description: "Also refresh the 'nightly' GitHub release with these builds"
+        description: "Also refresh the rolling release for that branch"
         type: boolean
         required: false
         default: false
   schedule:
-    - cron: "0 2 * * *"   # nightly at 02:00 UTC
+    - cron: "0 2 * * *"   # nightly (develop) — expect drift, see note above
   push:
     branches: [main]
     paths-ignore:      # docs / non-code changes shouldn't spend a full build
@@ -36,8 +50,40 @@ permissions:
   contents: read
 
 jobs:
+  # Decide once what we are building and where it lands, so the build matrix and the release job can
+  # never disagree about it.
+  setup:
+    name: Resolve target
+    runs-on: ubuntu-latest
+    outputs:
+      ref: ${{ steps.target.outputs.ref }}
+      tag: ${{ steps.target.outputs.tag }}
+      channel: ${{ steps.target.outputs.channel }}
+    steps:
+      - name: Resolve ref and release tag
+        id: target
+        run: |
+          set -euo pipefail
+          case "${{ github.event_name }}" in
+            schedule)          REF=develop ;;
+            workflow_dispatch) REF="${{ inputs.ref }}" ;;
+            *)                 REF=main ;;   # push to main
+          esac
+
+          if [ "$REF" = "main" ]; then
+            TAG=preview; CHANNEL=preview
+          else
+            TAG=nightly; CHANNEL=nightly
+          fi
+
+          echo "ref=$REF"         >> "$GITHUB_OUTPUT"
+          echo "tag=$TAG"         >> "$GITHUB_OUTPUT"
+          echo "channel=$CHANNEL" >> "$GITHUB_OUTPUT"
+          echo "Building $REF -> release '$TAG'"
+
   build:
     name: ${{ matrix.name }}
+    needs: setup
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
@@ -46,11 +92,13 @@ jobs:
           - name: Windows x64
             os: windows-latest
             rid: win-x64
+            arch: x64
             package: windows
             publishArgs: "-p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -p:EnableCompressionInSingleFile=true"
           - name: Windows ARM64
             os: windows-latest
             rid: win-arm64
+            arch: arm64
             package: windows
             publishArgs: "-p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -p:EnableCompressionInSingleFile=true"
           - name: Linux AppImage
@@ -66,6 +114,8 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.setup.outputs.ref }}
 
       - name: Setup .NET
         uses: actions/setup-dotnet@v4
@@ -76,13 +126,22 @@ jobs:
         id: version
         shell: bash
         run: |
+          set -euo pipefail
+          # Single source of truth: the same <Version> the assemblies get. Hardcoding it here once meant
+          # the workflow and Directory.Build.props could drift apart without anything failing.
+          BASE=$(sed -n 's|.*<Version>\(.*\)</Version>.*|\1|p' Directory.Build.props)
+          if [ -z "$BASE" ]; then
+            echo "No <Version> in Directory.Build.props" >&2
+            exit 1
+          fi
+
           if [ -n "${{ inputs.version }}" ]; then
             VERSION="${{ inputs.version }}"
           else
-            VERSION="0.1.0-nightly.$(date -u +%Y%m%d).${{ github.run_number }}"
+            VERSION="$BASE-${{ needs.setup.outputs.channel }}.$(date -u +%Y%m%d).${{ github.run_number }}"
           fi
           echo "value=$VERSION" >> "$GITHUB_OUTPUT"
-          echo "Version: $VERSION"
+          echo "Version: $VERSION (base $BASE, ref ${{ needs.setup.outputs.ref }})"
 
       - name: Publish
         shell: bash
@@ -104,7 +163,26 @@ jobs:
           $out = "artifacts"
           New-Item -ItemType Directory -Force -Path $out | Out-Null
           Compress-Archive -Path "publish/${{ matrix.rid }}/*" `
-            -DestinationPath "$out/LionearSqlExplorer-${{ matrix.rid }}.zip" -Force
+            -DestinationPath "$out/LionearSqlExplorer-${{ steps.version.outputs.value }}-${{ matrix.rid }}.zip" -Force
+
+      # Convenience installer next to the zip: Start-menu entry + uninstaller, per-user so it needs no
+      # admin (matching where the Plugin Store already writes). Unsigned — SmartScreen warns on first run.
+      - name: Package (Windows installer)
+        if: matrix.package == 'windows'
+        shell: pwsh
+        run: |
+          $iscc = "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe"
+          if (-not (Test-Path $iscc)) {
+            choco install innosetup --no-progress -y
+          }
+          if (-not (Test-Path $iscc)) { throw "ISCC.exe not found at $iscc" }
+
+          & $iscc tools/windows-installer.iss `
+            "/DAppVersion=${{ steps.version.outputs.value }}" `
+            "/DArch=${{ matrix.arch }}" `
+            "/DSourceDir=$(Resolve-Path publish/${{ matrix.rid }})" `
+            "/DOutputDir=$(Resolve-Path artifacts)"
+          if ($LASTEXITCODE -ne 0) { throw "Inno Setup failed with $LASTEXITCODE" }
 
       - name: Package (Linux AppImage)
         if: matrix.package == 'appimage'
@@ -128,7 +206,7 @@ jobs:
           cat > "$APPDIR/lionear-sql-explorer.desktop" <<'EOF'
           [Desktop Entry]
           Type=Application
-          Name=Lionear SQL Explorer
+          Name=SQL Explorer
           Exec=SqlExplorer.Desktop
           Icon=lionear-sql-explorer
           Categories=Development;Database;
@@ -146,7 +224,7 @@ jobs:
           chmod +x appimagetool
 
           mkdir -p artifacts
-          ./appimagetool "$APPDIR" "artifacts/LionearSqlExplorer-x86_64.AppImage"
+          ./appimagetool "$APPDIR" "artifacts/LionearSqlExplorer-${{ steps.version.outputs.value }}-x86_64.AppImage"
 
       - name: Package (macOS DMG)
         if: matrix.package == 'dmg'
@@ -155,7 +233,7 @@ jobs:
           set -euo pipefail
           # The Desktop project's CreateMacAppBundle target assembles the .app
           # from the publish output on macOS, one level above PublishDir.
-          APP="publish/Lionear SQL Explorer.app"
+          APP="publish/SQL Explorer.app"
           if [ ! -d "$APP" ]; then
             echo "Expected app bundle not found at: $APP" >&2
             ls -la publish >&2
@@ -177,10 +255,10 @@ jobs:
 
           mkdir -p artifacts
           hdiutil create \
-            -volname "Lionear SQL Explorer" \
+            -volname "SQL Explorer" \
             -srcfolder "$STAGE" \
             -ov -format UDZO \
-            "artifacts/LionearSqlExplorer-osx-arm64.dmg"
+            "artifacts/LionearSqlExplorer-${{ steps.version.outputs.value }}-osx-arm64.dmg"
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
@@ -190,12 +268,13 @@ jobs:
           retention-days: 14
           if-no-files-found: error
 
-  # Publishes a rolling "nightly" prerelease with fixed asset download links:
-  #   https://github.com/Lionear/SqlExplorer/releases/download/nightly/<file>
-  # Runs on the scheduled nightly build, or on a manual run when publish_release is ticked.
+  # Publishes a rolling prerelease per channel, with stable asset download links:
+  #   https://github.com/Lionear/SqlExplorer/releases/download/nightly/<file>   (develop)
+  #   https://github.com/Lionear/SqlExplorer/releases/download/preview/<file>   (main)
+  # Runs on the scheduled build, on a push to main, or on a manual run with publish_release ticked.
   release:
-    name: Nightly release
-    needs: build
+    name: Publish ${{ needs.setup.outputs.tag }} release
+    needs: [setup, build]
     if: ${{ github.event_name == 'schedule' || github.event_name == 'push' || inputs.publish_release }}
     runs-on: ubuntu-latest
     permissions:
@@ -206,26 +285,30 @@ jobs:
         with:
           path: dist   # each artifact lands in dist/<rid>/<file>
 
-      - name: Publish/refresh nightly release
+      - name: Publish/refresh rolling release
         env:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}   # gh has no checkout here; resolve the repo via API, not git
         run: |
           set -euo pipefail
-          TAG=nightly
-          NOTES="Automated nightly build from ${GITHUB_SHA:0:7} on $(date -u +'%Y-%m-%d %H:%M UTC').
+          TAG=${{ needs.setup.outputs.tag }}
+          REF=${{ needs.setup.outputs.ref }}
+          NOTES="Automated build of \`$REF\` on $(date -u +'%Y-%m-%d %H:%M UTC').
 
           These builds are unsigned / not notarized.
 
           macOS: the app is ad-hoc signed but not notarized, so a downloaded copy is quarantined and macOS reports \"is damaged and can't be opened\". After moving it to /Applications, clear the quarantine flag, then open normally:
-              xattr -cr \"/Applications/Lionear SQL Explorer.app\"
+              xattr -cr \"/Applications/SQL Explorer.app\"
 
-          Windows: SmartScreen may warn on first launch (More info -> Run anyway)."
+          Windows: pick the -setup.exe installer (Start-menu entry + uninstaller, no admin needed) or the .zip for a portable copy. SmartScreen may warn on first launch (More info -> Run anyway)."
 
           # Recreate the release so the tag, date and notes track the latest build.
           gh release delete "$TAG" --yes --cleanup-tag || true
+          if [ "$TAG" = "nightly" ]; then TITLE="Nightly build (develop)"; else TITLE="Preview build (main)"; fi
+          # Target the branch we built: on a scheduled run GITHUB_SHA is main's head, but the artifacts
+          # came from develop — tagging the SHA would attach the release to the wrong commit.
           gh release create "$TAG" dist/*/* \
-            --title "Nightly build" \
+            --title "$TITLE" \
             --notes "$NOTES" \
             --prerelease \
-            --target "$GITHUB_SHA"
+            --target "$REF"

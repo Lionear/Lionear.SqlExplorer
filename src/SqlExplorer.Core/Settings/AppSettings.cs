@@ -34,6 +34,12 @@ public sealed class AppSettings
     /// <summary>Restored width of the connection sidebar column, in pixels.</summary>
     public double? SidebarWidth { get; set; }
 
+    /// <summary>Restored height of the Output tool-window (Edge.Bottom), in pixels. Null = default.</summary>
+    public double? OutputHeight { get; set; }
+
+    /// <summary>Restored width of the History tool-window (Edge.Right), in pixels. Null = default.</summary>
+    public double? HistoryWidth { get; set; }
+
     /// <summary>Two-letter culture code (e.g. "nl", "en"); null = follow the OS/thread default.</summary>
     public string? Language { get; set; }
 

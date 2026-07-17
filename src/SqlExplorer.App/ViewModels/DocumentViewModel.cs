@@ -180,6 +180,56 @@ public partial class DocumentViewModel : ViewModelBase
     [ObservableProperty]
     private string _rowRange = string.Empty;
 
+    // Status-bar stats for the last run (SE-123): "6 rows · 18 ms · PostgreSQL 16.2". Set once per
+    // execution; the main window's status bar binds to StatusLine on the active document.
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(StatusLine))]
+    private int? _lastRunRows;
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(StatusLine))]
+    private double? _lastRunMs;
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(StatusLine))]
+    private string? _engineLabel;
+
+    // Stamp the status-bar stats after a run. Engine comes from the provider's DisplayName — the SDK
+    // exposes no server version today (the mockup's "PostgreSQL 16.2" would need an SDK addition), so
+    // this shows the engine only.
+    private void SetRunStats(int rows, double ms)
+    {
+        LastRunRows = rows;
+        LastRunMs = ms;
+        EngineLabel = _providers.TryGet(Connection.ProviderId, out var provider) ? provider.DisplayName : null;
+    }
+
+    /// <summary>"{rows} rows · {ms} ms · {engine}" for the status bar; empty until this tab has run
+    /// something. Parts are dropped when unknown, so a fresh tab shows just the engine (or nothing).</summary>
+    public string StatusLine
+    {
+        get
+        {
+            var parts = new List<string>(3);
+            if (LastRunRows is { } rows)
+            {
+                parts.Add(Loc.Get("StatusBarRows", rows));
+            }
+
+            if (LastRunMs is { } ms)
+            {
+                parts.Add(Loc.Get("StatusBarMs", (int)ms));
+            }
+
+            if (!string.IsNullOrEmpty(EngineLabel))
+            {
+                parts.Add(EngineLabel!);
+            }
+
+            return string.Join(" · ", parts);
+        }
+    }
+
     // Cell-viewer panel: full value of the last-clicked cell (JSON pretty-printed when parseable).
     [ObservableProperty]
     private bool _isCellViewerVisible;
@@ -284,6 +334,15 @@ public partial class DocumentViewModel : ViewModelBase
     public bool IsBrowseMode => Mode == DocumentMode.Browse;
 
     public bool IsMonitorMode => Mode == DocumentMode.Monitor;
+
+    /// <summary>Vector glyph shown in the tab-strip; matches the document mode so a query/browse/monitor
+    /// tab is recognisable at a glance (SE-123, mockup icon-per-tabtype).</summary>
+    public Avalonia.Media.Geometry TabIcon => Mode switch
+    {
+        DocumentMode.Browse => NodeIcons.TabBrowse,
+        DocumentMode.Monitor => NodeIcons.TabMonitor,
+        _ => NodeIcons.TabQuery
+    };
 
     // A connection flagged read-only (safe mode) blocks the editable-grid save-flow entirely, even when
     // the result would otherwise map back to a single keyed table — this guards against accidental writes
@@ -1145,6 +1204,7 @@ public partial class DocumentViewModel : ViewModelBase
             var totalRows = results.Sum(r => r.Rows.Count);
             SetResultSets(BuildResultTabs(results));
             Report(OutputLevel.Info, DescribeOutcome(results, stopwatch.Elapsed.TotalMilliseconds));
+            SetRunStats(totalRows, stopwatch.Elapsed.TotalMilliseconds);
             if (IsQueryMode)
             {
                 AppendHistory(sql, QueryHistoryKind.Query, stopwatch.ElapsedMilliseconds, totalRows, success: true, error: null);
@@ -1241,6 +1301,9 @@ public partial class DocumentViewModel : ViewModelBase
                 Report(OutputLevel.Info, DescribeOutcome([result], result.Elapsed.TotalMilliseconds));
                 AppendHistory(sql, QueryHistoryKind.Query, stopwatch.ElapsedMilliseconds, result.Rows.Count, success: true, error: null);
             }
+
+            // Browse page-flips update the status bar too — it's a stat, not a log line.
+            SetRunStats(result.Rows.Count, result.Elapsed.TotalMilliseconds);
         }
         catch (OperationCanceledException)
         {
