@@ -27,6 +27,15 @@ public sealed class LoginPropertiesViewModel : INotifyPropertyChanged
     private readonly SecurityUiContext _context;
     private readonly string _connectionString;
 
+    // Snapshots taken after prefill so Apply can emit the delta (ADD MEMBER vs DROP MEMBER, CREATE USER
+    // vs DROP USER) instead of a full CREATE LOGIN. Empty for the New-Login branch.
+    private HashSet<string> _originalServerRoles = new(StringComparer.OrdinalIgnoreCase);
+    private Dictionary<string, MappingSnapshot> _originalMappings = new(StringComparer.OrdinalIgnoreCase);
+    private string? _originalDefaultDatabase;
+
+    // Suppresses RecomputePreview() during a bulk prefill so we don't build the preview N times mid-load.
+    private bool _prefillInProgress;
+
     public LoginPropertiesViewModel(SecurityUiContext context)
     {
         _context = context;
@@ -94,11 +103,15 @@ public sealed class LoginPropertiesViewModel : INotifyPropertyChanged
     /// <summary>Set by the view so buttons can close the hosting window.</summary>
     public Action? CloseRequested { get; set; }
 
-    /// <summary>Loads databases (and roles per database) once the view is shown.</summary>
+    /// <summary>Loads databases (and roles per database) once the view is shown, and — for an existing
+    /// login — prefills the current server/db-role membership and per-database user mapping so Apply can
+    /// emit the delta instead of a full CREATE.</summary>
     public async Task InitializeAsync()
     {
         try
         {
+            _prefillInProgress = true;
+
             var dbs = await _context.Provider.GetDatabasesAsync(_context.Profile, CancellationToken.None);
             foreach (var db in dbs)
             {
@@ -106,17 +119,154 @@ public sealed class LoginPropertiesViewModel : INotifyPropertyChanged
                 Mappings.Add(new MappingRow(db, FixedDbRoles, RecomputePreview));
             }
 
-            DefaultDatabase = dbs.Contains("master") ? "master" : dbs.FirstOrDefault();
+            if (IsNew)
+            {
+                DefaultDatabase = dbs.Contains("master") ? "master" : dbs.FirstOrDefault();
+            }
+            else
+            {
+                await PrefillFromServerAsync();
+            }
+
             SelectedMapping = Mappings.FirstOrDefault();
-            RecomputePreview();
         }
         catch (Exception ex)
         {
             Status = ex.Message;
         }
+        finally
+        {
+            _prefillInProgress = false;
+            RecomputePreview();
+        }
+    }
+
+    // Read the existing login from sys.server_principals + sys.server_role_members, and per-database
+    // mapping from sys.database_principals + sys.database_role_members (matched by SID). Anything we
+    // find gets stamped onto the VM and snapshotted for the diff-Apply.
+    private async Task PrefillFromServerAsync()
+    {
+        await using var connection = new SqlConnection(_connectionString);
+        await connection.OpenAsync();
+
+        // --- Login basis ---
+        byte[]? sid = null;
+        await using (var cmd = new SqlCommand(
+            "SELECT sid, type_desc, default_database_name FROM sys.server_principals WHERE name = @name AND type IN ('S','U','G');", connection))
+        {
+            cmd.Parameters.Add("@name", System.Data.SqlDbType.NVarChar, 128).Value = LoginName;
+            await using var reader = await cmd.ExecuteReaderAsync();
+            if (await reader.ReadAsync())
+            {
+                sid = reader["sid"] as byte[];
+                var typeDesc = reader["type_desc"] as string ?? "SQL_LOGIN";
+                IsSqlAuth = typeDesc == "SQL_LOGIN";
+                var defaultDb = reader["default_database_name"] as string;
+                if (!string.IsNullOrEmpty(defaultDb) && Databases.Contains(defaultDb))
+                {
+                    DefaultDatabase = defaultDb;
+                }
+                _originalDefaultDatabase = DefaultDatabase;
+            }
+        }
+
+        // --- Server-role membership ---
+        await using (var cmd = new SqlCommand(@"
+            SELECT r.name FROM sys.server_role_members m
+            JOIN sys.server_principals r ON r.principal_id = m.role_principal_id
+            JOIN sys.server_principals u ON u.principal_id = m.member_principal_id
+            WHERE u.name = @name;", connection))
+        {
+            cmd.Parameters.Add("@name", System.Data.SqlDbType.NVarChar, 128).Value = LoginName;
+            await using var reader = await cmd.ExecuteReaderAsync();
+            while (await reader.ReadAsync())
+            {
+                var role = reader.GetString(0);
+                _originalServerRoles.Add(role);
+                if (ServerRoles.FirstOrDefault(r => string.Equals(r.Name, role, StringComparison.OrdinalIgnoreCase)) is { } row)
+                {
+                    row.SetCheckedSilent(true);
+                }
+            }
+        }
+
+        if (sid is null)
+        {
+            return; // login not found (renamed/dropped externally) — leave mappings blank
+        }
+
+        // --- Per-database mapping (user + db-role membership) ---
+        foreach (var mapping in Mappings)
+        {
+            try
+            {
+                await PrefillMappingAsync(sid, mapping);
+            }
+            catch
+            {
+                // A single unreachable database (offline / no perms) shouldn't block the whole prefill —
+                // that mapping just stays unchecked and the diff on Apply treats it as "add".
+            }
+        }
+    }
+
+    private async Task PrefillMappingAsync(byte[] loginSid, MappingRow mapping)
+    {
+        var builder = new SqlConnectionStringBuilder(_connectionString) { InitialCatalog = mapping.Database };
+        await using var connection = new SqlConnection(builder.ConnectionString);
+        await connection.OpenAsync();
+
+        string? userName = null;
+        await using (var cmd = new SqlCommand("SELECT name FROM sys.database_principals WHERE sid = @sid;", connection))
+        {
+            cmd.Parameters.Add("@sid", System.Data.SqlDbType.VarBinary, 85).Value = loginSid;
+            var result = await cmd.ExecuteScalarAsync();
+            userName = result as string;
+        }
+
+        if (userName is null)
+        {
+            _originalMappings[mapping.Database] = new MappingSnapshot(false, string.Empty, new HashSet<string>(StringComparer.OrdinalIgnoreCase));
+            return;
+        }
+
+        mapping.SetMappedSilent(true);
+        mapping.SetUserNameSilent(userName);
+
+        var roles = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        await using (var cmd = new SqlCommand(@"
+            SELECT r.name FROM sys.database_role_members m
+            JOIN sys.database_principals r ON r.principal_id = m.role_principal_id
+            JOIN sys.database_principals u ON u.principal_id = m.member_principal_id
+            WHERE u.name = @user;", connection))
+        {
+            cmd.Parameters.Add("@user", System.Data.SqlDbType.NVarChar, 128).Value = userName;
+            await using var reader = await cmd.ExecuteReaderAsync();
+            while (await reader.ReadAsync())
+            {
+                var role = reader.GetString(0);
+                roles.Add(role);
+                if (mapping.DbRoles.FirstOrDefault(r => string.Equals(r.Name, role, StringComparison.OrdinalIgnoreCase)) is { } row)
+                {
+                    row.SetCheckedSilent(true);
+                }
+            }
+        }
+
+        _originalMappings[mapping.Database] = new MappingSnapshot(true, userName, roles);
     }
 
     private void RecomputePreview()
+    {
+        if (_prefillInProgress)
+        {
+            return;
+        }
+
+        SqlPreview = IsNew ? BuildCreateScript() : BuildEditScript();
+    }
+
+    private string BuildCreateScript()
     {
         var name = QuoteId(LoginName);
         var sql = new StringBuilder();
@@ -150,10 +300,105 @@ public sealed class LoginPropertiesViewModel : INotifyPropertyChanged
             }
         }
 
-        SqlPreview = sql.ToString();
+        return sql.ToString();
     }
 
-    /// <summary>Runs the login DDL, then the per-database mapping in each database's own context.</summary>
+    // Diff between the snapshot taken during prefill and the current VM state — Apply runs exactly this.
+    private string BuildEditScript()
+    {
+        var name = QuoteId(LoginName);
+        var sql = new StringBuilder();
+
+        // Server login itself: default-database change (v1: no password reset — deliberate scope).
+        if (!string.Equals(_originalDefaultDatabase, DefaultDatabase, StringComparison.OrdinalIgnoreCase)
+            && !string.IsNullOrEmpty(DefaultDatabase))
+        {
+            sql.Append($"ALTER LOGIN {name} WITH DEFAULT_DATABASE = {QuoteId(DefaultDatabase!)};");
+        }
+
+        // Server-role membership diff.
+        var currentServerRoles = ServerRoles.Where(r => r.IsChecked).Select(r => r.Name).ToHashSet(StringComparer.OrdinalIgnoreCase);
+        foreach (var added in currentServerRoles.Where(r => !_originalServerRoles.Contains(r)))
+        {
+            AppendLine(sql, $"ALTER SERVER ROLE {QuoteId(added)} ADD MEMBER {name};");
+        }
+        foreach (var removed in _originalServerRoles.Where(r => !currentServerRoles.Contains(r)))
+        {
+            AppendLine(sql, $"ALTER SERVER ROLE {QuoteId(removed)} DROP MEMBER {name};");
+        }
+
+        // Per-database mapping diff (add user / drop user / add role / drop role).
+        foreach (var mapping in Mappings)
+        {
+            var snapshot = _originalMappings.TryGetValue(mapping.Database, out var s)
+                ? s
+                : new MappingSnapshot(false, string.Empty, new HashSet<string>(StringComparer.OrdinalIgnoreCase));
+
+            AppendMappingDiff(sql, mapping, snapshot, name);
+        }
+
+        return sql.Length == 0 ? "-- no changes" : sql.ToString();
+    }
+
+    private void AppendMappingDiff(StringBuilder sql, MappingRow mapping, MappingSnapshot snapshot, string quotedLogin)
+    {
+        var currentUser = string.IsNullOrWhiteSpace(mapping.UserName) ? LoginName : mapping.UserName;
+        var currentRoles = mapping.DbRoles.Where(r => r.IsChecked).Select(r => r.Name).ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+        // Case A: was mapped, now unmapped → DROP USER.
+        if (snapshot.Mapped && !mapping.IsMapped)
+        {
+            AppendUse(sql, mapping.Database);
+            AppendLine(sql, $"DROP USER {QuoteId(snapshot.UserName)};");
+            return;
+        }
+
+        // Case B: was not mapped, now mapped → CREATE USER + add roles.
+        if (!snapshot.Mapped && mapping.IsMapped)
+        {
+            AppendUse(sql, mapping.Database);
+            AppendLine(sql, $"CREATE USER {QuoteId(currentUser)} FOR LOGIN {quotedLogin};");
+            foreach (var role in currentRoles)
+            {
+                AppendLine(sql, $"ALTER ROLE {QuoteId(role)} ADD MEMBER {QuoteId(currentUser)};");
+            }
+            return;
+        }
+
+        // Case C: still mapped — role diff only. (User-rename is out of scope for v1 of SE-116.)
+        if (!snapshot.Mapped)
+        {
+            return;
+        }
+
+        var added = currentRoles.Where(r => !snapshot.DbRoles.Contains(r)).ToList();
+        var removed = snapshot.DbRoles.Where(r => !currentRoles.Contains(r)).ToList();
+        if (added.Count == 0 && removed.Count == 0)
+        {
+            return;
+        }
+
+        AppendUse(sql, mapping.Database);
+        foreach (var role in added)
+        {
+            AppendLine(sql, $"ALTER ROLE {QuoteId(role)} ADD MEMBER {QuoteId(snapshot.UserName)};");
+        }
+        foreach (var role in removed)
+        {
+            AppendLine(sql, $"ALTER ROLE {QuoteId(role)} DROP MEMBER {QuoteId(snapshot.UserName)};");
+        }
+    }
+
+    private static void AppendUse(StringBuilder sql, string database) => AppendLine(sql, $"USE {QuoteId(database)};");
+
+    private static void AppendLine(StringBuilder sql, string line)
+    {
+        if (sql.Length > 0) sql.Append('\n');
+        sql.Append(line);
+    }
+
+    /// <summary>Runs the login DDL (CREATE for new, diff for edit), then the per-database mapping in each
+    /// database's own context. Splits on <c>USE [db];</c> so per-db statements land on the right connection.</summary>
     public async Task<bool> ApplyAsync()
     {
         try
@@ -165,63 +410,145 @@ public sealed class LoginPropertiesViewModel : INotifyPropertyChanged
                 Status = "Enter a login name.";
                 return false;
             }
-            if (IsSqlAuth && Password != ConfirmPassword)
+            if (IsNew && IsSqlAuth && Password != ConfirmPassword)
             {
                 Status = "The passwords do not match.";
                 return false;
             }
 
-            // Login + server-role membership run in the connection's default (server) context.
-            var loginScript = new StringBuilder();
-            var name = QuoteId(LoginName);
-            if (IsSqlAuth)
-            {
-                loginScript.Append($"CREATE LOGIN {name} WITH PASSWORD = {QuoteStr(Password)}");
-                if (!string.IsNullOrEmpty(DefaultDatabase)) loginScript.Append($", DEFAULT_DATABASE = {QuoteId(DefaultDatabase!)}");
-                loginScript.Append($", CHECK_POLICY = {(EnforcePolicy ? "ON" : "OFF")};");
-            }
-            else
-            {
-                loginScript.Append($"CREATE LOGIN {name} FROM WINDOWS");
-                if (!string.IsNullOrEmpty(DefaultDatabase)) loginScript.Append($" WITH DEFAULT_DATABASE = {QuoteId(DefaultDatabase!)}");
-                loginScript.Append(';');
-            }
-            foreach (var role in ServerRoles.Where(r => r.IsChecked))
-            {
-                loginScript.Append($"\nALTER SERVER ROLE {QuoteId(role.Name)} ADD MEMBER {name};");
-            }
-
-            await using (var connection = new SqlConnection(_connectionString))
-            {
-                await connection.OpenAsync();
-                await using var cmd = new SqlCommand(loginScript.ToString(), connection);
-                await cmd.ExecuteNonQueryAsync();
-            }
-
-            // Mapping runs per database, in that database's own context (a fresh connection per db).
-            foreach (var map in Mappings.Where(m => m.IsMapped))
-            {
-                var user = QuoteId(string.IsNullOrWhiteSpace(map.UserName) ? LoginName : map.UserName);
-                var mapScript = new StringBuilder($"CREATE USER {user} FOR LOGIN {name};");
-                foreach (var dbRole in map.DbRoles.Where(r => r.IsChecked))
-                {
-                    mapScript.Append($"\nALTER ROLE {QuoteId(dbRole.Name)} ADD MEMBER {user};");
-                }
-
-                var builder = new SqlConnectionStringBuilder(_connectionString) { InitialCatalog = map.Database };
-                await using var dbConnection = new SqlConnection(builder.ConnectionString);
-                await dbConnection.OpenAsync();
-                await using var dbCmd = new SqlCommand(mapScript.ToString(), dbConnection);
-                await dbCmd.ExecuteNonQueryAsync();
-            }
-
-            return true;
+            return IsNew ? await ApplyCreateAsync() : await ApplyEditAsync();
         }
         catch (Exception ex)
         {
             Status = ex.Message;
             return false;
         }
+    }
+
+    private async Task<bool> ApplyCreateAsync()
+    {
+        var name = QuoteId(LoginName);
+        var loginScript = new StringBuilder();
+        if (IsSqlAuth)
+        {
+            loginScript.Append($"CREATE LOGIN {name} WITH PASSWORD = {QuoteStr(Password)}");
+            if (!string.IsNullOrEmpty(DefaultDatabase)) loginScript.Append($", DEFAULT_DATABASE = {QuoteId(DefaultDatabase!)}");
+            loginScript.Append($", CHECK_POLICY = {(EnforcePolicy ? "ON" : "OFF")};");
+        }
+        else
+        {
+            loginScript.Append($"CREATE LOGIN {name} FROM WINDOWS");
+            if (!string.IsNullOrEmpty(DefaultDatabase)) loginScript.Append($" WITH DEFAULT_DATABASE = {QuoteId(DefaultDatabase!)}");
+            loginScript.Append(';');
+        }
+        foreach (var role in ServerRoles.Where(r => r.IsChecked))
+        {
+            loginScript.Append($"\nALTER SERVER ROLE {QuoteId(role.Name)} ADD MEMBER {name};");
+        }
+
+        await using (var connection = new SqlConnection(_connectionString))
+        {
+            await connection.OpenAsync();
+            await using var cmd = new SqlCommand(loginScript.ToString(), connection);
+            await cmd.ExecuteNonQueryAsync();
+        }
+
+        foreach (var map in Mappings.Where(m => m.IsMapped))
+        {
+            var user = QuoteId(string.IsNullOrWhiteSpace(map.UserName) ? LoginName : map.UserName);
+            var mapScript = new StringBuilder($"CREATE USER {user} FOR LOGIN {name};");
+            foreach (var dbRole in map.DbRoles.Where(r => r.IsChecked))
+            {
+                mapScript.Append($"\nALTER ROLE {QuoteId(dbRole.Name)} ADD MEMBER {user};");
+            }
+
+            await RunInDatabaseAsync(map.Database, mapScript.ToString());
+        }
+
+        return true;
+    }
+
+    // Runs the same diff BuildEditScript produced, per-database context where needed (USE [db]; splits).
+    private async Task<bool> ApplyEditAsync()
+    {
+        var script = BuildEditScript();
+        if (script == "-- no changes")
+        {
+            return true;
+        }
+
+        // Split on `USE [db];` markers into (database, statements) chunks; anything before the first
+        // marker runs on the server (default) connection.
+        var chunks = SplitByUseStatements(script);
+
+        await using (var connection = new SqlConnection(_connectionString))
+        {
+            await connection.OpenAsync();
+            if (!string.IsNullOrWhiteSpace(chunks.Server))
+            {
+                await using var cmd = new SqlCommand(chunks.Server, connection);
+                await cmd.ExecuteNonQueryAsync();
+            }
+        }
+
+        foreach (var (database, body) in chunks.PerDatabase)
+        {
+            await RunInDatabaseAsync(database, body);
+        }
+
+        return true;
+    }
+
+    private async Task RunInDatabaseAsync(string database, string body)
+    {
+        var builder = new SqlConnectionStringBuilder(_connectionString) { InitialCatalog = database };
+        await using var connection = new SqlConnection(builder.ConnectionString);
+        await connection.OpenAsync();
+        await using var cmd = new SqlCommand(body, connection);
+        await cmd.ExecuteNonQueryAsync();
+    }
+
+    // Simple splitter: walks the script line by line; a `USE [name];` line switches the active database.
+    private static (string Server, IReadOnlyList<(string Database, string Body)> PerDatabase) SplitByUseStatements(string script)
+    {
+        var server = new StringBuilder();
+        var perDb = new List<(string, string)>();
+        var currentDb = (string?)null;
+        var currentBody = new StringBuilder();
+
+        foreach (var rawLine in script.Split('\n'))
+        {
+            var line = rawLine.Trim();
+            if (line.StartsWith("USE [", StringComparison.OrdinalIgnoreCase))
+            {
+                if (currentDb is not null && currentBody.Length > 0)
+                {
+                    perDb.Add((currentDb, currentBody.ToString()));
+                }
+
+                currentDb = line[5..line.IndexOf(']')].Replace("]]", "]");
+                currentBody.Clear();
+                continue;
+            }
+
+            if (currentDb is null)
+            {
+                if (server.Length > 0) server.Append('\n');
+                server.Append(rawLine);
+            }
+            else
+            {
+                if (currentBody.Length > 0) currentBody.Append('\n');
+                currentBody.Append(rawLine);
+            }
+        }
+
+        if (currentDb is not null && currentBody.Length > 0)
+        {
+            perDb.Add((currentDb, currentBody.ToString()));
+        }
+
+        return (server.ToString(), perDb);
     }
 
     private static string QuoteId(string name) => $"[{name.Replace("]", "]]")}]";
@@ -239,6 +566,9 @@ public sealed class LoginPropertiesViewModel : INotifyPropertyChanged
     }
 }
 
+/// <summary>Original per-database mapping state captured during prefill so Apply can emit the delta.</summary>
+public sealed record MappingSnapshot(bool Mapped, string UserName, HashSet<string> DbRoles);
+
 /// <summary>A checkable role membership row (server or database), notifying the VM to re-preview on toggle.</summary>
 public sealed class RoleRow : INotifyPropertyChanged
 {
@@ -252,6 +582,14 @@ public sealed class RoleRow : INotifyPropertyChanged
     {
         get => _isChecked;
         set { if (_isChecked != value) { _isChecked = value; OnPropertyChanged(nameof(IsChecked)); _onChange(); } }
+    }
+
+    /// <summary>Prefill-time setter that skips the re-preview callback (bulk load path).</summary>
+    public void SetCheckedSilent(bool value)
+    {
+        if (_isChecked == value) return;
+        _isChecked = value;
+        OnPropertyChanged(nameof(IsChecked));
     }
 
     public event PropertyChangedEventHandler? PropertyChanged;
@@ -284,6 +622,20 @@ public sealed class MappingRow : INotifyPropertyChanged
     {
         get => _userName;
         set { if (_userName != value) { _userName = value; OnPropertyChanged(nameof(UserName)); _onChange(); } }
+    }
+
+    public void SetMappedSilent(bool value)
+    {
+        if (_isMapped == value) return;
+        _isMapped = value;
+        OnPropertyChanged(nameof(IsMapped));
+    }
+
+    public void SetUserNameSilent(string value)
+    {
+        if (_userName == value) return;
+        _userName = value;
+        OnPropertyChanged(nameof(UserName));
     }
 
     public event PropertyChangedEventHandler? PropertyChanged;

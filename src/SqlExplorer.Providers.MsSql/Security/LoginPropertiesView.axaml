@@ -13,23 +13,23 @@
         <StackPanel Spacing="10" Margin="0,10,0,0">
           <StackPanel Spacing="4">
             <TextBlock Text="Login name" />
-            <TextBox Text="{Binding LoginName}" />
+            <TextBox Text="{Binding LoginName}" IsReadOnly="{Binding !IsNew}" />
           </StackPanel>
 
           <StackPanel Spacing="4">
             <TextBlock Text="Authentication" />
             <StackPanel Orientation="Horizontal" Spacing="18">
-              <RadioButton GroupName="auth" Content="SQL Server" IsChecked="{Binding IsSqlAuth}" />
-              <RadioButton GroupName="auth" Content="Windows" IsChecked="{Binding IsWindowsAuth}" />
+              <RadioButton GroupName="auth" Content="SQL Server" IsChecked="{Binding IsSqlAuth}" IsEnabled="{Binding IsNew}" />
+              <RadioButton GroupName="auth" Content="Windows" IsChecked="{Binding IsWindowsAuth}" IsEnabled="{Binding IsNew}" />
             </StackPanel>
           </StackPanel>
 
           <Grid ColumnDefinitions="*,12,*">
-            <StackPanel Grid.Column="0" Spacing="4">
+            <StackPanel Grid.Column="0" Spacing="4" IsVisible="{Binding IsNew}">
               <TextBlock Text="Password" />
               <TextBox Text="{Binding Password}" PasswordChar="•" IsEnabled="{Binding IsSqlAuth}" />
             </StackPanel>
-            <StackPanel Grid.Column="2" Spacing="4">
+            <StackPanel Grid.Column="2" Spacing="4" IsVisible="{Binding IsNew}">
               <TextBlock Text="Confirm password" />
               <TextBox Text="{Binding ConfirmPassword}" PasswordChar="•" IsEnabled="{Binding IsSqlAuth}" />
             </StackPanel>
@@ -42,7 +42,7 @@
                         HorizontalAlignment="Stretch" />
             </StackPanel>
             <CheckBox Grid.Column="2" Content="Enforce password policy" VerticalAlignment="Bottom"
-                      IsChecked="{Binding EnforcePolicy}" IsEnabled="{Binding IsSqlAuth}" />
+                      IsChecked="{Binding EnforcePolicy}" IsEnabled="{Binding IsSqlAuth}" IsVisible="{Binding IsNew}" />
           </Grid>
         </StackPanel>
       </TabItem>
