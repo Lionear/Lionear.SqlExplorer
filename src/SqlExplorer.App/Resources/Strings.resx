@@ -795,6 +795,60 @@
   <data name="AboutText" xml:space="preserve">
     <value>Lionear SQL Explorer</value>
   </data>
+  <data name="AboutTagline" xml:space="preserve">
+    <value>A cross-platform, multilingual SQL explorer built in .NET. Database drivers ship as plugins.</value>
+  </data>
+  <data name="AboutVersion" xml:space="preserve">
+    <value>Version {0}</value>
+  </data>
+  <data name="AboutHostApiChip" xml:space="preserve">
+    <value>Host API {0} · min {1}</value>
+  </data>
+  <data name="AboutSystem" xml:space="preserve">
+    <value>System</value>
+  </data>
+  <data name="AboutOs" xml:space="preserve">
+    <value>OS</value>
+  </data>
+  <data name="AboutRuntime" xml:space="preserve">
+    <value>Runtime</value>
+  </data>
+  <data name="AboutAvalonia" xml:space="preserve">
+    <value>Avalonia</value>
+  </data>
+  <data name="AboutLanguage" xml:space="preserve">
+    <value>Language</value>
+  </data>
+  <data name="AboutConfig" xml:space="preserve">
+    <value>Config</value>
+  </data>
+  <data name="AboutPlugins" xml:space="preserve">
+    <value>Plugins</value>
+  </data>
+  <data name="AboutPluginCount" xml:space="preserve">
+    <value>{0} loaded · {1} disabled</value>
+  </data>
+  <data name="AboutWebsite" xml:space="preserve">
+    <value>Website</value>
+  </data>
+  <data name="AboutRepository" xml:space="preserve">
+    <value>Repository</value>
+  </data>
+  <data name="AboutLicense" xml:space="preserve">
+    <value>License</value>
+  </data>
+  <data name="AboutThirdParty" xml:space="preserve">
+    <value>Third-party notices</value>
+  </data>
+  <data name="AboutCopyright" xml:space="preserve">
+    <value>© 2026 Lionear · Licensed under the Commons Clause License Condition v1.0</value>
+  </data>
+  <data name="AboutCopyDiagnostics" xml:space="preserve">
+    <value>Copy diagnostics</value>
+  </data>
+  <data name="AboutCopied" xml:space="preserve">
+    <value>Copied</value>
+  </data>
   <data name="CopyAsCsv" xml:space="preserve">
     <value>Copy as CSV</value>
   </data>

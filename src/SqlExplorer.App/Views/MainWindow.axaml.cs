@@ -127,15 +127,8 @@ public partial class MainWindow : Window
         }
     }
 
-    private async Task ShowAboutAsync()
-    {
-        if (DataContext is not MainViewModel vm)
-        {
-            return;
-        }
-
-        await new AboutWindow(vm.Loc).ShowDialog(this);
-    }
+    private async Task ShowAboutAsync(ViewModels.AboutViewModel viewModel) =>
+        await new AboutWindow(viewModel).ShowDialog(this);
 
     private void RestoreLayout()
     {

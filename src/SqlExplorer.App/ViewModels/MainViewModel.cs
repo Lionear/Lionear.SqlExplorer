@@ -42,6 +42,7 @@ public partial class MainViewModel : ViewModelBase
     private readonly IQueryHistoryStore _history;
     private readonly IQueryLog _queryLog;
     private readonly Func<QueryLogViewModel> _queryLogFactory;
+    private readonly Func<AboutViewModel> _aboutFactory;
     private readonly ISchemaCache _schemaCache;
     private readonly Func<ConnectionManagerViewModel> _connectionManagerFactory;
     private readonly Func<CreateObjectDialogViewModel> _createDialogFactory;
@@ -83,6 +84,7 @@ public partial class MainViewModel : ViewModelBase
         IQueryHistoryStore history,
         IQueryLog queryLog,
         Func<QueryLogViewModel> queryLogFactory,
+        Func<AboutViewModel> aboutFactory,
         ISchemaCache schemaCache,
         Func<ConnectionManagerViewModel> connectionManagerFactory,
         Func<CreateObjectDialogViewModel> createDialogFactory,
@@ -105,6 +107,7 @@ public partial class MainViewModel : ViewModelBase
         _history = history;
         _queryLog = queryLog;
         _queryLogFactory = queryLogFactory;
+        _aboutFactory = aboutFactory;
         _schemaCache = schemaCache;
         _connectionManagerFactory = connectionManagerFactory;
         _createDialogFactory = createDialogFactory;
@@ -2086,14 +2089,14 @@ public partial class MainViewModel : ViewModelBase
     }
 
     /// <summary>Set by the view so the VM can show the About window.</summary>
-    public Func<Task>? AboutRequested { get; set; }
+    public Func<AboutViewModel, Task>? AboutRequested { get; set; }
 
     [RelayCommand]
     private async Task ShowAboutAsync()
     {
         if (AboutRequested is not null)
         {
-            await AboutRequested();
+            await AboutRequested(_aboutFactory());
         }
     }
 

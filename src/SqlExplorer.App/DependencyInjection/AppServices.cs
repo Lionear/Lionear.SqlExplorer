@@ -171,6 +171,8 @@ public static class AppServices
         services.AddSingleton<IQueryLog>(new JsonlQueryLogStore());
         services.AddTransient<QueryLogViewModel>();
         services.AddSingleton<Func<QueryLogViewModel>>(sp => sp.GetRequiredService<QueryLogViewModel>);
+        services.AddTransient<AboutViewModel>();
+        services.AddSingleton<Func<AboutViewModel>>(sp => sp.GetRequiredService<AboutViewModel>);
         services.AddSingleton<IOpenTabsStore>(new JsonOpenTabsStore());
         services.AddSingleton<ConnectionService>();
         services.AddSingleton<MasterPasswordService>();
