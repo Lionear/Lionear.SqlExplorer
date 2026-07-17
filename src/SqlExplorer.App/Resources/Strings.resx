@@ -34,7 +34,7 @@
     <value>Language</value>
   </data>
   <data name="StatusConnected" xml:space="preserve">
-    <value>Connected · {0} schema(s)</value>
+    <value>Connected to {0} · {1} schema(s)</value>
   </data>
   <data name="StatusRows" xml:space="preserve">
     <value>{0} rows · {1:F0} ms</value>

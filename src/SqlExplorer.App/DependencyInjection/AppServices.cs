@@ -181,6 +181,10 @@ public static class AppServices
         // connect. Powers object-search and schema-aware completion.
         services.AddSingleton<ISchemaCache, SchemaCache>();
 
+        // Per-connection engine version string (e.g. "PostgreSQL 16.2"), fetched once at connect. Shown in
+        // the status bar and the connect message; null when the provider reports no version (host-API v25).
+        services.AddSingleton<IServerVersionCache, ServerVersionCache>();
+
         // The connection form VM — now embedded as the Connection Manager's detail panel (the standalone
         // modal it used to back was retired), so it's resolved per-connection via this factory.
         services.AddTransient<ConnectionDialogViewModel>();

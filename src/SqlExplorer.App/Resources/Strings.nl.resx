@@ -34,7 +34,7 @@
     <value>Taal</value>
   </data>
   <data name="StatusConnected" xml:space="preserve">
-    <value>Verbonden · {0} schema('s)</value>
+    <value>Verbonden met {0} · {1} schema('s)</value>
   </data>
   <data name="StatusRows" xml:space="preserve">
     <value>{0} rijen · {1:F0} ms</value>
