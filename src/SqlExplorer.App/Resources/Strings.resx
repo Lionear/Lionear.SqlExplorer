@@ -849,6 +849,12 @@
   <data name="StoreManageSources" xml:space="preserve">
     <value>Manage sources…</value>
   </data>
+  <data name="StorePinned" xml:space="preserve">
+    <value>Pinned</value>
+  </data>
+  <data name="StoreUnpin" xml:space="preserve">
+    <value>Unpin</value>
+  </data>
   <data name="AppearanceDesc" xml:space="preserve">
     <value>Theme applies live — no restart needed.</value>
   </data>

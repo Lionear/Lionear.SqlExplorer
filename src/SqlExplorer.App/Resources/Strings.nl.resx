@@ -849,6 +849,12 @@
   <data name="StoreManageSources" xml:space="preserve">
     <value>Bronnen beheren…</value>
   </data>
+  <data name="StorePinned" xml:space="preserve">
+    <value>Vastgezet</value>
+  </data>
+  <data name="StoreUnpin" xml:space="preserve">
+    <value>Vrijgeven</value>
+  </data>
   <data name="AppearanceDesc" xml:space="preserve">
     <value>Thema wordt direct toegepast — geen herstart nodig.</value>
   </data>

@@ -37,6 +37,13 @@
                 <TextBlock Text="{Binding UpdateLabel}" FontSize="9.5" FontWeight="SemiBold"
                            Foreground="{DynamicResource SEStatusWaitingBrush}" />
               </Border>
+              <!-- Version-pin badge: this plugin is held at its current version by IPluginPinStore
+                   until the user clicks Unpin (SE-120). -->
+              <Border IsVisible="{Binding IsPinned}" Background="#2E3574F0" CornerRadius="9"
+                      Padding="7,1" VerticalAlignment="Center">
+                <TextBlock Text="{Binding $parent[Window].DataContext.Loc[StorePinned]}" FontSize="9.5"
+                           FontWeight="SemiBold" Foreground="{DynamicResource SEAccentBrush}" />
+              </Border>
             </StackPanel>
             <!-- status line -->
             <TextBlock Text="{Binding LoadError}" FontSize="11" TextWrapping="Wrap"
@@ -56,6 +63,9 @@
             <Button Classes="Subtle" IsVisible="{Binding HasRollback}"
                     Content="{Binding RollbackLabel}"
                     Command="{Binding $parent[Window].DataContext.RollbackCommand}" CommandParameter="{Binding}" />
+            <Button Classes="Subtle" IsVisible="{Binding IsPinned}"
+                    Content="{Binding $parent[Window].DataContext.Loc[StoreUnpin]}"
+                    Command="{Binding $parent[Window].DataContext.UnpinCommand}" CommandParameter="{Binding}" />
             <Button Classes="Subtle" IsVisible="{Binding CanManage}"
                     Content="{Binding $parent[Window].DataContext.Loc[StoreUninstall]}"
                     Command="{Binding $parent[Window].DataContext.UninstallCommand}" CommandParameter="{Binding}" />

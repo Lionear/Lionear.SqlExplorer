@@ -28,6 +28,7 @@ public sealed partial class PluginStoreViewModel : ViewModelBase
     private readonly PluginCatalogService _installed;
     private readonly PluginUpdateService _updates;
     private readonly HttpClient _http;
+    private readonly IPluginPinStore _pins;
     private readonly IDbProviderRegistry _providers;
     private readonly IToolRegistry _tools;
     private readonly Progress<InstallProgress> _progress;
@@ -110,6 +111,7 @@ public sealed partial class PluginStoreViewModel : ViewModelBase
         PluginCatalogService installed,
         PluginUpdateService updates,
         HttpClient http,
+        IPluginPinStore pins,
         IDbProviderRegistry providers,
         IToolRegistry tools,
         ILocalizer localizer)
@@ -119,6 +121,7 @@ public sealed partial class PluginStoreViewModel : ViewModelBase
         _installed = installed;
         _updates = updates;
         _http = http;
+        _pins = pins;
         _providers = providers;
         _tools = tools;
         Loc = localizer;
@@ -200,6 +203,7 @@ public sealed partial class PluginStoreViewModel : ViewModelBase
         var updates = _updates.DetectUpdates(_installed.Installed, catalog)
             .ToDictionary(u => u.Id, u => u, StringComparer.Ordinal);
         var entriesById = catalog.Entries.ToDictionary(e => e.Entry.Id, e => e.Entry, StringComparer.Ordinal);
+        var pinnedIds = _pins.GetAll();
 
         foreach (var plugin in _installed.Installed.OrderBy(p => p.Name ?? p.Id, StringComparer.OrdinalIgnoreCase))
         {
@@ -231,6 +235,7 @@ public sealed partial class PluginStoreViewModel : ViewModelBase
             // generic glyph. Set synchronously here; the remote URL stays a fallback for the rest.
             row.Icon = ResolveLocalIcon(plugin);
             row.RollbackLabel = hasRollback ? Loc.Get("StoreRollbackTo", prevVersion!) : Loc["StoreRollback"];
+            row.IsPinned = pinnedIds.ContainsKey(plugin.Id);
 
             (plugin.Origin == PluginOrigin.Bundled ? BundledPlugins : UserPlugins).Add(row);
         }
@@ -459,6 +464,18 @@ public sealed partial class PluginStoreViewModel : ViewModelBase
         if (outcome.Success)
         {
             item.MarkStaged(version.Version);
+            // Pin whenever the user picks a version that isn't the highest compatible one — that's an
+            // explicit "hold this version" signal. Picking the top version clears any prior pin so
+            // Update All resumes auto-updates without a separate button.
+            var top = item.Versions.FirstOrDefault()?.Version;
+            if (top is not null && version.Version != top)
+            {
+                _pins.Pin(item.Id, version.Version);
+            }
+            else
+            {
+                _pins.Unpin(item.Id);
+            }
         }
     }
 
@@ -627,7 +644,32 @@ public sealed partial class PluginStoreViewModel : ViewModelBase
 
         _installed.RequestUninstall(item.Id);
         item.Pending = PluginPendingAction.Remove;
+        // Clearing the pin on uninstall keeps state tidy — a reinstall shouldn't inherit an old pin
+        // that the user probably forgot about.
+        _pins.Unpin(item.Id);
+        item.IsPinned = false;
         RestartRequired = true;
+    }
+
+    /// <summary>Clear the version-pin on an installed plugin so "Update all" resumes for it. Does not
+    /// change what's currently on disk — just re-enables auto-updates on the next detect pass (SE-120).</summary>
+    [RelayCommand]
+    private void Unpin(InstalledListItem item)
+    {
+        if (!item.IsPinned)
+        {
+            return;
+        }
+
+        _pins.Unpin(item.Id);
+        item.IsPinned = false;
+
+        // A pinned plugin was excluded from update detection; refresh so an available higher version
+        // shows up immediately (without waiting for the user to hit Refresh).
+        if (_lastCatalog is not null)
+        {
+            BuildInstalled(_lastCatalog);
+        }
     }
 
     // --- Capability consent overlay ----------------------------------------------------------------

@@ -211,6 +211,11 @@ public sealed partial class InstalledListItem : ObservableObject
     [ObservableProperty]
     private bool _hasRollback;
 
+    /// <summary>True when this plugin is version-pinned via <see cref="IPluginPinStore"/> — updates
+    /// are skipped until the pin is cleared, and a badge shows in the Installed row (SE-120).</summary>
+    [ObservableProperty]
+    private bool _isPinned;
+
     /// <summary>Localized "Back to x.y.z" (falls back to a generic "Roll back") for the rollback button.</summary>
     [ObservableProperty]
     private string? _rollbackLabel;

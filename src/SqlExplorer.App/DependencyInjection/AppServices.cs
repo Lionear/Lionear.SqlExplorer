@@ -125,6 +125,7 @@ public static class AppServices
         // installer. The store window is opened from the menu, same factory-delegate pattern as the dialogs.
         services.AddSingleton(new HttpClient());
         services.AddSingleton<IStoreSourcesStore>(new JsonStoreSourcesStore());
+        services.AddSingleton<IPluginPinStore>(new JsonPluginPinStore());
         services.AddSingleton<IDiscoveryService>(sp => new HttpDiscoveryService(sp.GetRequiredService<HttpClient>()));
         services.AddSingleton<IStoreCatalog>(sp => new HttpStoreCatalog(
             sp.GetRequiredService<HttpClient>(),
