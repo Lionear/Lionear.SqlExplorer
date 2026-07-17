@@ -149,6 +149,10 @@ public sealed class AppSettings
     /// <summary>Whether to check the chosen channel for a newer build once on startup. On by default.</summary>
     public bool CheckForUpdatesOnStartup { get; set; } = true;
 
+    /// <summary>Background re-check interval in minutes. 0 = only on startup (no periodic loop). Default 240
+    /// (4 hours), matching the interval that was hardcoded before SE-152.</summary>
+    public int UpdateCheckIntervalMinutes { get; set; } = 240;
+
     /// <summary>The version the user dismissed with "Later"; the startup banner stays hidden for it until a
     /// newer build appears. Null = nothing dismissed.</summary>
     public string? DismissedUpdateVersion { get; set; }

@@ -93,17 +93,27 @@ public sealed partial class AppUpdateViewModel : ViewModelBase
         }
     }
 
-    /// <summary>While the app stays open (notably close-to-tray), re-check every <paramref name="interval"/>,
-    /// gated on the same auto-check setting. Respects the "Later" dismissal so it never re-nags a version.</summary>
-    public async Task RunPeriodicChecksAsync(TimeSpan interval, CancellationToken ct)
+    // Floor on the configurable re-check interval, so a mis-set value can't hammer the update server.
+    private static readonly TimeSpan MinCheckInterval = TimeSpan.FromMinutes(30);
+
+    /// <summary>While the app stays open (notably close-to-tray), re-check on the interval configured in
+    /// Settings (<see cref="AppSettings.UpdateCheckIntervalMinutes"/>), gated on the same auto-check setting.
+    /// The interval is re-read every iteration, so a change in Settings takes effect without a restart; 0
+    /// disables periodic checks. Respects the "Later" dismissal so it never re-nags a version.</summary>
+    public async Task RunPeriodicChecksAsync(CancellationToken ct)
     {
-        using var timer = new PeriodicTimer(interval);
         try
         {
-            while (await timer.WaitForNextTickAsync(ct))
+            while (!ct.IsCancellationRequested)
             {
-                var settings = _settingsStore.Load();
-                if (settings.CheckForUpdatesOnStartup && !HasUpdate)
+                var minutes = _settingsStore.Load().UpdateCheckIntervalMinutes;
+                // When periodic checks are off, idle at the floor and re-read — so re-enabling in Settings
+                // resumes without a restart, rather than blocking forever on a disabled interval.
+                var delay = minutes <= 0 ? MinCheckInterval : TimeSpan.FromMinutes(Math.Max(minutes, MinCheckInterval.TotalMinutes));
+                await Task.Delay(delay, ct);
+
+                var settings = _settingsStore.Load();  // may have changed during the delay
+                if (settings.CheckForUpdatesOnStartup && settings.UpdateCheckIntervalMinutes > 0 && !HasUpdate)
                 {
                     await CheckEffectiveAsync(settings, ct);
                 }
