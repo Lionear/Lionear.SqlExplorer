@@ -37,8 +37,8 @@
   <Grid ColumnDefinitions="280,Auto,*">
 
     <!-- ============ Left: folder + connection tree ============ -->
-    <Border Grid.Column="0" Background="{DynamicResource SEPanelBgBrush}"
-            BorderBrush="{DynamicResource SEHairlineBrush}" BorderThickness="0,0,1,0">
+    <!-- No right border: the GridSplitter next to it is painted hairline and IS the divider (SE-123). -->
+    <Border Grid.Column="0" Background="{DynamicResource SEPanelBgBrush}">
       <Grid RowDefinitions="Auto,*,Auto">
 
         <!-- Toolbar: filter + add/duplicate/delete -->
@@ -123,7 +123,7 @@
       </Grid>
     </Border>
 
-    <GridSplitter Grid.Column="1" Width="4" ResizeDirection="Columns" Background="Transparent" />
+    <GridSplitter Grid.Column="1" Width="3" ResizeDirection="Columns" />
 
     <!-- ============ Right: detail panes ============ -->
     <Panel Grid.Column="2">

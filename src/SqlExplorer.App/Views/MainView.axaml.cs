@@ -82,6 +82,102 @@ public partial class MainView : UserControl
         }
     }
 
+    // --- Tool-window sizes (SE-123) -----------------------------------------------------------------
+    // Same shape as the sidebar: GridLength lives in XAML, the VM keeps a plain double, and these two
+    // methods bridge them at startup/shutdown. Grid rows/columns can't bind a double directly, and
+    // x:Name on a RowDefinition/ColumnDefinition generates no field — hence the index access.
+    private const int OutputRowIndex = 3;
+    private const int HistoryColumnIndex = 4;
+
+    /// <summary>Push the persisted sizes into the grid definitions (call once, after DataContext is set).</summary>
+    public void RestoreToolWindowSizes(double outputHeight, double historyWidth)
+    {
+        if (outputHeight > 0)
+        {
+            RootGrid.RowDefinitions[OutputRowIndex].Height = new GridLength(outputHeight);
+        }
+
+        if (historyWidth > 0)
+        {
+            BodyGrid.ColumnDefinitions[HistoryColumnIndex].Width = new GridLength(historyWidth);
+        }
+
+        ApplyToolWindowVisibility();
+    }
+
+    // Minimum sizes while a panel is open; they must drop to 0 when it closes, or the track keeps
+    // reserving MinHeight/MinWidth pixels regardless of the Height/Width we set (that's what left an
+    // empty band above the status bar). Hence: set Min* together with the size, never in XAML.
+    private const double OutputMinHeight = 80;
+    private const double HistoryMinWidth = 200;
+
+    // A hidden panel must not keep reserving its track: IsVisible on the Border alone still leaves the
+    // fixed-pixel row/column occupying space. Collapse the track to 0 while hidden and restore the VM's
+    // size when shown — that also means the splitter can only be dragged while the panel is open.
+    private void ApplyToolWindowVisibility()
+    {
+        if (_viewModel is null)
+        {
+            return;
+        }
+
+        var outputRow = RootGrid.RowDefinitions[OutputRowIndex];
+        outputRow.MinHeight = _viewModel.OutputWindow.IsVisible ? OutputMinHeight : 0;
+        outputRow.Height = _viewModel.OutputWindow.IsVisible
+            ? new GridLength(_viewModel.OutputWindow.Size)
+            : new GridLength(0);
+
+        var historyColumn = BodyGrid.ColumnDefinitions[HistoryColumnIndex];
+        historyColumn.MinWidth = _viewModel.HistoryWindow.IsVisible ? HistoryMinWidth : 0;
+        historyColumn.Width = _viewModel.HistoryWindow.IsVisible
+            ? new GridLength(_viewModel.HistoryWindow.Size)
+            : new GridLength(0);
+    }
+
+    // Keep the VM's Size in step with a splitter drag, and collapse/restore the track on toggle.
+    private void OnToolWindowPropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
+    {
+        if (sender is not ToolWindow window)
+        {
+            return;
+        }
+
+        if (e.PropertyName != nameof(ToolWindow.IsVisible))
+        {
+            return;
+        }
+
+        // Capture the current size before collapsing, so re-opening restores what the user dragged to.
+        if (!window.IsVisible)
+        {
+            CaptureToolWindowSizes();
+        }
+
+        ApplyToolWindowVisibility();
+    }
+
+    /// <summary>Read the current sizes back into the VM's tool windows so they can be persisted. A
+    /// collapsed track reads 0 — skip it so closing a panel doesn't persist a zero size.</summary>
+    public void CaptureToolWindowSizes()
+    {
+        if (_viewModel is null)
+        {
+            return;
+        }
+
+        var outputHeight = RootGrid.RowDefinitions[OutputRowIndex].Height.Value;
+        if (outputHeight > 0)
+        {
+            _viewModel.OutputWindow.Size = outputHeight;
+        }
+
+        var historyWidth = BodyGrid.ColumnDefinitions[HistoryColumnIndex].Width.Value;
+        if (historyWidth > 0)
+        {
+            _viewModel.HistoryWindow.Size = historyWidth;
+        }
+    }
+
     // Handled in the tunnel (before the TreeViewItem), so we can act before its own selection/expand logic.
     private void OnTreePointerPressed(object? sender, PointerPressedEventArgs e)
     {
@@ -259,11 +355,23 @@ public partial class MainView : UserControl
         {
             _viewModel.PropertyChanged -= OnViewModelPropertyChanged;
             _viewModel.OutputEntries.CollectionChanged -= OnOutputEntriesChanged;
+            foreach (var window in _viewModel.ToolWindows)
+            {
+                window.PropertyChanged -= OnToolWindowPropertyChanged;
+            }
         }
 
         _viewModel = DataContext as MainViewModel;
         if (_viewModel is not null)
         {
+            // Push the persisted tool-window sizes into the grid (the VM read them from settings) and
+            // track visibility so a hidden panel's track collapses instead of reserving its size.
+            RestoreToolWindowSizes(_viewModel.OutputWindow.Size, _viewModel.HistoryWindow.Size);
+            foreach (var window in _viewModel.ToolWindows)
+            {
+                window.PropertyChanged += OnToolWindowPropertyChanged;
+            }
+
             _viewModel.OutputEntries.CollectionChanged += OnOutputEntriesChanged;
             _viewModel.ConnectionManagerRequested = ShowConnectionManagerAsync;
             _viewModel.CreateObjectDialogRequested = ShowCreateObjectDialogAsync;

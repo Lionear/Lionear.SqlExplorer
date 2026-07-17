@@ -39,6 +39,12 @@
   <data name="StatusRows" xml:space="preserve">
     <value>{0} rows · {1:F0} ms</value>
   </data>
+  <data name="StatusBarRows" xml:space="preserve">
+    <value>{0} rows</value>
+  </data>
+  <data name="StatusBarMs" xml:space="preserve">
+    <value>{0} ms</value>
+  </data>
   <data name="StatusAffected" xml:space="preserve">
     <value>{0} affected · {1:F0} ms</value>
   </data>

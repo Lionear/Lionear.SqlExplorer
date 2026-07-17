@@ -96,6 +96,17 @@
     <Setter Property="Opacity" Value="0.45" />
   </Style>
 
+  <!-- Splitters ARE the divider line (SE-123): a transparent one lets the darker window background show
+       through as a gap between panels. Painting them hairline-coloured makes the seam read as a border
+       while keeping a grabbable width; accent on hover shows it's draggable. Panels adjacent to a
+       splitter therefore drop their own border on that edge — otherwise the line doubles up. -->
+  <Style Selector="GridSplitter">
+    <Setter Property="Background" Value="{DynamicResource SEHairlineBrush}" />
+  </Style>
+  <Style Selector="GridSplitter:pointerover">
+    <Setter Property="Background" Value="{DynamicResource SEAccentBrush}" />
+  </Style>
+
   <Style Selector="Button.Accent">
     <Setter Property="Background" Value="{DynamicResource SEAccentBrush}" />
     <Setter Property="Foreground" Value="{DynamicResource SEAccentFgBrush}" />
