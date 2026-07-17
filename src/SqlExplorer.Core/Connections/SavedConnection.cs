@@ -41,4 +41,8 @@ public sealed record SavedConnection
     public bool IsMcpReachable => AiAccess != AiAccessMode.None && !ExcludeFromMcp;
 
     public required IReadOnlyDictionary<string, string?> Values { get; init; }
+
+    /// <summary>Manual sort index within this connection's folder scope; 0 for legacy/unsorted (falls back
+    /// to alphabetical by <see cref="Name"/>). Assigned by the Connection Manager's drag-to-reorder flow.</summary>
+    public int SortOrder { get; init; }
 }

@@ -23,6 +23,17 @@ public sealed class ConnectionService
 
     public IReadOnlyList<SavedConnection> List() => _store.GetAll();
 
+    /// <summary>Manual folder-order map (full path → index). Absent path = alphabetical fallback.</summary>
+    public IReadOnlyDictionary<string, int> ListFolderOrder() => _store.GetFolderOrder();
+
+    /// <summary>One-shot rewrite of both the connection list (with <see cref="SavedConnection.SortOrder"/>
+    /// already stamped) and the folder-order map. Used by the Connection Manager's drag-to-reorder so a
+    /// mixed-scope reorder (folders and connections interleaved) lands atomically in one file write.</summary>
+    public void ApplyReorder(IReadOnlyList<SavedConnection> connections, IReadOnlyDictionary<string, int> folderOrder)
+    {
+        _store.SaveAll(connections, folderOrder);
+    }
+
     /// <summary>Persist a connection: secrets to the keychain, the rest to the config file.</summary>
     public SavedConnection Save(
         string id, string name, string providerId, IReadOnlyDictionary<string, string?> values,

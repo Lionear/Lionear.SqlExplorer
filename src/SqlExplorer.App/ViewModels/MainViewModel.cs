@@ -581,11 +581,12 @@ public partial class MainViewModel : ViewModelBase
     private void RefreshConnections()
     {
         ConnectionNodes.Clear();
-        // Ungrouped first (Folder null sorts before names), then folder groups, each alphabetical.
-        foreach (var connection in _connections.List().OrderBy(c => c.Folder ?? string.Empty).ThenBy(c => c.Name))
+        foreach (var connection in _connections.List())
         {
             PlaceConnectionNode(BuildConnectionNode(connection));
         }
+
+        SortConnectionsTree();
     }
 
     private TreeNodeViewModel BuildConnectionNode(SavedConnection connection)
@@ -804,8 +805,59 @@ public partial class MainViewModel : ViewModelBase
             }
         }
 
+        SortConnectionsTree();
+
         // The selected connection may have been edited or removed; refresh the status-bar binding.
         SelectedConnection = SelectedNode?.Connection;
+    }
+
+    // Reconcile every scope's visible order with the manager's manual SortOrder / folder-order — in
+    // place (ObservableCollection.Move) so an expanded/loaded subtree survives. Folders and connections
+    // share the same numeric slot per scope, so a manual drag can interleave them.
+    private void SortConnectionsTree()
+    {
+        var folderOrder = _connections.ListFolderOrder();
+        SortScope(ConnectionNodes, folderOrder);
+    }
+
+    private static void SortScope(ObservableCollection<TreeNodeViewModel> children, IReadOnlyDictionary<string, int> folderOrder)
+    {
+        var desired = children
+            .OrderBy(n => ManualSlot(n, folderOrder))
+            .ThenBy(n => n.IsFolder ? 0 : 1) // fallback tie: folders above connections
+            .ThenBy(n => n.Name, StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
+        for (var i = 0; i < desired.Count; i++)
+        {
+            var target = desired[i];
+            var currentIndex = children.IndexOf(target);
+            if (currentIndex != i)
+            {
+                children.Move(currentIndex, i);
+            }
+        }
+
+        foreach (var folder in children.Where(n => n.IsFolder))
+        {
+            SortScope(folder.Children, folderOrder);
+        }
+    }
+
+    // 1-based manual index (0 / missing = unsorted → alphabetical tail). Mirrors the manager's
+    // ConnectionManagerViewModel.ManualIndex so both panes agree on the sort.
+    private static int ManualSlot(TreeNodeViewModel node, IReadOnlyDictionary<string, int> folderOrder)
+    {
+        if (node.IsFolder)
+        {
+            return node.FolderPath is { } path
+                && folderOrder.TryGetValue(path, out var idx) && idx > 0
+                    ? idx
+                    : int.MaxValue;
+        }
+
+        var sortOrder = node.Connection.SortOrder;
+        return sortOrder > 0 ? sortOrder : int.MaxValue;
     }
 
     // A provider may ship a brand image and/or a glyph. We render the image when the host can decode
@@ -884,7 +936,18 @@ public partial class MainViewModel : ViewModelBase
 
         var manager = _connectionManagerFactory();
         position?.Invoke(manager);
-        await ConnectionManagerRequested(manager);
+        // Live-sync the sidebar tree while the manager is open (Save/drop/delete/rename) so changes show
+        // up immediately without waiting for the dialog to close — and without collapsing open subtrees.
+        manager.ConnectionsChanged += SyncConnectionsFromStore;
+        try
+        {
+            await ConnectionManagerRequested(manager);
+        }
+        finally
+        {
+            manager.ConnectionsChanged -= SyncConnectionsFromStore;
+        }
+
         SyncConnectionsFromStore();
     }
 

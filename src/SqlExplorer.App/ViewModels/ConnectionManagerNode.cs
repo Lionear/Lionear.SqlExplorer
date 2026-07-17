@@ -22,15 +22,17 @@ public partial class ConnectionManagerNode : ObservableObject
     }
 
     // Connection node.
-    private ConnectionManagerNode(SavedConnection connection)
+    private ConnectionManagerNode(SavedConnection connection, IImage? iconImage)
     {
         Connection = connection;
         Name = connection.Name;
+        IconImage = iconImage;
     }
 
     public static ConnectionManagerNode ForFolder(string name, string fullPath) => new(name, fullPath);
 
-    public static ConnectionManagerNode ForConnection(SavedConnection connection) => new(connection);
+    public static ConnectionManagerNode ForConnection(SavedConnection connection, IImage? iconImage = null) =>
+        new(connection, iconImage);
 
     public bool IsFolder { get; }
 
@@ -56,6 +58,14 @@ public partial class ConnectionManagerNode : ObservableObject
     [NotifyPropertyChangedFor(nameof(DropBrush))]
     private bool _isDropTarget;
 
+    /// <summary>Shows a thin insert-line above this row while a drag would land immediately before it.</summary>
+    [ObservableProperty]
+    private bool _isInsertBefore;
+
+    /// <summary>Shows a thin insert-line below this row while a drag would land immediately after it.</summary>
+    [ObservableProperty]
+    private bool _isInsertAfter;
+
     // Row background while it's a valid drop target (translucent accent), else transparent.
     private static readonly IBrush DropHighlight = new SolidColorBrush(Color.Parse("#333574F0"));
 
@@ -72,7 +82,14 @@ public partial class ConnectionManagerNode : ObservableObject
     public bool HasColor => ColorBrush is not null;
 
     /// <summary>Line-icon for the row: a folder glyph or a generic connection glyph (see <see cref="NodeIcons"/>).</summary>
-    public Geometry Icon => IsFolder ? NodeIcons.Folder : NodeIcons.Connection;
+    public Geometry IconGeometry => IsFolder ? NodeIcons.Folder : NodeIcons.Connection;
+
+    /// <summary>Provider brand icon for connection rows (null for folders or when the provider ships no image).</summary>
+    public IImage? IconImage { get; }
+
+    public bool HasImageIcon => IconImage is not null;
+
+    public bool HasVectorIcon => IconImage is null;
 
     /// <summary>Re-path a folder node after a rename/move (its full path and display segment change).</summary>
     public void Relocate(string name, string fullPath)

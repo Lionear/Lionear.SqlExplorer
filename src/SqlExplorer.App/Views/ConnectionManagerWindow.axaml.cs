@@ -20,9 +20,10 @@ public partial class ConnectionManagerWindow : Window
     private ConnectionManagerNode? _pressNode;
     private PointerPressedEventArgs? _pressArgs;
 
-    // The node currently being dragged, and the folder row currently lit as a drop target.
+    // The node currently being dragged, and the rows currently showing a drop-highlight or insert line.
     private ConnectionManagerNode? _dragged;
     private ConnectionManagerNode? _highlighted;
+    private ConnectionManagerNode? _insertHint;
 
     public ConnectionManagerWindow()
     {
@@ -122,47 +123,75 @@ public partial class ConnectionManagerWindow : Window
 
     private void OnDragOver(object? sender, DragEventArgs e)
     {
-        var target = ResolveTargetFolder(NodeFrom(e.Source));
-        Highlight(target);
+        var (target, position) = ResolveDrop(e);
+        UpdateHint(target, position);
 
-        var allowed = _dragged is not null && ViewModel?.CanDrop(_dragged, target) == true;
+        var allowed = _dragged is not null && ViewModel?.CanDrop(_dragged, target, position) == true;
         e.DragEffects = allowed ? DragDropEffects.Move : DragDropEffects.None;
         e.Handled = true;
     }
 
     private void OnDrop(object? sender, DragEventArgs e)
     {
-        var target = ResolveTargetFolder(NodeFrom(e.Source));
+        var (target, position) = ResolveDrop(e);
         if (_dragged is not null)
         {
-            ViewModel?.Drop(_dragged, target);
+            ViewModel?.Drop(_dragged, target, position);
         }
 
         ClearHighlight();
         e.Handled = true;
     }
 
-    // The folder a drop lands in: the hovered folder itself, or the folder a hovered connection lives in
-    // (null = the root / ungrouped).
-    private ConnectionManagerNode? ResolveTargetFolder(ConnectionManagerNode? hovered) => hovered switch
+    // Resolve the row under the pointer and where the drop lands within it: top third = Before, middle
+    // third = Inside (reparent, only meaningful for folders and root), bottom third = After. A hover with
+    // no row = root drop (Inside null).
+    private (ConnectionManagerNode? Target, DropPosition Position) ResolveDrop(DragEventArgs e)
     {
-        { IsFolder: true } folder => folder,
-        { IsConnection: true } connection => ViewModel?.FindFolderNode(connection.Connection!.Folder),
-        _ => null
-    };
+        if ((e.Source as Visual)?.FindAncestorOfType<TreeViewItem>() is not { } row
+            || row.DataContext is not ConnectionManagerNode hovered)
+        {
+            return (null, DropPosition.Inside);
+        }
 
-    private void Highlight(ConnectionManagerNode? target)
+        var relY = e.GetPosition(row).Y;
+        var height = row.Bounds.Height;
+        if (height <= 0)
+        {
+            return (hovered, DropPosition.Inside);
+        }
+
+        var third = height / 3.0;
+        var position = relY < third
+            ? DropPosition.Before
+            : relY > height - third
+                ? DropPosition.After
+                : hovered.IsFolder ? DropPosition.Inside : DropPosition.After;
+        return (hovered, position);
+    }
+
+    private void UpdateHint(ConnectionManagerNode? target, DropPosition position)
     {
-        if (ReferenceEquals(target, _highlighted))
+        ClearHighlight();
+        if (target is null)
         {
             return;
         }
 
-        ClearHighlight();
-        if (target is { IsFolder: true })
+        if (position == DropPosition.Inside && target.IsFolder)
         {
             target.IsDropTarget = true;
             _highlighted = target;
+        }
+        else if (position == DropPosition.Before)
+        {
+            target.IsInsertBefore = true;
+            _insertHint = target;
+        }
+        else if (position == DropPosition.After)
+        {
+            target.IsInsertAfter = true;
+            _insertHint = target;
         }
     }
 
@@ -172,6 +201,13 @@ public partial class ConnectionManagerWindow : Window
         {
             _highlighted.IsDropTarget = false;
             _highlighted = null;
+        }
+
+        if (_insertHint is not null)
+        {
+            _insertHint.IsInsertBefore = false;
+            _insertHint.IsInsertAfter = false;
+            _insertHint = null;
         }
     }
 
