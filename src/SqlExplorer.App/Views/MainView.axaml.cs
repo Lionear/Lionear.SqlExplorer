@@ -10,6 +10,7 @@ using Avalonia.Interactivity;
 using Avalonia.Platform.Storage;
 using Avalonia.Threading;
 using Avalonia.VisualTree;
+using SqlExplorer.App.Controls;
 using SqlExplorer.App.ViewModels;
 using SqlExplorer.Core.Connections;
 using SqlExplorer.Core.History;
@@ -631,11 +632,6 @@ public partial class MainView : UserControl
         return Task.CompletedTask;
     }
 
-    private async Task CopyToClipboardAsync(string text)
-    {
-        if (TopLevel.GetTopLevel(this)?.Clipboard is { } clipboard)
-        {
-            await clipboard.SetTextAsync(text);
-        }
-    }
+    private Task CopyToClipboardAsync(string text) =>
+        CopyFeedback.CopyAsync(this, text, _viewModel?.Loc["CopiedToClipboard"] ?? "Copied");
 }

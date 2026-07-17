@@ -990,6 +990,9 @@
   <data name="Copy" xml:space="preserve">
     <value>Kopiëren</value>
   </data>
+  <data name="CopiedToClipboard" xml:space="preserve">
+    <value>Gekopieerd</value>
+  </data>
   <data name="Cut" xml:space="preserve">
     <value>Knippen</value>
   </data>
