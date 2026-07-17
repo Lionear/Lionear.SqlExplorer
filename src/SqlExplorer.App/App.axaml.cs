@@ -113,7 +113,7 @@ public partial class App : Application
                 mainWindow.Opened += (_, _) =>
                 {
                     _ = viewModel.Update.CheckOnStartupAsync(_shutdownCts.Token);
-                    _ = viewModel.Update.RunPeriodicChecksAsync(TimeSpan.FromHours(4), _shutdownCts.Token);
+                    _ = viewModel.Update.RunPeriodicChecksAsync(_shutdownCts.Token);
                 };
                 break;
             case ISingleViewApplicationLifetime singleView:

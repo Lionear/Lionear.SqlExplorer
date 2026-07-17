@@ -123,6 +123,32 @@ public partial class SettingsViewModel : ViewModelBase
         UpdateCheckStatus = null;
     }
 
+    /// <summary>A background re-check interval preset in the Updates pane. <see cref="Minutes"/> 0 means
+    /// "only on startup" (no periodic loop).</summary>
+    public sealed record UpdateIntervalOption(int Minutes, string Label);
+
+    public IReadOnlyList<UpdateIntervalOption> UpdateIntervals { get; }
+
+    [ObservableProperty]
+    private int _selectedUpdateIntervalMinutes;
+
+    /// <summary>Two-way bridge between the interval dropdown and <see cref="SelectedUpdateIntervalMinutes"/>.</summary>
+    public UpdateIntervalOption? SelectedUpdateIntervalOption
+    {
+        get => UpdateIntervals.FirstOrDefault(o => o.Minutes == SelectedUpdateIntervalMinutes)
+               ?? UpdateIntervals.FirstOrDefault();
+        set
+        {
+            if (value is not null)
+            {
+                SelectedUpdateIntervalMinutes = value.Minutes;
+            }
+        }
+    }
+
+    partial void OnSelectedUpdateIntervalMinutesChanged(int value) =>
+        OnPropertyChanged(nameof(SelectedUpdateIntervalOption));
+
     [ObservableProperty]
     private bool _checkForUpdatesOnStartup;
 
@@ -439,6 +465,16 @@ public partial class SettingsViewModel : ViewModelBase
                 ChannelDot("#E0A33E"), ChannelTint("#E0A33E")),
         ];
 
+        UpdateIntervals =
+        [
+            new(60, localizer["UpdateIntervalHourly"]),
+            new(240, localizer["UpdateInterval4Hours"]),
+            new(720, localizer["UpdateInterval12Hours"]),
+            new(1440, localizer["UpdateIntervalDaily"]),
+            new(10080, localizer["UpdateIntervalWeekly"]),
+            new(0, localizer["UpdateIntervalManual"]),
+        ];
+
         Categories =
         [
             new SettingsCategory("General", localizer["SettingsGeneralCat"], NodeIcons.SettingsGeneral),
@@ -622,6 +658,7 @@ public partial class SettingsViewModel : ViewModelBase
         RestoreTabsOnStartup = settings.RestoreTabsOnStartup;
         SelectedUpdateChannel = settings.UpdateChannel ?? _update.RunningChannel;
         CheckForUpdatesOnStartup = settings.CheckForUpdatesOnStartup;
+        SelectedUpdateIntervalMinutes = settings.UpdateCheckIntervalMinutes;
         UpdateCheckStatus = null;
         ShowSystemDatabases = settings.ShowSystemDatabases;
         ConfirmOnExit = settings.ConfirmOnExit;
@@ -764,6 +801,7 @@ public partial class SettingsViewModel : ViewModelBase
         // No explicit default channel: fall back to the running build's channel, same as a fresh install.
         SelectedUpdateChannel = defaults.UpdateChannel ?? _update.RunningChannel;
         CheckForUpdatesOnStartup = defaults.CheckForUpdatesOnStartup;
+        SelectedUpdateIntervalMinutes = defaults.UpdateCheckIntervalMinutes;
         ShowSystemDatabases = defaults.ShowSystemDatabases;
         ConfirmOnExit = defaults.ConfirmOnExit;
         CloseToTray = defaults.CloseToTray;
@@ -819,6 +857,7 @@ public partial class SettingsViewModel : ViewModelBase
         }
         settings.UpdateChannel = SelectedUpdateChannel;
         settings.CheckForUpdatesOnStartup = CheckForUpdatesOnStartup;
+        settings.UpdateCheckIntervalMinutes = SelectedUpdateIntervalMinutes;
         settings.ShowSystemDatabases = ShowSystemDatabases;
         settings.ConfirmOnExit = ConfirmOnExit;
         settings.CloseToTray = CloseToTray;

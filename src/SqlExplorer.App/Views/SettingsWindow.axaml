@@ -169,6 +169,18 @@
           <ToggleSwitch IsChecked="{Binding CheckForUpdatesOnStartup}" Margin="0,4,0,0"
                         OnContent="{Binding Loc[CheckForUpdatesOnStartup]}"
                         OffContent="{Binding Loc[CheckForUpdatesOnStartup]}" />
+          <StackPanel Orientation="Horizontal" Spacing="10" Margin="0,4,0,0"
+                      IsEnabled="{Binding CheckForUpdatesOnStartup}">
+            <TextBlock Text="{Binding Loc[UpdateCheckInterval]}" VerticalAlignment="Center" FontSize="12" />
+            <ComboBox ItemsSource="{Binding UpdateIntervals}"
+                      SelectedItem="{Binding SelectedUpdateIntervalOption}" MinWidth="160">
+              <ComboBox.ItemTemplate>
+                <DataTemplate>
+                  <TextBlock Text="{Binding Label}" />
+                </DataTemplate>
+              </ComboBox.ItemTemplate>
+            </ComboBox>
+          </StackPanel>
           <StackPanel Orientation="Horizontal" Spacing="10" Margin="0,2,0,0">
             <Button Content="{Binding Loc[UpdateCheckNow]}" Command="{Binding CheckForUpdatesNowCommand}"
                     IsEnabled="{Binding !IsCheckingUpdate}" />
