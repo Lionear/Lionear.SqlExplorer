@@ -182,9 +182,13 @@ public sealed class LoginPropertiesViewModel : INotifyPropertyChanged
             while (await reader.ReadAsync())
             {
                 var role = reader.GetString(0);
-                _originalServerRoles.Add(role);
+
+                // Snapshot only roles the UI can represent. A user-defined server role has no checkbox, so it
+                // could never appear in the Apply-time diff's "current" set — snapshotting it anyway made the
+                // diff classify it as removed and emit a DROP MEMBER the user never asked for (SE-129).
                 if (ServerRoles.FirstOrDefault(r => string.Equals(r.Name, role, StringComparison.OrdinalIgnoreCase)) is { } row)
                 {
+                    _originalServerRoles.Add(role);
                     row.SetCheckedSilent(true);
                 }
             }
@@ -245,9 +249,12 @@ public sealed class LoginPropertiesViewModel : INotifyPropertyChanged
             while (await reader.ReadAsync())
             {
                 var role = reader.GetString(0);
-                roles.Add(role);
+
+                // Same reason as the server-role snapshot above: a custom database role has no checkbox, so
+                // keeping it out of the snapshot is what stops the diff from revoking it (SE-129).
                 if (mapping.DbRoles.FirstOrDefault(r => string.Equals(r.Name, role, StringComparison.OrdinalIgnoreCase)) is { } row)
                 {
+                    roles.Add(role);
                     row.SetCheckedSilent(true);
                 }
             }
@@ -263,17 +270,23 @@ public sealed class LoginPropertiesViewModel : INotifyPropertyChanged
             return;
         }
 
-        SqlPreview = IsNew ? BuildCreateScript() : BuildEditScript();
+        SqlPreview = IsNew ? BuildCreateScript(maskPassword: true) : BuildEditScript();
     }
 
-    private string BuildCreateScript()
+    /// <summary>Builds the CREATE script for display. Apply does not run this — <see cref="ApplyCreateAsync"/>
+    /// composes its own statements — which is why <paramref name="maskPassword"/> is safe here.</summary>
+    /// <param name="maskPassword">Replaces the password literal with dots. The preview sits next to a masked
+    /// password box, so echoing the plaintext there defeated that masking on screen shares and screenshots
+    /// (SE-132). Must never be false for anything that reaches the server.</param>
+    private string BuildCreateScript(bool maskPassword)
     {
         var name = QuoteId(LoginName);
         var sql = new StringBuilder();
 
         if (IsSqlAuth)
         {
-            sql.Append($"CREATE LOGIN {name} WITH PASSWORD = {QuoteStr(Password)}");
+            var password = maskPassword ? "N'••••••••'" : QuoteStr(Password);
+            sql.Append($"CREATE LOGIN {name} WITH PASSWORD = {password}");
             if (!string.IsNullOrEmpty(DefaultDatabase)) sql.Append($", DEFAULT_DATABASE = {QuoteId(DefaultDatabase!)}");
             sql.Append($", CHECK_POLICY = {(EnforcePolicy ? "ON" : "OFF")};");
         }
@@ -526,7 +539,8 @@ public sealed class LoginPropertiesViewModel : INotifyPropertyChanged
                     perDb.Add((currentDb, currentBody.ToString()));
                 }
 
-                currentDb = line[5..line.IndexOf(']')].Replace("]]", "]");
+                currentDb = ParseUseDatabase(line)
+                    ?? throw new InvalidOperationException($"Could not parse the database name from: {line}");
                 currentBody.Clear();
                 continue;
             }
@@ -549,6 +563,36 @@ public sealed class LoginPropertiesViewModel : INotifyPropertyChanged
         }
 
         return (server.ToString(), perDb);
+    }
+
+    /// <summary>Reads the database name out of a <c>USE [name];</c> line, undoing <see cref="QuoteId"/>'s
+    /// escaping. Returns null when the line has no closing bracket.</summary>
+    private static string? ParseUseDatabase(string line)
+    {
+        // Must mirror QuoteId: inside the brackets a literal ] is written as ]], so the closing bracket is the
+        // first ] that is not doubled. Scanning for the first ] instead would stop halfway through a name like
+        // `a]b` (written `[a]]b]`), yielding "a" — and RunInDatabaseAsync would then happily target a different
+        // database of that name without any error (SE-131).
+        var name = new StringBuilder();
+        for (var i = "USE [".Length; i < line.Length; i++)
+        {
+            if (line[i] != ']')
+            {
+                name.Append(line[i]);
+                continue;
+            }
+
+            if (i + 1 < line.Length && line[i + 1] == ']')
+            {
+                name.Append(']');
+                i++;
+                continue;
+            }
+
+            return name.ToString();
+        }
+
+        return null;
     }
 
     private static string QuoteId(string name) => $"[{name.Replace("]", "]]")}]";
