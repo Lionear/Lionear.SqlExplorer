@@ -21,8 +21,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 - Release notes and the in-app updater now read the curated `CHANGELOG.md` instead of the raw git
   log, so each release describes what changed for you rather than listing commit subjects.
 - The **SQL formatter** now indents SELECT column lists, parenthesised subqueries and JOIN/AND/OR
-  conditions, instead of only breaking clauses onto their own lines. Database providers can also ship
-  their own dialect-specialised formatter.
+  conditions, instead of only breaking clauses onto their own lines. **SQL Server** gets a dedicated
+  T-SQL formatter (Microsoft's official ScriptDom parser); the other engines use the improved generic
+  engine.
 
 ### Fixed
 
