@@ -90,6 +90,8 @@
           <TextBlock Text="{Binding Loc[Startup]}" FontWeight="SemiBold" Margin="0,10,0,0" />
           <ToggleSwitch IsChecked="{Binding RestoreTabsOnStartup}"
                         OnContent="{Binding Loc[RestoreTabsOnStartup]}" OffContent="{Binding Loc[RestoreTabsOnStartup]}" />
+          <ToggleSwitch IsChecked="{Binding PromptSaveQueryOnClose}"
+                        OnContent="{Binding Loc[PromptSaveQueryOnClose]}" OffContent="{Binding Loc[PromptSaveQueryOnClose]}" />
           <ToggleSwitch IsChecked="{Binding ConfirmOnExit}"
                         OnContent="{Binding Loc[ConfirmOnExit]}" OffContent="{Binding Loc[ConfirmOnExit]}" />
           <ToggleSwitch IsChecked="{Binding CloseToTray}"

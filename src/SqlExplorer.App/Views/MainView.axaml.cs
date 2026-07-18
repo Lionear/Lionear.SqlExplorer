@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using System.Collections.Specialized;
 using System.ComponentModel;
 using System.IO;
@@ -69,6 +70,43 @@ public partial class MainView : UserControl
         }
 
         DataContextChanged += OnDataContextChanged;
+
+        // SE-154: drag a .sql file onto the window to open it in a new query tab.
+        AddHandler(DragDrop.DragOverEvent, OnDragOver);
+        AddHandler(DragDrop.DropEvent, OnDrop);
+        DragDrop.SetAllowDrop(this, true);
+    }
+
+    // The dropped/dragged .sql files' local paths (non-.sql items are ignored). Avalonia 12's drag payload
+    // is an IDataTransfer; TryGetFiles yields the storage items, TryGetLocalPath their on-disk path.
+    private static IEnumerable<string> DraggedSqlPaths(DragEventArgs e) =>
+        (e.DataTransfer?.TryGetFiles() ?? [])
+        .Select(f => f.TryGetLocalPath())
+        .Where(p => p is not null && p.EndsWith(".sql", StringComparison.OrdinalIgnoreCase))
+        .Cast<string>();
+
+    private void OnDragOver(object? sender, DragEventArgs e)
+    {
+        e.DragEffects = DraggedSqlPaths(e).Any() ? DragDropEffects.Copy : DragDropEffects.None;
+        e.Handled = true;
+    }
+
+    private void OnDrop(object? sender, DragEventArgs e)
+    {
+        if (_viewModel is null)
+        {
+            return;
+        }
+
+        foreach (var path in DraggedSqlPaths(e).ToList())
+        {
+            if (_viewModel.OpenQueryFileCommand.CanExecute(path))
+            {
+                _viewModel.OpenQueryFileCommand.Execute(path);
+            }
+        }
+
+        e.Handled = true;
     }
 
     /// <summary>Current width of the connection sidebar column, in pixels (for persistence).</summary>
@@ -380,6 +418,9 @@ public partial class MainView : UserControl
             _viewModel.AlterObjectDialogRequested = ShowAlterObjectDialogAsync;
             _viewModel.ClipboardRequested = CopyToClipboardAsync;
             _viewModel.ImportCsvFileRequested = PickCsvFileAsync;
+            _viewModel.PickOpenQueryFilesRequested = PickOpenQueryFilesAsync;
+            _viewModel.PickSaveQueryFileRequested = PickSaveQueryFileAsync;
+            _viewModel.SaveOnCloseRequested = PromptSaveOnCloseAsync;
             _viewModel.ImportCsvDialogRequested = ShowImportCsvDialogAsync;
             _viewModel.ExportFormatRequested = ShowExportFormatDialogAsync;
             _viewModel.ExportFileRequested = WriteExportFileAsync;
@@ -532,6 +573,66 @@ public partial class MainView : UserControl
         await using var writer = new StreamWriter(stream);
         await writer.WriteAsync(text);
     }
+
+    // SE-154: pick one or more .sql files to open. Returns local paths (empty if cancelled); the VM reads
+    // and opens them, so drag-drop and the Recent menu share the same open path.
+    private async Task<IReadOnlyList<string>> PickOpenQueryFilesAsync()
+    {
+        if (TopLevel.GetTopLevel(this) is not Window owner)
+        {
+            return [];
+        }
+
+        var files = await owner.StorageProvider.OpenFilePickerAsync(new FilePickerOpenOptions
+        {
+            AllowMultiple = true,
+            FileTypeFilter = [SqlFileType, FilePickerFileTypes.All]
+        });
+
+        return files
+            .Select(f => f.TryGetLocalPath())
+            .Where(p => !string.IsNullOrEmpty(p))
+            .Cast<string>()
+            .ToList();
+    }
+
+    // SE-154: pick a .sql save location, pre-filled with the suggested file name. Returns the local path,
+    // or null on cancel.
+    private async Task<string?> PickSaveQueryFileAsync(string suggestedFileName)
+    {
+        if (TopLevel.GetTopLevel(this) is not Window owner)
+        {
+            return null;
+        }
+
+        var file = await owner.StorageProvider.SaveFilePickerAsync(new FilePickerSaveOptions
+        {
+            SuggestedFileName = suggestedFileName,
+            DefaultExtension = "sql",
+            FileTypeChoices = [SqlFileType]
+        });
+
+        return file?.TryGetLocalPath() ?? file?.Path.LocalPath;
+    }
+
+    // SE-154: three-way "save before closing?" prompt for a dirty query file.
+    private async Task<SaveCloseChoice> PromptSaveOnCloseAsync(string tabName)
+    {
+        if (TopLevel.GetTopLevel(this) is not Window owner || _viewModel is null)
+        {
+            return SaveCloseChoice.DontSave; // no owner for a modal → don't block the close
+        }
+
+        var dialog = new SaveCloseDialog(
+            _viewModel.Loc["SaveCloseTitle"],
+            _viewModel.Loc.Get("SaveCloseMessage", tabName),
+            _viewModel.Loc["Save"],
+            _viewModel.Loc["SaveCloseDontSave"],
+            _viewModel.Loc["Cancel"]);
+        return await dialog.ShowDialog<SaveCloseChoice>(owner);
+    }
+
+    private static readonly FilePickerFileType SqlFileType = new("SQL") { Patterns = ["*.sql"] };
 
     private async Task ShowSettingsDialogAsync(SettingsViewModel dialogViewModel)
     {

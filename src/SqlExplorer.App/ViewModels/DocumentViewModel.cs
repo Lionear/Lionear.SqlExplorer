@@ -103,10 +103,66 @@ public partial class DocumentViewModel : ViewModelBase
     private bool _sortDescending;
 
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(TabLabel))]
     private string _title = "Query";
 
     [ObservableProperty]
     private string _sql = string.Empty;
+
+    // ── Query file backing (SE-154) ──────────────────────────────────────────────────────────────────
+    // A query tab may be backed by a .sql file on disk. FilePath is null for an untitled tab; IsDirty
+    // tracks unsaved editor changes relative to the last open/save (independent of HasChanges, which is
+    // pending grid-row edits). While loading text programmatically (open/restore/duplicate) dirtying is
+    // suppressed so only genuine user edits raise the marker.
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(TabLabel))]
+    private string? _filePath;
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(TabLabel))]
+    private bool _isDirty;
+
+    private bool _loadingText;
+
+    /// <summary>Tab-strip label: the title, prefixed with a dot when the query has unsaved edits — the
+    /// SSMS/DataGrip "●" convention (SE-154).</summary>
+    public string TabLabel => IsDirty ? $"● {Title}" : Title;
+
+    // Only genuine user edits dirty the tab; programmatic loads set _loadingText first (see LoadContent).
+    partial void OnSqlChanged(string value)
+    {
+        if (!_loadingText)
+        {
+            IsDirty = true;
+        }
+    }
+
+    /// <summary>Load query text without dirtying the tab, optionally associating a <c>.sql</c> file (open
+    /// from disk, or a restored session tab). With a file path the title becomes the file name; the tab is
+    /// left clean.</summary>
+    public void LoadContent(string sql, string? filePath)
+    {
+        _loadingText = true;
+        Sql = sql;
+        _loadingText = false;
+
+        if (filePath is not null)
+        {
+            FilePath = filePath;
+            Title = System.IO.Path.GetFileName(filePath);
+        }
+
+        IsDirty = false;
+    }
+
+    /// <summary>Record that the tab's text was just written to <paramref name="filePath"/>: adopt it as the
+    /// backing file, retitle to its name, and clear the dirty marker.</summary>
+    public void MarkSaved(string filePath)
+    {
+        FilePath = filePath;
+        Title = System.IO.Path.GetFileName(filePath);
+        IsDirty = false;
+    }
 
     /// <summary>Raised after an execution completes, so the host can surface the outcome — success row
     /// counts, cancellations, and failures — in the shared Output panel. The host pops the panel open on
@@ -884,7 +940,13 @@ public partial class DocumentViewModel : ViewModelBase
             return;
         }
 
-        Title = $"{Loc["QueryTab"]} · {value.Name}";
+        // A file-backed tab keeps its file name as the title across a connection switch (SE-154); only an
+        // untitled query tab tracks the connection name.
+        if (FilePath is null)
+        {
+            Title = $"{Loc["QueryTab"]} · {value.Name}";
+        }
+
         _ = RefreshDatabasesAsync(value);
     }
 

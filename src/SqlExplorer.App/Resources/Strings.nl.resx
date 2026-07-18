@@ -780,6 +780,9 @@
   <data name="RestoreTabsOnStartup" xml:space="preserve">
     <value>Query-tabs van de vorige sessie heropenen</value>
   </data>
+  <data name="PromptSaveQueryOnClose" xml:space="preserve">
+    <value>Vragen om querybestanden met niet-opgeslagen wijzigingen op te slaan bij sluiten</value>
+  </data>
   <data name="SettingsSchemaTree" xml:space="preserve">
     <value>Schemastructuur</value>
   </data>
@@ -1541,5 +1544,54 @@
   </data>
   <data name="UpdateCheckFailed" xml:space="preserve">
     <value>Controleren op updates is mislukt.</value>
+  </data>
+  <!-- Query files (SE-154) -->
+  <data name="OpenQuery" xml:space="preserve">
+    <value>Querybestand openen</value>
+  </data>
+  <data name="SaveQuery" xml:space="preserve">
+    <value>Querybestand opslaan</value>
+  </data>
+  <data name="CommitEdits" xml:space="preserve">
+    <value>Grid-bewerkingen opslaan</value>
+  </data>
+  <data name="OpenFileMenu" xml:space="preserve">
+    <value>Openen…</value>
+  </data>
+  <data name="SaveQueryMenu" xml:space="preserve">
+    <value>Opslaan</value>
+  </data>
+  <data name="SaveQueryAsMenu" xml:space="preserve">
+    <value>Opslaan als…</value>
+  </data>
+  <data name="RecentFilesMenu" xml:space="preserve">
+    <value>Recent</value>
+  </data>
+  <data name="ClearRecentFilesMenu" xml:space="preserve">
+    <value>Recent wissen</value>
+  </data>
+  <data name="UntitledQueryFile" xml:space="preserve">
+    <value>query.sql</value>
+  </data>
+  <data name="OpenQueryNoConnection" xml:space="preserve">
+    <value>Maak eerst verbinding met een database voordat je een querybestand opent.</value>
+  </data>
+  <data name="OpenQueryFailed" xml:space="preserve">
+    <value>Kon het bestand niet openen: {0}</value>
+  </data>
+  <data name="SaveQueryOk" xml:space="preserve">
+    <value>{0} opgeslagen</value>
+  </data>
+  <data name="SaveQueryFailed" xml:space="preserve">
+    <value>Kon het bestand niet opslaan: {0}</value>
+  </data>
+  <data name="SaveCloseTitle" xml:space="preserve">
+    <value>Niet-opgeslagen wijzigingen</value>
+  </data>
+  <data name="SaveCloseMessage" xml:space="preserve">
+    <value>Wijzigingen in {0} opslaan voor het sluiten?</value>
+  </data>
+  <data name="SaveCloseDontSave" xml:space="preserve">
+    <value>Niet opslaan</value>
   </data>
 </root>
