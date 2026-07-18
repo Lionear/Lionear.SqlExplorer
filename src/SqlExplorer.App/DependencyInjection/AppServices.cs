@@ -21,6 +21,8 @@ using SqlExplorer.Core.Update;
 using SqlExplorer.Sdk.Shortcuts;
 using SqlExplorer.Sdk.Localization;
 using SqlExplorer.Sdk.Tools;
+using SqlExplorer.Sdk.Extensibility;
+using SqlExplorer.Infrastructure.Extensibility;
 using SqlExplorer.Infrastructure.Persistence;
 using SqlExplorer.Infrastructure.Secrets;
 using SqlExplorer.Infrastructure.Store;
@@ -119,6 +121,35 @@ public static class AppServices
                 Console.Error.WriteLine($"[plugin] skipped mcp '{result.PluginDirectory}': {result.Error}");
             }
         }
+
+        // Standing-subsystem plugins (type: "extension", SE-164): loaded like the others in their own ALC,
+        // each handed a capability-gated runtime context and Initialize()d. Storage is plugin-scoped JSON;
+        // Log routes to stderr for now (Output-panel wiring is a later seam). Held for Deactivate on shutdown.
+        var subsystemResults = new SubsystemPluginLoader(
+            id => new JsonPluginStorage(id), localizer,
+            msg => Console.Error.WriteLine($"[subsystem] {msg}")).Load(enabled);
+        var subsystems = new List<ISubsystemPlugin>();
+        foreach (var result in subsystemResults)
+        {
+            if (result is { Succeeded: true, Plugin: { } subsystem, Context: { } context })
+            {
+                try
+                {
+                    subsystem.Initialize(context);
+                    subsystems.Add(subsystem);
+                }
+                catch (Exception ex)
+                {
+                    Console.Error.WriteLine($"[subsystem] {result.Id} Initialize failed: {ex.Message}");
+                }
+            }
+            else if (result.Error is not null)
+            {
+                Console.Error.WriteLine($"[plugin] skipped extension '{result.PluginDirectory}': {result.Error}");
+            }
+        }
+
+        services.AddSingleton(new SubsystemRegistry(subsystems));
 
         // Host-side view of everything installed (loaded or not, enabled or not) for the Plugin Store's
         // Installed tab. Enable/disable/uninstall stage a change here, applied on next startup.
