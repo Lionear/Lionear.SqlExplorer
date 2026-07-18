@@ -298,6 +298,9 @@ public partial class SettingsViewModel : ViewModelBase
     private bool _restoreTabsOnStartup;
 
     [ObservableProperty]
+    private bool _promptSaveQueryOnClose;
+
+    [ObservableProperty]
     private bool _showSystemDatabases;
 
     [ObservableProperty]
@@ -728,6 +731,7 @@ public partial class SettingsViewModel : ViewModelBase
         QueryTimeoutSeconds = settings.QueryTimeoutSeconds;
         BrowsePageSize = settings.BrowsePageSize;
         RestoreTabsOnStartup = settings.RestoreTabsOnStartup;
+        PromptSaveQueryOnClose = settings.PromptSaveQueryOnClose;
         SelectedUpdateChannel = settings.UpdateChannel ?? _update.RunningChannel;
         CheckForUpdatesOnStartup = settings.CheckForUpdatesOnStartup;
         SelectedUpdateIntervalMinutes = settings.UpdateCheckIntervalMinutes;
@@ -873,6 +877,7 @@ public partial class SettingsViewModel : ViewModelBase
         QueryTimeoutSeconds = defaults.QueryTimeoutSeconds;
         BrowsePageSize = defaults.BrowsePageSize;
         RestoreTabsOnStartup = defaults.RestoreTabsOnStartup;
+        PromptSaveQueryOnClose = defaults.PromptSaveQueryOnClose;
         // No explicit default channel: fall back to the running build's channel, same as a fresh install.
         SelectedUpdateChannel = defaults.UpdateChannel ?? _update.RunningChannel;
         CheckForUpdatesOnStartup = defaults.CheckForUpdatesOnStartup;
@@ -928,6 +933,7 @@ public partial class SettingsViewModel : ViewModelBase
         settings.QueryTimeoutSeconds = QueryTimeoutSeconds;
         settings.BrowsePageSize = BrowsePageSize;
         settings.RestoreTabsOnStartup = RestoreTabsOnStartup;
+        settings.PromptSaveQueryOnClose = PromptSaveQueryOnClose;
         // Switching channels clears the "Later" dismissal so the new channel's build can notify afresh.
         if (settings.UpdateChannel != SelectedUpdateChannel)
         {

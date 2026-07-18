@@ -75,6 +75,10 @@ public sealed class AppSettings
     /// <summary>Whether the query tabs from the previous session are reopened on startup.</summary>
     public bool RestoreTabsOnStartup { get; set; } = true;
 
+    /// <summary>Whether closing a tab or the app prompts to save a query file with unsaved edits (SE-154).
+    /// Off = close silently (the tab's text is still kept in the restored session). On by default.</summary>
+    public bool PromptSaveQueryOnClose { get; set; } = true;
+
     /// <summary>Whether engine-managed system databases (SQL Server's master/msdb, MySQL's mysql/sys, …)
     /// are shown in the schema tree.</summary>
     public bool ShowSystemDatabases { get; set; }

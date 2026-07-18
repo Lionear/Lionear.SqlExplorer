@@ -425,7 +425,7 @@
                   </ContextMenu>
                 </StackPanel.ContextMenu>
                 <Path Classes="TabIcon" Data="{Binding TabIcon}" VerticalAlignment="Center" />
-                <TextBlock Text="{Binding Title}" VerticalAlignment="Center" />
+                <TextBlock Text="{Binding TabLabel}" VerticalAlignment="Center" />
                 <Button Content="×" Classes="Subtle" Padding="6,0" FontSize="15"
                         VerticalAlignment="Center"
                         Command="{Binding $parent[TabControl].DataContext.CloseTabCommand}"

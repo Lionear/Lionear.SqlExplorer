@@ -192,6 +192,8 @@ public static class AppServices
         services.AddTransient<AboutViewModel>();
         services.AddSingleton<Func<AboutViewModel>>(sp => sp.GetRequiredService<AboutViewModel>);
         services.AddSingleton<IOpenTabsStore>(new JsonOpenTabsStore());
+        // Recently opened/saved .sql files for the File ▸ Recent menu (SE-154).
+        services.AddSingleton<IRecentFilesStore>(new JsonRecentFilesStore());
         services.AddSingleton<ConnectionService>();
         services.AddSingleton<MasterPasswordService>();
 

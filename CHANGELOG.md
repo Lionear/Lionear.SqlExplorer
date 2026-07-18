@@ -11,6 +11,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 
 ### Added
 
+- **Open & save queries as `.sql` files** — `Ctrl+O` to open (or drag a `.sql` file onto the window),
+  `Ctrl+S` to save, plus Save As and a File ▸ Recent menu. Tabs show a `●` dirty marker and remember
+  their file across sessions, and closing a tab or the app offers to save unsaved changes — a
+  preference in Settings ▸ Startup turns that prompt off. Saving pending grid-row edits back to the
+  database moved from `Ctrl+S` to **`Ctrl+Shift+S`**.
 - Configurable **update-check interval** — choose how often the app checks for a new release.
 - A shared **"Copied" confirmation** for copy actions, shown bottom-centre.
 - **SQL formatting options** in Settings — keyword casing (UPPERCASE / lowercase / preserve) and
