@@ -46,6 +46,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 
 ### Fixed
 
+- The app updater no longer offers a **lower version on another channel as an "update"** — switching
+  channels only surfaces a build with an equal-or-higher core version, so a `0.3.0` build is never
+  prompted to "update" to `0.2.0-preview`.
 - Nightly and preview builds now stamp the version from the branch they are built from, so the About
   dialog no longer shows a mismatched build version.
 
