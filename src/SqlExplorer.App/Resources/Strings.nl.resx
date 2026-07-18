@@ -1179,6 +1179,9 @@
   <data name="StoreInstalledSection" xml:space="preserve">
     <value>Geïnstalleerd</value>
   </data>
+  <data name="StoreUpdatesSection" xml:space="preserve">
+    <value>Updates</value>
+  </data>
   <data name="StoreDiscoverySources" xml:space="preserve">
     <value>Discovery-bronnen</value>
   </data>

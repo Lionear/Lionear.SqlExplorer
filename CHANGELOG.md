@@ -26,8 +26,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
   An opt-in **Auto-apply on restart** policy can stage compatible, non-pinned updates silently, and
   updates that need a newer app are shown ("Update app…") instead of hidden. Off / Notify / Auto in
   Settings ▸ Plugins.
+- **Plugin Store "Updates" section** — installed plugins with an available update are grouped at the
+  top of the Installed tab under "Updates", so you no longer have to hunt for which ones can update
+  (they no longer also appear in the list below).
 
 ### Changed
+
+- The **Plugin Store type filter** is now a dropdown instead of a row of chips — more compact and it
+  scales as new plugin types are added.
 
 - Release notes and the in-app updater now read the curated `CHANGELOG.md` instead of the raw git
   log, so each release describes what changed for you rather than listing commit subjects.
