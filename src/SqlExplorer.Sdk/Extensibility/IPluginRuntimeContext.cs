@@ -18,6 +18,10 @@ public interface IPluginRuntimeContext
     /// <see cref="PluginCapabilities.Storage"/> capability.</summary>
     IPluginStorage? Storage { get; }
 
+    /// <summary>Create/list/remove host-managed connections tagged with this plugin as origin; <c>null</c>
+    /// without the <see cref="PluginCapabilities.Connections"/> capability.</summary>
+    IManagedConnections? Connections { get; }
+
     /// <summary>Localisation backed by the plugin's embedded <c>Lang/strings*.json</c> (as tools get).</summary>
     IPluginLocalizer Localizer { get; }
 

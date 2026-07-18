@@ -38,7 +38,7 @@ public sealed class ConnectionService
     public SavedConnection Save(
         string id, string name, string providerId, IReadOnlyDictionary<string, string?> values,
         string? color = null, bool readOnly = false, string? folder = null,
-        AiAccessMode aiAccess = AiAccessMode.None, bool excludeFromMcp = false)
+        AiAccessMode aiAccess = AiAccessMode.None, bool excludeFromMcp = false, string? origin = null)
     {
         var fields = _providers.Get(providerId).ConnectionFields;
         var secretKeys = fields.Where(f => f.IsSecret).Select(f => f.Key).ToHashSet();
@@ -65,7 +65,7 @@ public sealed class ConnectionService
         {
             Id = id, Name = name, ProviderId = providerId, Color = color, ReadOnly = readOnly,
             Folder = string.IsNullOrWhiteSpace(folder) ? null : folder.Trim(),
-            AiAccess = aiAccess, ExcludeFromMcp = excludeFromMcp, Values = nonSecret
+            AiAccess = aiAccess, ExcludeFromMcp = excludeFromMcp, Values = nonSecret, Origin = origin
         };
         _store.Save(connection);
         return connection;

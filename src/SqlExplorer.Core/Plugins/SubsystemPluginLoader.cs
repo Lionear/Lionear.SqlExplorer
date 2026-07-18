@@ -104,16 +104,19 @@ public sealed class SubsystemPluginLoader
 
     /// <summary>Build a runtime context with its services gated on the declared <paramref name="capabilities"/>
     /// — a service the plugin didn't declare (and the user didn't consent to) is null. Public + static so it
-    /// can be exercised without a real plugin assembly.</summary>
+    /// can be exercised without a real plugin assembly. <paramref name="connectionsProvider"/> is optional
+    /// (null until the connections seam is wired post-build).</summary>
     public static IPluginRuntimeContext CreateContext(
         string pluginId,
         IReadOnlyList<string> capabilities,
         Func<string, IPluginStorage> storageProvider,
         IPluginLocalizer? localizer,
-        Action<string>? log) =>
+        Action<string>? log,
+        Func<string, IManagedConnections>? connectionsProvider = null) =>
         new PluginRuntimeContext(
             pluginId,
             capabilities.Contains(PluginCapabilities.Storage) ? storageProvider(pluginId) : null,
+            capabilities.Contains(PluginCapabilities.Connections) ? connectionsProvider?.Invoke(pluginId) : null,
             localizer ?? NullPluginLocalizer.Instance,
             log);
 }
