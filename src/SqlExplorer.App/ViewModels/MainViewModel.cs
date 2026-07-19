@@ -262,6 +262,22 @@ public partial class MainViewModel : ViewModelBase
     public Task ShowPluginDialogAsync(string title, Control content) =>
         ShowPluginDialogRequested?.Invoke(title, content) ?? Task.CompletedTask;
 
+    /// <summary>Plugin-contributed connection context-menu items (SE-164): each pairs an applicability
+    /// predicate with the action to run against the right-clicked connection. Rendered by the tree's
+    /// context menu in the view's code-behind.</summary>
+    public sealed record SubsystemConnectionMenuItem(
+        string Title,
+        Func<Sdk.Extensibility.ManagedConnectionInfo, bool> AppliesTo,
+        Func<Sdk.Extensibility.ManagedConnectionInfo, Task> Invoke);
+
+    public ObservableCollection<SubsystemConnectionMenuItem> SubsystemConnectionMenuItems { get; } = [];
+
+    public void AddConnectionMenuItem(
+        string title,
+        Func<Sdk.Extensibility.ManagedConnectionInfo, bool> appliesTo,
+        Func<Sdk.Extensibility.ManagedConnectionInfo, Task> invoke) =>
+        SubsystemConnectionMenuItems.Add(new SubsystemConnectionMenuItem(title, appliesTo, invoke));
+
     /// <summary>Query-history rows shown in the (toggleable) history panel, newest first.</summary>
     public ObservableCollection<QueryHistoryEntry> HistoryEntries { get; } = [];
 

@@ -9,7 +9,8 @@ public sealed record SubsystemActivationResult(
     SubsystemRegistry Registry,
     IReadOnlyList<IPanelPlugin> Panels,
     IReadOnlyList<IMenuPlugin> Menus,
-    IReadOnlyList<IBackgroundPlugin> Background);
+    IReadOnlyList<IBackgroundPlugin> Background,
+    IReadOnlyList<IConnectionMenuPlugin> ConnectionMenus);
 
 /// <summary>
 /// Activates the loaded subsystem plugins (SE-164) <em>after</em> the host's ServiceProvider is built — the
@@ -55,6 +56,7 @@ public sealed class SubsystemActivator
         var panels = new List<IPanelPlugin>();
         var menus = new List<IMenuPlugin>();
         var background = new List<IBackgroundPlugin>();
+        var connectionMenus = new List<IConnectionMenuPlugin>();
         foreach (var activation in _activations)
         {
             try
@@ -84,6 +86,12 @@ public sealed class SubsystemActivator
                 {
                     background.Add(bg);
                 }
+
+                if (activation.Capabilities.Contains(PluginCapabilities.Menu)
+                    && activation.Plugin is IConnectionMenuPlugin connMenu)
+                {
+                    connectionMenus.Add(connMenu);
+                }
             }
             catch (Exception ex)
             {
@@ -91,6 +99,7 @@ public sealed class SubsystemActivator
             }
         }
 
-        return new SubsystemActivationResult(new SubsystemRegistry(active), panels, menus, background);
+        return new SubsystemActivationResult(
+            new SubsystemRegistry(active), panels, menus, background, connectionMenus);
     }
 }

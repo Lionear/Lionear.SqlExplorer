@@ -278,7 +278,7 @@
               </Style>
             </TreeView.Styles>
             <TreeView.ContextMenu>
-              <ContextMenu>
+              <ContextMenu x:Name="TreeContextMenu">
                 <MenuItem Header="{Binding Loc[Connect]}" Command="{Binding ConnectCommand}"
                           IsVisible="{Binding SelectedNode.CanConnect, FallbackValue=False}" />
                 <MenuItem Header="{Binding Loc[Disconnect]}" Command="{Binding DisconnectCommand}"
@@ -386,6 +386,13 @@
                           StrokeJoin="Round" StrokeLineCap="Round"
                           IsVisible="{Binding HasVectorIcon}" />
                     <TextBlock Text="{Binding Title}" VerticalAlignment="Center" />
+                    <!-- "Managed" pill on plugin-created connections (SE-164, e.g. Docker-managed). -->
+                    <Border VerticalAlignment="Center" IsVisible="{Binding IsManagedConnection}"
+                            Background="{DynamicResource SESelectionBgBrush}" CornerRadius="9" Padding="6,0"
+                            ToolTip.Tip="{Binding ManagedOrigin}">
+                      <TextBlock Text="Managed" FontSize="9.5" FontWeight="SemiBold"
+                                 Foreground="{DynamicResource SEAccentBrush}" VerticalAlignment="Center" />
+                    </Border>
                   </StackPanel>
                   <!-- Right-aligned on-disk size badge (databases/tables), DataGrip-style. -->
                   <Border Grid.Column="1" IsVisible="{Binding HasBadge}" VerticalAlignment="Center"

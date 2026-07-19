@@ -448,6 +448,7 @@ public partial class MainView : UserControl
             _viewModel.SettingsDialogRequested = ShowSettingsDialogAsync;
             _viewModel.ToolDialogRequested = ShowToolDialogAsync;
             _viewModel.ShowPluginDialogRequested = ShowPluginDialogAsync;
+            PopulateConnectionMenu(_viewModel);
             _viewModel.RoutineParametersRequested = ShowRoutineParametersDialogAsync;
             _viewModel.NodeInfoRequested = ShowNodeInfoDialogAsync;
             _viewModel.SecurityViewRequested = ShowSecurityDialogAsync;
@@ -676,6 +677,65 @@ public partial class MainView : UserControl
 
         var dialog = new ToolDialog { DataContext = dialogViewModel };
         await dialog.ShowDialog(owner);
+    }
+
+    // SE-164 connection-menu seam: append the plugin-contributed items to the tree's context menu (once), and
+    // toggle each one's visibility when the menu opens based on the right-clicked connection.
+    private bool _connMenuBuilt;
+    private Separator? _connMenuSeparator;
+    private readonly List<(MenuItem Item, MainViewModel.SubsystemConnectionMenuItem Def)> _connMenuItems = new();
+
+    private void PopulateConnectionMenu(MainViewModel vm)
+    {
+        if (_connMenuBuilt || vm.SubsystemConnectionMenuItems.Count == 0 || TreeContextMenu is null)
+        {
+            return;
+        }
+
+        _connMenuBuilt = true;
+        _connMenuSeparator = new Separator();
+        TreeContextMenu.Items.Add(_connMenuSeparator);
+        foreach (var def in vm.SubsystemConnectionMenuItems)
+        {
+            var item = new MenuItem { Header = def.Title };
+            item.Click += async (_, _) =>
+            {
+                if (SelectedConnectionInfo() is { } info)
+                {
+                    await def.Invoke(info);
+                }
+            };
+            _connMenuItems.Add((item, def));
+            TreeContextMenu.Items.Add(item);
+        }
+
+        TreeContextMenu.Opening += (_, _) =>
+        {
+            var info = SelectedConnectionInfo();
+            var anyVisible = false;
+            foreach (var (item, def) in _connMenuItems)
+            {
+                var visible = info is not null && def.AppliesTo(info);
+                item.IsVisible = visible;
+                anyVisible |= visible;
+            }
+
+            if (_connMenuSeparator is not null)
+            {
+                _connMenuSeparator.IsVisible = anyVisible;
+            }
+        };
+    }
+
+    private SqlExplorer.Sdk.Extensibility.ManagedConnectionInfo? SelectedConnectionInfo()
+    {
+        if (_viewModel?.SelectedNode is not { IsConnectionNode: true } node)
+        {
+            return null;
+        }
+
+        var c = node.Connection;
+        return new SqlExplorer.Sdk.Extensibility.ManagedConnectionInfo(c.Id, c.Name, c.ProviderId, c.Folder, c.Values);
     }
 
     // SE-164 menu seam: host a plugin-built control in a modal window (generic chrome — the plugin's control

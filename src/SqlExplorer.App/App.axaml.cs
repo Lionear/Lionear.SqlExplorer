@@ -82,6 +82,17 @@ public partial class App : Application
             }
         }
 
+        // Mount any connection context-menu contributions (SE-164): the tree's context menu shows them for a
+        // right-clicked connection the item applies to.
+        foreach (var connMenu in subsystems.ConnectionMenus)
+        {
+            foreach (var item in connMenu.ConnectionMenuItems)
+            {
+                var invoke = item.InvokeAsync;
+                viewModel.AddConnectionMenuItem(item.Title, item.AppliesTo, info => invoke(info, hostUi));
+            }
+        }
+
         // Start any background loops (SE-164) under the shutdown token — fire-and-forget, like the update
         // checks; they stop cleanly when _shutdownCts cancels at exit (desktop.Exit, below).
         foreach (var background in subsystems.Background)

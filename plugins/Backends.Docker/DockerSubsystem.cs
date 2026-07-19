@@ -13,7 +13,7 @@ namespace SqlExplorer.Backends.Docker;
 /// a docked "Containers" panel). It also declares <c>process</c> (it can shell out to <c>docker</c>).
 /// It dogfoods every SE-164 seam: storage, connections, panel, menu (create flow) and background (live status).
 /// </summary>
-public sealed class DockerSubsystem : ISubsystemPlugin, IPanelPlugin, IMenuPlugin, IBackgroundPlugin
+public sealed class DockerSubsystem : ISubsystemPlugin, IPanelPlugin, IMenuPlugin, IBackgroundPlugin, IConnectionMenuPlugin
 {
     private IPluginRuntimeContext? _context;
     private IContainerRegistryStore? _registry;
@@ -133,6 +133,15 @@ public sealed class DockerSubsystem : ISubsystemPlugin, IPanelPlugin, IMenuPlugi
 
     public IReadOnlyList<MenuContribution> MenuItems =>
         [new MenuContribution("new-container", "New Local Container…", ShowCreateDialogAsync)];
+
+    // --- IConnectionMenuPlugin (SE-164 connection-menu seam) --------------------------------------------
+
+    public IReadOnlyList<ConnectionMenuContribution> ConnectionMenuItems =>
+        [new ConnectionMenuContribution(
+            "create-container",
+            "Create local Docker instance…",
+            conn => _builder?.Supports(conn.ProviderId) ?? false,
+            (conn, hostUi) => ShowCreateDialogAsync(hostUi, conn))];
 
     private Task ShowCreateDialogAsync(IHostUi hostUi) => ShowCreateDialogAsync(hostUi, preselected: null);
 

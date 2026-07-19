@@ -228,6 +228,37 @@ public class DockerSubsystemIntegrationTests
         }
     }
 
+    [Fact] // The plugin contributes a connection context-menu item that applies only to containerisable engines.
+    public void Activator_surfaces_the_docker_connection_menu_contribution()
+    {
+        var activation = LoadDockerActivation();
+        var storageRoot = Path.Combine(Path.GetTempPath(), "se164-int-" + Guid.NewGuid().ToString("N"));
+        var (service, _) = NewConnectionService();
+        try
+        {
+            var activator = new SubsystemActivator(
+                [activation],
+                id => new JsonPluginStorage(id, storageRoot),
+                id => new ManagedConnections(id, service));
+
+            var connMenu = activator.ActivateAll().ConnectionMenus.SingleOrDefault();
+
+            Assert.NotNull(connMenu);
+            var item = Assert.Single(connMenu!.ConnectionMenuItems);
+            Assert.Equal("Create local Docker instance…", item.Title);
+            // Applies to a containerisable engine (postgres), not to file-based SQLite.
+            Assert.True(item.AppliesTo(new Sdk.Extensibility.ManagedConnectionInfo("c1", "PG", "postgres", null, new Dictionary<string, string?>())));
+            Assert.False(item.AppliesTo(new Sdk.Extensibility.ManagedConnectionInfo("c2", "Lite", "sqlite", null, new Dictionary<string, string?>())));
+        }
+        finally
+        {
+            if (Directory.Exists(storageRoot))
+            {
+                Directory.Delete(storageRoot, recursive: true);
+            }
+        }
+    }
+
     private sealed class FakeConnectionStore : IConnectionStore
     {
         private readonly List<SavedConnection> _items = new();
