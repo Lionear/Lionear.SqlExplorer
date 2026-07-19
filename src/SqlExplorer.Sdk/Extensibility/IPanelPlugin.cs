@@ -28,6 +28,7 @@ public interface IPanelPlugin
     string Title { get; }
 
     /// <summary>Build the panel's content control. Called once by the host after the plugin's
-    /// <see cref="ISubsystemPlugin.Initialize"/> has run, so the plugin already holds its runtime context.</summary>
-    Control CreatePanel();
+    /// <see cref="ISubsystemPlugin.Initialize"/> has run, so the plugin already holds its runtime context.
+    /// <paramref name="hostUi"/> lets the panel open modal dialogs (e.g. a container's logs).</summary>
+    Control CreatePanel(IHostUi hostUi);
 }

@@ -134,11 +134,11 @@ public sealed class DockerSubsystem : ISubsystemPlugin, IPanelPlugin, IMenuPlugi
     public IReadOnlyList<MenuContribution> MenuItems =>
         [new MenuContribution("new-container", "New Local Container…", ShowCreateDialogAsync)];
 
-    private async Task ShowCreateDialogAsync(IMenuActionContext menu)
+    private Task ShowCreateDialogAsync(IHostUi hostUi)
     {
         if (_context is null || _builder is null || _service is null || _registry is null)
         {
-            return; // storage wasn't granted — nothing to build against
+            return Task.CompletedTask; // storage wasn't granted — nothing to build against
         }
 
         // The dialog runs the create; on success it calls back into reconcile, which links the new container's
@@ -148,7 +148,7 @@ public sealed class DockerSubsystem : ISubsystemPlugin, IPanelPlugin, IMenuPlugi
             onCreated: () => ReconcileConnections(_context, _registry),
             log: _context.Log);
 
-        await menu.ShowDialogAsync("New Local Container", content);
+        return hostUi.ShowDialogAsync("New Local Container", content);
     }
 
     // --- IPanelPlugin (SE-164 panel seam) ---------------------------------------------------------------
@@ -157,16 +157,19 @@ public sealed class DockerSubsystem : ISubsystemPlugin, IPanelPlugin, IMenuPlugi
 
     public string Title => "Containers";
 
-    /// <summary>Build the Containers panel: a live list of the managed containers + their run-state. The view
-    /// rebuilds on registry changes and on the background poll's status pushes (see <see cref="RunAsync"/>).</summary>
-    public Control CreatePanel()
+    /// <summary>Build the Containers panel: a live table of the managed containers with their run-state and
+    /// lifecycle actions. Rebuilds on registry changes and on the background poll's status pushes (see
+    /// <see cref="RunAsync"/>); <paramref name="hostUi"/> lets it open the logs dialog.</summary>
+    public Control CreatePanel(IHostUi hostUi)
     {
-        if (_registry is null)
+        if (_context is null || _service is null || _registry is null)
         {
             return new TextBlock { Text = "Local Containers: storage unavailable.", Margin = new Thickness(12) };
         }
 
-        _panel = new ContainersPanelView(_registry);
+        _panel = new ContainersPanelView(
+            _registry, _service, hostUi, _context.Log,
+            onNewFromConnection: () => ShowCreateDialogAsync(hostUi));
         return _panel.Root;
     }
 }

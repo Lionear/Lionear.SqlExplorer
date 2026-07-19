@@ -61,22 +61,24 @@ public partial class App : Application
         // managed connections — actually exist. Held for Deactivate at shutdown (wired below in the desktop case).
         var subsystems = services.GetRequiredService<Core.Plugins.SubsystemActivator>().ActivateAll();
 
+        // Host UI handed to plugin panels + menu actions (SE-164): ShowDialogAsync routes to the main window's
+        // modal host via the VM delegate the view wires up.
+        var hostUi = new DependencyInjection.SubsystemHostUi(viewModel.ShowPluginDialogAsync);
+
         // Mount any panel contributions as bottom tool-windows. Done before the window's DataContext is set
         // (below), so MainView subscribes these panels' windows along with Output/History in one pass.
         foreach (var panel in subsystems.Panels)
         {
-            viewModel.AddSubsystemPanel(panel.PanelId, panel.Title, panel.CreatePanel());
+            viewModel.AddSubsystemPanel(panel.PanelId, panel.Title, panel.CreatePanel(hostUi));
         }
 
-        // Mount any Tools-menu contributions (SE-164 menu seam). Each item's action gets an IMenuActionContext
-        // whose ShowDialogAsync routes to the main window's modal host (via the VM delegate the view wires up).
-        var menuActionContext = new DependencyInjection.SubsystemMenuActionContext(viewModel.ShowPluginDialogAsync);
+        // Mount any Tools-menu contributions (SE-164 menu seam).
         foreach (var menuPlugin in subsystems.Menus)
         {
             foreach (var item in menuPlugin.MenuItems)
             {
                 var invoke = item.InvokeAsync;
-                viewModel.AddSubsystemMenuItem(item.Title, () => invoke(menuActionContext));
+                viewModel.AddSubsystemMenuItem(item.Title, () => invoke(hostUi));
             }
         }
 
