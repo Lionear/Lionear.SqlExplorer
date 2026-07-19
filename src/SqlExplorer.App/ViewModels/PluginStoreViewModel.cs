@@ -766,7 +766,7 @@ public sealed partial class PluginStoreViewModel : ViewModelBase
         ConsentCapabilities.Clear();
         foreach (var capability in capabilities)
         {
-            ConsentCapabilities.Add(CapabilityCatalog.Describe(capability));
+            ConsentCapabilities.Add(CapabilityCatalog.Describe(capability, Loc));
         }
 
         IsConsentVisible = true;

@@ -1,21 +1,23 @@
+using SqlExplorer.Core.Localization;
+
 namespace SqlExplorer.App.ViewModels;
 
 /// <summary>A capability a plugin declares, in human terms — the title + one-line explanation shown on the
 /// install consent overlay (SE-164), instead of the bare key.</summary>
 public sealed record CapabilityInfo(string Key, string Title, string Description);
 
-/// <summary>Maps a plugin capability key to a friendly title + description for the consent overlay. Unknown
-/// keys fall back to the raw key so a future capability still shows something.</summary>
+/// <summary>Maps a plugin capability key to a friendly, localised title + description for the consent overlay.
+/// Only the known keys are looked up in resources (<c>Cap_&lt;key&gt;_Title</c> / <c>_Desc</c>); an unknown
+/// future capability falls back to its raw key so it still shows something.</summary>
 public static class CapabilityCatalog
 {
-    public static CapabilityInfo Describe(string key) => key switch
+    private static readonly HashSet<string> Known = new(System.StringComparer.OrdinalIgnoreCase)
     {
-        "storage" => new(key, "Private storage", "Keeps its own data and settings in a private file."),
-        "connections" => new(key, "Connections", "Reads your connections and can add its own managed ones — never your passwords."),
-        "panel" => new(key, "Docked panel", "Adds a panel to the workspace, next to Output and History."),
-        "menu" => new(key, "Menu items", "Adds items to the Tools menu and to a connection's right-click menu."),
-        "background" => new(key, "Background task", "Runs a background task while the app is open."),
-        "process" => new(key, "External processes", "Can start external programs on your machine (e.g. docker)."),
-        _ => new(key, key, string.Empty)
+        "storage", "connections", "panel", "menu", "background", "process"
     };
+
+    public static CapabilityInfo Describe(string key, ILocalizer loc) =>
+        Known.Contains(key)
+            ? new CapabilityInfo(key, loc[$"Cap_{key}_Title"], loc[$"Cap_{key}_Desc"])
+            : new CapabilityInfo(key, key, string.Empty);
 }

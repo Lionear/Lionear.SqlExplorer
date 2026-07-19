@@ -1206,6 +1206,42 @@
   <data name="StoreConsentBody" xml:space="preserve">
     <value>Deze plugin vraagt de volgende rechten:</value>
   </data>
+  <data name="Cap_storage_Title" xml:space="preserve">
+    <value>Eigen opslag</value>
+  </data>
+  <data name="Cap_storage_Desc" xml:space="preserve">
+    <value>Bewaart eigen gegevens en instellingen in een privébestand.</value>
+  </data>
+  <data name="Cap_connections_Title" xml:space="preserve">
+    <value>Verbindingen</value>
+  </data>
+  <data name="Cap_connections_Desc" xml:space="preserve">
+    <value>Leest je verbindingen en kan eigen beheerde verbindingen toevoegen — nooit je wachtwoorden.</value>
+  </data>
+  <data name="Cap_panel_Title" xml:space="preserve">
+    <value>Gedockt paneel</value>
+  </data>
+  <data name="Cap_panel_Desc" xml:space="preserve">
+    <value>Voegt een paneel toe aan de werkruimte, naast Uitvoer en Historie.</value>
+  </data>
+  <data name="Cap_menu_Title" xml:space="preserve">
+    <value>Menu-items</value>
+  </data>
+  <data name="Cap_menu_Desc" xml:space="preserve">
+    <value>Voegt items toe aan het Extra-menu en aan het rechtsklikmenu van een verbinding.</value>
+  </data>
+  <data name="Cap_background_Title" xml:space="preserve">
+    <value>Achtergrondtaak</value>
+  </data>
+  <data name="Cap_background_Desc" xml:space="preserve">
+    <value>Draait een achtergrondtaak zolang de app open is.</value>
+  </data>
+  <data name="Cap_process_Title" xml:space="preserve">
+    <value>Externe processen</value>
+  </data>
+  <data name="Cap_process_Desc" xml:space="preserve">
+    <value>Kan externe programma's op je computer starten (bijv. docker).</value>
+  </data>
   <data name="StoreConsentApprove" xml:space="preserve">
     <value>Vertrouwen en installeren</value>
   </data>
