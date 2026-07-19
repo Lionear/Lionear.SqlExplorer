@@ -9,6 +9,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 
 ## [Unreleased]
 
+_Nothing yet._
+
+## [0.3.0] - 2026-07-19
+
 ### Added
 
 - **Open & save queries as `.sql` files** — `Ctrl+O` to open (or drag a `.sql` file onto the window),
@@ -76,15 +80,6 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
   instance no longer connects to the still-closing old one, defers to it and exits — which could leave
   no window at all. It also relaunches correctly when the app runs through the dotnet muxer.
 
-<!--
-Add bullets under the section that fits, in this order (omit the empty ones):
-### Added      — new features
-### Changed    — changes in existing behaviour
-### Fixed      — bug fixes
-### Security   — vulnerability or hardening work
-### Removed    — removed features
--->
-
 ## [0.2.0] - 2026-07-18
 
 ### Added
@@ -151,5 +146,6 @@ Initial baseline — the first working SQL Explorer.
 - **Multi-platform build pipeline** (Windows installer + zip, Linux AppImage, macOS DMG) publishing
   rolling nightly and preview releases.
 
-[Unreleased]: https://github.com/Lionear/SqlExplorer/compare/v0.2.0...HEAD
+[Unreleased]: https://github.com/Lionear/SqlExplorer/compare/v0.3.0...HEAD
+[0.3.0]: https://github.com/Lionear/SqlExplorer/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/Lionear/SqlExplorer/releases/tag/v0.2.0
