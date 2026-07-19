@@ -9,6 +9,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 
 ## [Unreleased]
 
+### Changed
+
+- **Refreshed icon set** — the schema tree, tabs, toolbars and Settings now use a consistent
+  [Lucide](https://lucide.dev)-based line-icon set, drawn as crisp vectors that tint with the theme (no
+  icon font, no bundled raster assets). The AI-activity panel gets its own icon.
+
+## [0.3.0] - 2026-07-19
+
 ### Added
 
 - **Open & save queries as `.sql` files** — `Ctrl+O` to open (or drag a `.sql` file onto the window),
@@ -62,9 +70,6 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
   conditions, instead of only breaking clauses onto their own lines. **SQL Server** gets a dedicated
   T-SQL formatter (Microsoft's official ScriptDom parser); the other engines use the improved generic
   engine.
-- **Refreshed icon set** — the schema tree, tabs, toolbars and Settings now use a consistent
-  [Lucide](https://lucide.dev)-based line-icon set, drawn as crisp vectors that tint with the theme (no
-  icon font, no bundled raster assets). The AI-activity panel gets its own icon.
 
 ### Fixed
 
@@ -78,15 +83,6 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 - **"Restart app"** (and the in-app updater's relaunch) now reliably brings the app back: the new
   instance no longer connects to the still-closing old one, defers to it and exits — which could leave
   no window at all. It also relaunches correctly when the app runs through the dotnet muxer.
-
-<!--
-Add bullets under the section that fits, in this order (omit the empty ones):
-### Added      — new features
-### Changed    — changes in existing behaviour
-### Fixed      — bug fixes
-### Security   — vulnerability or hardening work
-### Removed    — removed features
--->
 
 ## [0.2.0] - 2026-07-18
 
@@ -154,5 +150,6 @@ Initial baseline — the first working SQL Explorer.
 - **Multi-platform build pipeline** (Windows installer + zip, Linux AppImage, macOS DMG) publishing
   rolling nightly and preview releases.
 
-[Unreleased]: https://github.com/Lionear/SqlExplorer/compare/v0.2.0...HEAD
+[Unreleased]: https://github.com/Lionear/SqlExplorer/compare/v0.3.0...HEAD
+[0.3.0]: https://github.com/Lionear/SqlExplorer/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/Lionear/SqlExplorer/releases/tag/v0.2.0
