@@ -107,7 +107,7 @@ public sealed class CoreToolProvider : IMcpToolProvider
 
         new McpToolDefinition(
             "create_connection",
-            "Create a database connection (SE-155). Off unless the user enabled it in settings. 'persistent' false makes an in-memory, session-only connection wiped when SQL Explorer closes; true saves it. 'access' requests an AI-access level (readonly/readwrite/sandbox); the host may lower it — persistent connections cap at readwrite, and 'sandbox' (which also allows DDL) is only granted to a transient loopback connection. Call list_providers first for the provider id and its fields.",
+            "Create a database connection. Off unless the user enabled it in settings. 'persistent' false makes an in-memory, session-only connection wiped when SQL Explorer closes; true saves it. 'access' requests an AI-access level (readonly/readwrite/sandbox); the host may lower it — persistent connections cap at readwrite, and 'sandbox' (which also allows DDL) is only granted to a transient loopback connection. Call list_providers first for the provider id and its fields. Only connections you create this way can later be removed with delete_connection.",
             """
             {
               "type": "object",
@@ -135,7 +135,7 @@ public sealed class CoreToolProvider : IMcpToolProvider
 
         new McpToolDefinition(
             "delete_connection",
-            "Delete a connection the AI created earlier — a transient one, or a persisted one created over MCP. Never deletes the user's own or another plugin's connections.",
+            "Delete a connection the AI created earlier over MCP — a transient (session-only) one, or a persisted one created with create_connection. Scoped to the AI's own connections: it refuses the user's own connections and other plugins' managed connections, even ones the AI can otherwise read or query.",
             """
             {
               "type": "object",
