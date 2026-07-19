@@ -21,6 +21,16 @@ public sealed class ConnectionService
         _providers = providers;
     }
 
+    /// <summary>Raised after a connection is persisted via <see cref="Save"/>. The tree subscribes so a
+    /// connection created outside the UI — e.g. by a subsystem plugin through <c>IManagedConnections</c> —
+    /// still appears live, without waiting for a restart or a manual refresh.</summary>
+    public event Action<SavedConnection>? Saved;
+
+    /// <summary>Raised after a connection is removed via <see cref="Delete"/>, carrying the connection as it
+    /// was. Mirror of <see cref="Saved"/> so the tree can drop a node deleted outside the UI — e.g. a
+    /// subsystem plugin tearing down its managed connection when the backing container is removed.</summary>
+    public event Action<SavedConnection>? Removed;
+
     public IReadOnlyList<SavedConnection> List() => _store.GetAll();
 
     /// <summary>Manual folder-order map (full path → index). Absent path = alphabetical fallback.</summary>
@@ -68,6 +78,7 @@ public sealed class ConnectionService
             AiAccess = aiAccess, ExcludeFromMcp = excludeFromMcp, Values = nonSecret, Origin = origin
         };
         _store.Save(connection);
+        Saved?.Invoke(connection);
         return connection;
     }
 
@@ -109,6 +120,10 @@ public sealed class ConnectionService
         }
 
         _store.Delete(id);
+        if (connection is not null)
+        {
+            Removed?.Invoke(connection);
+        }
     }
 
     /// <summary>

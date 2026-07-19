@@ -279,6 +279,9 @@
   <data name="AiWriteWarning" xml:space="preserve">
     <value>⚠️ Read-write laat de AI data wijzigen op deze connectie. Zet dit alleen aan als je zeker bent — nooit op productie tenzij je dat echt bedoelt.</value>
   </data>
+  <data name="ManagedConnectionWarning" xml:space="preserve">
+    <value>Deze connectie wordt beheerd door “{0}”. De provider, host of poort hier wijzigen kan de koppeling met de bijbehorende container breken — de plugin heeft 'm aangemaakt en houdt 'm bij.</value>
+  </data>
   <data name="ExcludeFromMcp" xml:space="preserve">
     <value>Nooit aan de AI tonen (harde blokkade)</value>
   </data>

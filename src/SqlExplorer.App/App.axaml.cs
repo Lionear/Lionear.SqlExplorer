@@ -63,7 +63,7 @@ public partial class App : Application
 
         // Host UI handed to plugin panels + menu actions (SE-164): ShowDialogAsync routes to the main window's
         // modal host via the VM delegate the view wires up.
-        var hostUi = new DependencyInjection.SubsystemHostUi(viewModel.ShowPluginDialogAsync);
+        var hostUi = new DependencyInjection.SubsystemHostUi(viewModel.ShowPluginDialogAsync, viewModel.ConfirmPluginAsync);
 
         // Mount any panel contributions as bottom tool-windows. Done before the window's DataContext is set
         // (below), so MainView subscribes these panels' windows along with Output/History in one pass.

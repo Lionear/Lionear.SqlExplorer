@@ -1,6 +1,7 @@
 using System.Globalization;
 using Avalonia;
 using Avalonia.Controls;
+using Avalonia.Controls.Shapes;
 using Avalonia.Layout;
 using Avalonia.Media;
 
@@ -11,8 +12,9 @@ namespace SqlExplorer.Backends.Docker;
 /// Two entry points: standalone (pick the <em>engine</em> from a dropdown — that's what you're creating) and
 /// from a specific connection (right-click a connection → engine is fixed and the fields prefill from it).
 /// Then either "Generate only" (a compose/run snippet, no Docker) or "Create &amp; run" (runs
-/// <see cref="ContainerService.CreateAndRunAsync"/>). On success it calls <paramref name="onCreated"/> (the
-/// plugin's reconcile, which links the host connection). Code-built, no hardcoded background colours → theme-safe.
+/// <see cref="ContainerService.CreateAndRunAsync"/>). On success it hands the <see cref="CreateContainerRequest"/>
+/// to <paramref name="onCreated"/>, which links the host connection with the container's full field values
+/// (credentials included). Code-built, no hardcoded background colours → theme-safe.
 /// </summary>
 internal static class CreateContainerView
 {
@@ -20,7 +22,7 @@ internal static class CreateContainerView
         DockerComposeBuilder builder,
         ContainerService service,
         ManagedConnectionInfo? fromConnection,
-        Action onCreated,
+        Action<CreateContainerRequest> onCreated,
         Action<string> log)
     {
         var nameBox = new TextBox();
@@ -90,30 +92,35 @@ internal static class CreateContainerView
         var doneBrush = new SolidColorBrush(Color.Parse("#3FB950"));
         var runBrush = new SolidColorBrush(Color.Parse("#2F6FEB"));
         var failBrush = new SolidColorBrush(Color.Parse("#C4362F"));
-        var stepIcons = new List<TextBlock>();
+        var pendingBrush = new SolidColorBrush(Color.Parse("#8A909A"));
+        var stepIcons = new List<Border>();
         var steps = new StackPanel { Margin = new Thickness(16, 4, 16, 0), Spacing = 4, IsVisible = false };
+
+        // Step glyphs are shapes, not symbol characters (○ ● ✓ ✕) — those render as tofu on Linux/Avalonia.
+        Control PendingDot() => new Ellipse { Width = 10, Height = 10, Stroke = pendingBrush, StrokeThickness = 1.4, HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center };
+        Control RunningDot() => new Ellipse { Width = 10, Height = 10, Fill = runBrush, HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center };
+
         foreach (var label in new[] { "Write compose & start the container", "Wait until it's ready", "Add the host connection" })
         {
-            var icon = new TextBlock { Text = "○", Width = 16, Opacity = 0.5, VerticalAlignment = VerticalAlignment.Center };
-            stepIcons.Add(icon);
+            var holder = new Border { Width = 16, Height = 16, Opacity = 0.5, VerticalAlignment = VerticalAlignment.Center, Child = PendingDot() };
+            stepIcons.Add(holder);
             steps.Children.Add(new StackPanel
             {
                 Orientation = Orientation.Horizontal, Spacing = 8,
-                Children = { icon, new TextBlock { Text = label, VerticalAlignment = VerticalAlignment.Center } }
+                Children = { holder, new TextBlock { Text = label, VerticalAlignment = VerticalAlignment.Center } }
             });
         }
 
-        void SetStep(int i, string glyph, IBrush? brush, double opacity)
+        void SetStep(int i, Control glyph, double opacity)
         {
             if (i < 0 || i >= stepIcons.Count) return;
-            stepIcons[i].Text = glyph;
-            stepIcons[i].Foreground = brush;
+            stepIcons[i].Child = glyph;
             stepIcons[i].Opacity = opacity;
         }
-        void ResetSteps() { for (var i = 0; i < stepIcons.Count; i++) SetStep(i, "○", null, 0.5); }
-        void StepRunning(int i) => SetStep(i, "●", runBrush, 1);
-        void StepDone(int i) => SetStep(i, "✓", doneBrush, 1);
-        void StepFailed(int i) => SetStep(i, "✕", failBrush, 1);
+        void ResetSteps() { for (var i = 0; i < stepIcons.Count; i++) SetStep(i, PendingDot(), 0.5); }
+        void StepRunning(int i) => SetStep(i, RunningDot(), 1);
+        void StepDone(int i) => SetStep(i, DockerIcons.Icon(DockerIcons.Check, 13, doneBrush), 1);
+        void StepFailed(int i) => SetStep(i, DockerIcons.Icon(DockerIcons.Cross, 13, failBrush), 1);
 
         var grid = new Grid
         {
@@ -233,7 +240,7 @@ internal static class CreateContainerView
                 StepDone(1);
                 current = 2;
                 StepRunning(2);
-                onCreated();
+                onCreated(request);
                 StepDone(2);
 
                 log($"Local Containers: created container '{request.ContainerName}'.");

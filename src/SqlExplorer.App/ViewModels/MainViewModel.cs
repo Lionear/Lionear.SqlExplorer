@@ -158,6 +158,8 @@ public partial class MainViewModel : ViewModelBase
         // Plugin panels (SE-164) are appended to ToolWindows/SubsystemPanels after startup activation.
 
         _history.Changed += OnHistoryChanged;
+        _connections.Saved += OnConnectionSavedExternally;
+        _connections.Removed += OnConnectionRemovedExternally;
         RefreshConnections();
         RestoreOpenTabs();
         RefreshRecentFiles();
@@ -261,6 +263,13 @@ public partial class MainViewModel : ViewModelBase
 
     public Task ShowPluginDialogAsync(string title, Control content) =>
         ShowPluginDialogRequested?.Invoke(title, content) ?? Task.CompletedTask;
+
+    /// <summary>Ask a yes/no question modally over the main window (SE-164) — set by the view's code-behind.
+    /// Backs <c>IHostUi.ConfirmAsync</c> so a plugin can confirm a destructive action. No handler = declined.</summary>
+    public Func<string, string, Task<bool>>? ShowPluginConfirmRequested { get; set; }
+
+    public Task<bool> ConfirmPluginAsync(string title, string message) =>
+        ShowPluginConfirmRequested?.Invoke(title, message) ?? Task.FromResult(false);
 
     /// <summary>Plugin-contributed connection context-menu items (SE-164): each pairs an applicability
     /// predicate with the action to run against the right-clicked connection. Rendered by the tree's
@@ -1004,6 +1013,38 @@ public partial class MainViewModel : ViewModelBase
         {
             SelectedNode = node;
         }
+    }
+
+    // A connection persisted outside the tree's own add/edit flows — a subsystem plugin creating a managed
+    // connection through IManagedConnections — has no explicit UpsertConnectionNode behind it, so splice it
+    // in live off the service event instead of waiting for a restart. Scoped to plugin-owned connections
+    // (Origin set): the user's own flows already upsert their node directly, so this never double-fires for
+    // them. Marshalled to the UI thread — a plugin's create/reconcile can run off a background flow.
+    private void OnConnectionSavedExternally(SavedConnection saved)
+    {
+        if (saved.Origin is null)
+        {
+            return;
+        }
+
+        Dispatcher.UIThread.Post(() =>
+        {
+            UpsertConnectionNode(saved, select: false);
+            SortConnectionsTree();
+        });
+    }
+
+    // Mirror of OnConnectionSavedExternally for teardown: a plugin removing its managed connection (e.g. the
+    // Docker container behind it was deleted) has no explicit RemoveConnectionNode behind it, so drop the node
+    // live off the service event. Same Origin scoping — the user's own delete already removes its node.
+    private void OnConnectionRemovedExternally(SavedConnection removed)
+    {
+        if (removed.Origin is null)
+        {
+            return;
+        }
+
+        Dispatcher.UIThread.Post(() => RemoveConnectionNode(removed.Id));
     }
 
     private void RemoveConnectionNode(string id)

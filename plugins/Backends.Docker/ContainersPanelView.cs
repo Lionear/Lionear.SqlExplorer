@@ -25,6 +25,7 @@ internal sealed class ContainersPanelView
     private readonly IHostUi _hostUi;
     private readonly Action<string> _log;
     private readonly Func<Task> _onNewFromConnection;
+    private readonly Action<ManagedContainer> _onRemoved;
 
     private readonly TextBlock _count;
     private readonly Decorator _content = new();
@@ -33,19 +34,20 @@ internal sealed class ContainersPanelView
 
     public ContainersPanelView(
         IContainerRegistryStore registry, ContainerService service, IHostUi hostUi,
-        Action<string> log, Func<Task> onNewFromConnection)
+        Action<string> log, Func<Task> onNewFromConnection, Action<ManagedContainer> onRemoved)
     {
         _registry = registry;
         _service = service;
         _hostUi = hostUi;
         _log = log;
         _onNewFromConnection = onNewFromConnection;
+        _onRemoved = onRemoved;
 
         _count = new TextBlock { VerticalAlignment = VerticalAlignment.Center, Opacity = 0.6, FontSize = 12, Margin = new Thickness(6, 0, 0, 0) };
 
         var newButton = new Button { Content = "+ New container…" };
         newButton.Click += async (_, _) => await _onNewFromConnection();
-        var refreshButton = new Button { Content = "↻ Refresh", Margin = new Thickness(0, 0, 6, 0) };
+        var refreshButton = new Button { Content = DockerIcons.Label(DockerIcons.Refresh, "Refresh"), Margin = new Thickness(0, 0, 6, 0) };
         refreshButton.Click += async (_, _) => await RefreshAsync();
 
         var title = new TextBlock { Text = "Containers", FontWeight = FontWeight.SemiBold, FontSize = 12, VerticalAlignment = VerticalAlignment.Center };
@@ -196,7 +198,7 @@ internal sealed class ContainersPanelView
 
         Place(table, BuildStatus(status), row, 1);
         Place(table, Meta($"localhost:{container.HostPort}"), row, 2);
-        Place(table, Meta($"Local Containers ▸ {container.Name}"), row, 3);
+        Place(table, Meta($"Local Containers / {container.Name}"), row, 3);
         Place(table, BuildActions(container, status), row, 4);
     }
 
@@ -236,9 +238,18 @@ internal sealed class ContainersPanelView
         var remove = new Button { Content = "Remove", Padding = new Thickness(9, 3, 9, 3), FontSize = 11, Foreground = new SolidColorBrush(Color.Parse("#C4362F")) };
         remove.Click += async (_, _) =>
         {
+            var confirmed = await _hostUi.ConfirmAsync(
+                "Remove container",
+                $"Remove '{container.Name}'? This tears down the Docker container and deletes its managed connection.");
+            if (!confirmed)
+            {
+                return;
+            }
+
             try
             {
                 await _service.RemoveAsync(container.Id, removeVolumes: false, CancellationToken.None);
+                _onRemoved(container);
                 _log($"Local Containers: removed '{container.Name}'.");
             }
             catch (Exception ex)
@@ -277,7 +288,9 @@ internal sealed class ContainersPanelView
     private Control BuildDockerMissing()
     {
         var panel = new StackPanel { Spacing = 6, HorizontalAlignment = HorizontalAlignment.Center, Margin = new Thickness(20, 22, 20, 22) };
-        panel.Children.Add(new TextBlock { Text = "⚠", FontSize = 22, Foreground = WarnBrush, HorizontalAlignment = HorizontalAlignment.Center });
+        var warnIcon = DockerIcons.Icon(DockerIcons.Warning, 24, WarnBrush);
+        warnIcon.HorizontalAlignment = HorizontalAlignment.Center;
+        panel.Children.Add(warnIcon);
         panel.Children.Add(new TextBlock { Text = "Docker was not found on this machine", FontWeight = FontWeight.SemiBold, HorizontalAlignment = HorizontalAlignment.Center });
         panel.Children.Add(new TextBlock
         {

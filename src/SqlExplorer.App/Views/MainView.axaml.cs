@@ -448,6 +448,7 @@ public partial class MainView : UserControl
             _viewModel.SettingsDialogRequested = ShowSettingsDialogAsync;
             _viewModel.ToolDialogRequested = ShowToolDialogAsync;
             _viewModel.ShowPluginDialogRequested = ShowPluginDialogAsync;
+            _viewModel.ShowPluginConfirmRequested = ShowPluginConfirmAsync;
             PopulateConnectionMenu(_viewModel);
             _viewModel.RoutineParametersRequested = ShowRoutineParametersDialogAsync;
             _viewModel.NodeInfoRequested = ShowNodeInfoDialogAsync;
@@ -762,6 +763,18 @@ public partial class MainView : UserControl
         }
 
         await dialog.ShowDialog(owner);
+    }
+
+    private async Task<bool> ShowPluginConfirmAsync(string title, string message)
+    {
+        if (TopLevel.GetTopLevel(this) is not Window owner)
+        {
+            return false;
+        }
+
+        var loc = _viewModel?.Loc;
+        var dialog = new ConfirmDialog(title, message, loc?["Yes"] ?? "Yes", loc?["No"] ?? "No");
+        return await dialog.ShowDialog<bool>(owner);
     }
 
     private async Task ShowRoutineParametersDialogAsync(RoutineParametersDialogViewModel dialogViewModel)

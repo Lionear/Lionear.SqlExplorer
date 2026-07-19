@@ -1,3 +1,4 @@
+using System.Globalization;
 using Avalonia;
 using Avalonia.Controls;
 
@@ -43,10 +44,10 @@ public sealed class DockerSubsystem : ISubsystemPlugin, IPanelPlugin, IMenuPlugi
         ReconcileConnections(context, _registry);
     }
 
-    // Connections seam: every managed container gets one real host connection, tagged with this plugin as
-    // origin (so the tree can badge it "managed by Local Containers"). Idempotent via the container's
-    // ConnectionId — link once, then persist the link so a restart doesn't create a duplicate. An empty
-    // registry links nothing, so a fresh install adds no connections until a container actually exists.
+    // Connections seam, startup-restore path: link any managed container that isn't linked yet (idempotent via
+    // ConnectionId, so a restart never duplicates). Newly created containers are linked at create-time with
+    // their full credentials by LinkNewContainer — this only backfills legacy/unlinked entries and so can only
+    // offer host+port (the password isn't kept in the registry). An empty registry links nothing.
     private static void ReconcileConnections(IPluginRuntimeContext context, IContainerRegistryStore registry)
     {
         if (context.Connections is not { } connections)
@@ -73,6 +74,62 @@ public sealed class DockerSubsystem : ISubsystemPlugin, IPanelPlugin, IMenuPlugi
         }
 
         context.Log($"Local Containers: linked {linked} new managed connection(s).");
+    }
+
+    // Unlink side of ReconcileConnections: when a managed container is torn down, drop the host connection it
+    // created so no orphan is left behind in the tree. The origin-scoped IManagedConnections.Remove only ever
+    // touches this plugin's own connections. No-op when the container was never linked (ConnectionId null) or
+    // the connections seam isn't granted.
+    private void ReleaseConnection(ManagedContainer container)
+    {
+        if (_context?.Connections is { } connections && container.ConnectionId is { } connectionId)
+        {
+            connections.Remove(connectionId);
+            _context.Log($"Local Containers: released the managed connection for '{container.Name}'.");
+        }
+    }
+
+    // Create-time linking: the container's full field values — including the password the user entered or the
+    // engine default — are only in hand right after creation, so build the host connection now instead of from
+    // the credential-less registry. ConnectionService routes the password to the OS keychain (per the provider's
+    // secret fields), so the secret never lands in the container registry. Stamps ConnectionId so a later
+    // restart's ReconcileConnections skips it. No-op if the connections seam wasn't granted or it's already linked.
+    private void LinkNewContainer(CreateContainerRequest request)
+    {
+        if (_context?.Connections is not { } connections || _registry is null)
+        {
+            return;
+        }
+
+        if (_registry.Get(request.ContainerName) is not { } container || container.ConnectionId is not null)
+        {
+            return;
+        }
+
+        var connectionId = connections.Create(new NewConnectionSpec(
+            container.Name, container.ProviderId, BuildConnectionValues(request), Folder: "Local Containers"));
+
+        _registry.Save(container with { ConnectionId = connectionId });
+        _context.Log($"Local Containers: linked the managed connection for '{container.Name}'.");
+    }
+
+    // The host-connection field values for a container: host/port plus the engine credentials it was created
+    // with (username/password, and database when set), so the connection actually connects rather than just
+    // pointing at the endpoint. Keys match the provider ConnectionField keys the create dialog prefills from.
+    internal static Dictionary<string, string?> BuildConnectionValues(CreateContainerRequest request)
+    {
+        var values = new Dictionary<string, string?>(request.Values)
+        {
+            ["host"] = "localhost",
+            ["port"] = request.HostPort.ToString(CultureInfo.InvariantCulture)
+        };
+
+        if (!string.IsNullOrWhiteSpace(request.Database))
+        {
+            values["database"] = request.Database;
+        }
+
+        return values;
     }
 
     public void Deactivate()
@@ -153,11 +210,11 @@ public sealed class DockerSubsystem : ISubsystemPlugin, IPanelPlugin, IMenuPlugi
         }
 
         // Standalone (fromConnection null) → pick the engine; from a right-clicked connection → engine fixed +
-        // prefilled from it. On success reconcile links the new container's host connection (and stamps its
-        // ConnectionId so a later restart doesn't link it twice).
+        // prefilled from it. On success LinkNewContainer creates the new container's host connection with its
+        // full credentials and stamps the ConnectionId so a later restart doesn't link it twice.
         var content = CreateContainerView.Build(
             _builder, _service, fromConnection,
-            onCreated: () => ReconcileConnections(_context, _registry),
+            onCreated: LinkNewContainer,
             log: _context.Log);
 
         return hostUi.ShowDialogAsync("New local Docker instance", content);
@@ -181,7 +238,8 @@ public sealed class DockerSubsystem : ISubsystemPlugin, IPanelPlugin, IMenuPlugi
 
         _panel = new ContainersPanelView(
             _registry, _service, hostUi, _context.Log,
-            onNewFromConnection: () => ShowCreateDialogAsync(hostUi));
+            onNewFromConnection: () => ShowCreateDialogAsync(hostUi),
+            onRemoved: ReleaseConnection);
         return _panel.Root;
     }
 }
