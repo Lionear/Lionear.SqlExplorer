@@ -1,15 +1,19 @@
+using Avalonia;
+using Avalonia.Controls;
+
 namespace SqlExplorer.Backends.Docker;
 
 /// <summary>
 /// The Local Containers (Docker) subsystem plugin — the first consumer of the SE-164 extensibility platform,
-/// and the target the host-built Docker regie (SE-113 fase-1 Core) migrates into. It dogfoods two seams: the
+/// and the target the host-built Docker regie (SE-113 fase-1 Core) migrates into. It dogfoods three seams: the
 /// <c>storage</c> seam (its persisted container registry, via the capability-gated
-/// <see cref="IPluginRuntimeContext.Storage"/>) and the <c>connections</c> seam (each managed container
-/// surfaces as a real host connection, tagged with this plugin as origin, via
-/// <see cref="IPluginRuntimeContext.Connections"/>). The panel / background / menu seams (and the migrated
+/// <see cref="IPluginRuntimeContext.Storage"/>), the <c>connections</c> seam (each managed container surfaces
+/// as a real host connection, tagged with this plugin as origin, via
+/// <see cref="IPluginRuntimeContext.Connections"/>), and the <c>panel</c> seam (<see cref="IPanelPlugin"/> —
+/// a docked "Containers" panel beside Output/History). The background / menu seams (and the migrated
 /// compose/CLI logic) land next.
 /// </summary>
-public sealed class DockerSubsystem : ISubsystemPlugin
+public sealed class DockerSubsystem : ISubsystemPlugin, IPanelPlugin
 {
     private const string RegistryKey = "containers";
 
@@ -67,6 +71,46 @@ public sealed class DockerSubsystem : ISubsystemPlugin
     }
 
     public void Deactivate() => _context = null;
+
+    // --- IPanelPlugin (SE-164 panel seam) ---------------------------------------------------------------
+
+    public string PanelId => "containers";
+
+    public string Title => "Containers";
+
+    /// <summary>Build the Containers panel: a live snapshot of the managed container registry (read through
+    /// the storage seam). No hardcoded colours — text inherits the host theme, so it reads in light and dark.
+    /// A richer table + docker-ps polling arrives with the SE-113 migration and the background seam.</summary>
+    public Control CreatePanel()
+    {
+        var body = new StackPanel { Margin = new Thickness(12, 8, 12, 12), Spacing = 4 };
+
+        var containers = _context?.Storage?.Load<List<ManagedContainerRecord>>(RegistryKey) ?? [];
+        if (containers.Count == 0)
+        {
+            body.Children.Add(new TextBlock
+            {
+                Text = "No managed containers yet.",
+                Opacity = 0.7
+            });
+        }
+        else
+        {
+            foreach (var container in containers)
+            {
+                body.Children.Add(new TextBlock
+                {
+                    Text = $"{container.Name}   ·   {container.ProviderId}   ·   localhost:{container.HostPort}"
+                });
+            }
+        }
+
+        return new ScrollViewer
+        {
+            HorizontalScrollBarVisibility = Avalonia.Controls.Primitives.ScrollBarVisibility.Auto,
+            Content = body
+        };
+    }
 
     /// <summary>Placeholder registry row — replaced by the migrated SE-113 <c>ManagedContainer</c>.</summary>
     private sealed record ManagedContainerRecord(string Name, string ProviderId, int HostPort);

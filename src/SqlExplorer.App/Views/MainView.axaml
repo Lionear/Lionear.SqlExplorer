@@ -86,6 +86,10 @@
       <RowDefinition Height="*" />
       <RowDefinition Height="Auto" />
       <RowDefinition Height="170" />
+      <!-- SE-164 panel seam: splitter + body for plugin-contributed bottom panels. Collapsed to 0 by the
+           code-behind until a plugin panel is toggled open, exactly like the Output row above. -->
+      <RowDefinition Height="Auto" />
+      <RowDefinition Height="0" />
       <RowDefinition Height="Auto" />
     </Grid.RowDefinitions>
 
@@ -597,9 +601,28 @@
       </Grid>
     </Border>
 
+    <!-- Plugin panel region (SE-164 panel seam): one Bottom-docked region rendering the plugin-contributed
+         panels; each item shows only while its tool-window is toggled on. The splitter's visibility and the
+         row's collapse/restore are driven from the code-behind, same mechanism as the Output row. -->
+    <GridSplitter Grid.Row="4" x:Name="SubsystemSplitter" Height="3" ResizeDirection="Rows" IsVisible="False" />
+
+    <Border Grid.Row="5" Background="{DynamicResource SEPanelBgBrush}">
+      <ItemsControl ItemsSource="{Binding SubsystemPanels}">
+        <ItemsControl.ItemTemplate>
+          <DataTemplate>
+            <Grid IsVisible="{Binding Window.IsVisible}" RowDefinitions="Auto,*">
+              <TextBlock Grid.Row="0" Text="{Binding Window.Title}" FontWeight="SemiBold" FontSize="12"
+                         Foreground="{DynamicResource SETextSecondaryBrush}" Margin="10,6,8,4" />
+              <ContentControl Grid.Row="1" Content="{Binding Content}" />
+            </Grid>
+          </DataTemplate>
+        </ItemsControl.ItemTemplate>
+      </ItemsControl>
+    </Border>
+
     <!-- Bottom status bar (SE-123): connection state on the left, the Edge.Bottom tool-window toggles
          next to it (so the toggle sits on the edge its panel opens on), run stats on the right. -->
-    <Border Grid.Row="4" Background="{DynamicResource SEToolbarBgBrush}"
+    <Border Grid.Row="6" Background="{DynamicResource SEToolbarBgBrush}"
             BorderBrush="{DynamicResource SEHairlineBrush}" BorderThickness="0,1,0,0">
       <Grid ColumnDefinitions="Auto,Auto,*,Auto" Margin="10,3">
         <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="7" VerticalAlignment="Center">

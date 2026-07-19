@@ -61,6 +61,13 @@ public partial class App : Application
         // managed connections — actually exist. Held for Deactivate at shutdown (wired below in the desktop case).
         var subsystems = services.GetRequiredService<Core.Plugins.SubsystemActivator>().ActivateAll();
 
+        // Mount any panel contributions as bottom tool-windows. Done before the window's DataContext is set
+        // (below), so MainView subscribes these panels' windows along with Output/History in one pass.
+        foreach (var panel in subsystems.Panels)
+        {
+            viewModel.AddSubsystemPanel(panel.PanelId, panel.Title, panel.CreatePanel());
+        }
+
         switch (ApplicationLifetime)
         {
             case IClassicDesktopStyleApplicationLifetime desktop:
@@ -93,7 +100,7 @@ public partial class App : Application
                     _shutdownCts.Cancel();
                     // Best-effort teardown of the standing-subsystem plugins (SE-164) — one failing Deactivate
                     // never blocks the rest (SubsystemRegistry swallows), and this must not hold up exit.
-                    subsystems.DeactivateAll();
+                    subsystems.Registry.DeactivateAll();
                     _trayIcon?.Dispose();
                 };
                 // Stop the MCP listener cleanly on exit so its loopback port is released promptly. Run it

@@ -9,6 +9,11 @@
 
   <ItemGroup>
     <PackageReference Include="coverlet.collector" Version="6.0.4" />
+    <!-- The Backends.Docker integration test loads a plugin that implements the IPanelPlugin UI seam, whose
+         type metadata references Avalonia. The loader's reflection over that assembly needs Avalonia.Controls
+         present at runtime — the host normally provides it across the ALC, so here the test plays that role.
+         (No control is instantiated, so no display/AppBuilder is needed.) -->
+    <PackageReference Include="Avalonia" Version="12.0.5" />
     <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.14.1" />
     <PackageReference Include="xunit" Version="2.9.3" />
     <PackageReference Include="xunit.runner.visualstudio" Version="3.1.4" />

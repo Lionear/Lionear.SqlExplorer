@@ -64,14 +64,14 @@ public class DockerSubsystemIntegrationTests
                 id => new JsonPluginStorage(id, storageRoot),
                 id => new ManagedConnections(id, service));
 
-            var registry = activator.ActivateAll();
+            var result = activator.ActivateAll();
 
-            Assert.Single(registry.All);
+            Assert.Single(result.Registry.All);
             Assert.True(
                 File.Exists(Path.Combine(storageRoot, "local-containers", "containers.json")),
                 "the plugin did not persist through the capability-gated storage");
 
-            registry.DeactivateAll();
+            result.Registry.DeactivateAll();
         }
         finally
         {
@@ -109,6 +109,36 @@ public class DockerSubsystemIntegrationTests
             Assert.Equal("test", saved.ProviderId);
             Assert.Equal("localhost", saved.Values["host"]);
             Assert.Equal("5432", saved.Values["port"]);
+        }
+        finally
+        {
+            if (Directory.Exists(storageRoot))
+            {
+                Directory.Delete(storageRoot, recursive: true);
+            }
+        }
+    }
+
+    [Fact] // The plugin declares the `panel` capability and implements IPanelPlugin, so the activator surfaces
+           // it as a panel contribution. We assert the metadata only — building the control would pull
+           // Avalonia.Controls into the test runtime (the known gotcha), which the host, not the test, owns.
+    public void Activator_surfaces_the_docker_panel_contribution()
+    {
+        var activation = LoadDockerActivation();
+        var storageRoot = Path.Combine(Path.GetTempPath(), "se164-int-" + Guid.NewGuid().ToString("N"));
+        var (service, _) = NewConnectionService();
+        try
+        {
+            var activator = new SubsystemActivator(
+                [activation],
+                id => new JsonPluginStorage(id, storageRoot),
+                id => new ManagedConnections(id, service));
+
+            var panel = activator.ActivateAll().Panels.SingleOrDefault();
+
+            Assert.NotNull(panel);
+            Assert.Equal("containers", panel!.PanelId);
+            Assert.Equal("Containers", panel.Title);
         }
         finally
         {

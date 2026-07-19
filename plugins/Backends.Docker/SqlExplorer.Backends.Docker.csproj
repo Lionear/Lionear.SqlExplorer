@@ -8,6 +8,10 @@
     <!-- Contract only. Private=false keeps SqlExplorer.Sdk.dll out of the plugin folder so the host's copy
          is used across the ALC boundary (single ISubsystemPlugin/IPluginRuntimeContext type identity). -->
     <ProjectReference Include="..\..\src\SqlExplorer.Sdk\SqlExplorer.Sdk.csproj" Private="false" />
+    <!-- The panel seam (IPanelPlugin) returns an Avalonia Control, and the SDK keeps Avalonia PrivateAssets,
+         so this plugin references Avalonia itself. ExcludeAssets="runtime" keeps the DLLs out of the plugin
+         folder — the host's copy is shared across the ALC, so the Control has one type identity. -->
+    <PackageReference Include="Avalonia" Version="12.0.5" ExcludeAssets="runtime" />
   </ItemGroup>
 
   <ItemGroup>

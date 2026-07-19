@@ -2,6 +2,11 @@ using SqlExplorer.Sdk.Extensibility;
 
 namespace SqlExplorer.Core.Plugins;
 
+/// <summary>What activation produced: the registry for shutdown teardown, plus the panel contributions
+/// (capability-gated) the host mounts as tool-windows. More contribution lists (background, menu) join here
+/// as those seams land.</summary>
+public sealed record SubsystemActivationResult(SubsystemRegistry Registry, IReadOnlyList<IPanelPlugin> Panels);
+
 /// <summary>
 /// Activates the loaded subsystem plugins (SE-164) <em>after</em> the host's ServiceProvider is built — the
 /// only point at which the services a plugin's context leans on actually exist. Storage is available earlier,
@@ -37,10 +42,13 @@ public sealed class SubsystemActivator
         _log = log;
     }
 
-    /// <summary>Build each plugin's context and Initialize it; returns the registry of the ones that came up.</summary>
-    public SubsystemRegistry ActivateAll()
+    /// <summary>Build each plugin's context and Initialize it; returns the registry of the ones that came up
+    /// plus their capability-gated panel contributions (collected after Initialize, so a panel's control can
+    /// rely on the plugin already holding its context).</summary>
+    public SubsystemActivationResult ActivateAll()
     {
         var active = new List<ISubsystemPlugin>();
+        var panels = new List<IPanelPlugin>();
         foreach (var activation in _activations)
         {
             try
@@ -50,6 +58,14 @@ public sealed class SubsystemActivator
                     activation.Localizer, _log, _connectionsProvider);
                 activation.Plugin.Initialize(context);
                 active.Add(activation.Plugin);
+
+                // Pull-model contribution check, capability-gated like the runtime services: only surface a
+                // panel the plugin both declared (consent) and actually implements.
+                if (activation.Capabilities.Contains(PluginCapabilities.Panel)
+                    && activation.Plugin is IPanelPlugin panel)
+                {
+                    panels.Add(panel);
+                }
             }
             catch (Exception ex)
             {
@@ -57,6 +73,6 @@ public sealed class SubsystemActivator
             }
         }
 
-        return new SubsystemRegistry(active);
+        return new SubsystemActivationResult(new SubsystemRegistry(active), panels);
     }
 }

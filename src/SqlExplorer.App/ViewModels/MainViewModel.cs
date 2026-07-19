@@ -2,6 +2,7 @@ using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.Globalization;
 using System.IO;
+using Avalonia.Controls;
 using Avalonia.Media;
 using Avalonia.Media.Imaging;
 using Avalonia.Threading;
@@ -154,6 +155,7 @@ public partial class MainViewModel : ViewModelBase
             "History", ToolWindowEdge.Right, localizer["History"], NodeIcons.ToolHistory,
             settings.HistoryWidth ?? 300);
         ToolWindows = [OutputWindow, HistoryWindow];
+        // Plugin panels (SE-164) are appended to ToolWindows/SubsystemPanels after startup activation.
 
         _history.Changed += OnHistoryChanged;
         RefreshConnections();
@@ -225,8 +227,25 @@ public partial class MainViewModel : ViewModelBase
     public ToolWindow HistoryWindow { get; }
 
     /// <summary>Every tool window, in stripe order — the view binds the right-hand stripe to the
-    /// Right-edge ones and the status bar to the Bottom-edge ones, so a third panel needs no XAML.</summary>
-    public IReadOnlyList<ToolWindow> ToolWindows { get; }
+    /// Right-edge ones and the status bar to the Bottom-edge ones, so a third panel needs no XAML.
+    /// Observable so plugin-contributed panels (SE-164) can join after startup activation.</summary>
+    public ObservableCollection<ToolWindow> ToolWindows { get; }
+
+    /// <summary>Plugin-contributed bottom panels (SE-164 <c>panel</c> seam): each pairs a tool-window (its
+    /// toggle/visibility/size) with the plugin-built Avalonia control the panel region renders.</summary>
+    public ObservableCollection<SubsystemPanel> SubsystemPanels { get; } = [];
+
+    /// <summary>Mount a plugin panel: a Bottom-docked tool-window (toggle in the status bar, hidden until the
+    /// user opens it) plus its control. Called during App startup, before the view subscribes its windows.</summary>
+    public void AddSubsystemPanel(string id, string title, Control content)
+    {
+        var window = new ToolWindow(id, ToolWindowEdge.Bottom, title, NodeIcons.Object, 200)
+        {
+            IsVisible = false
+        };
+        ToolWindows.Add(window);
+        SubsystemPanels.Add(new SubsystemPanel(window, content));
+    }
 
     /// <summary>Query-history rows shown in the (toggleable) history panel, newest first.</summary>
     public ObservableCollection<QueryHistoryEntry> HistoryEntries { get; } = [];

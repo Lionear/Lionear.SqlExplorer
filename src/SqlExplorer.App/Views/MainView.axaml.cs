@@ -129,6 +129,10 @@ public partial class MainView : UserControl
     // x:Name on a RowDefinition/ColumnDefinition generates no field — hence the index access.
     private const int OutputRowIndex = 3;
     private const int HistoryColumnIndex = 4;
+    // SE-164 panel seam: the shared bottom region for plugin-contributed panels (RootGrid row 5, its
+    // splitter row 4). One region for all plugin panels in v1; its height is session-local (not persisted).
+    private const int SubsystemRowIndex = 5;
+    private double _subsystemHeight = 200;
 
     /// <summary>Push the persisted sizes into the grid definitions (call once, after DataContext is set).</summary>
     public void RestoreToolWindowSizes(double outputHeight, double historyWidth)
@@ -151,6 +155,7 @@ public partial class MainView : UserControl
     // empty band above the status bar). Hence: set Min* together with the size, never in XAML.
     private const double OutputMinHeight = 80;
     private const double HistoryMinWidth = 200;
+    private const double SubsystemMinHeight = 80;
 
     // A hidden panel must not keep reserving its track: IsVisible on the Border alone still leaves the
     // fixed-pixel row/column occupying space. Collapse the track to 0 while hidden and restore the VM's
@@ -173,6 +178,14 @@ public partial class MainView : UserControl
         historyColumn.Width = _viewModel.HistoryWindow.IsVisible
             ? new GridLength(_viewModel.HistoryWindow.Size)
             : new GridLength(0);
+
+        // Plugin panel region (SE-164): the row (and its splitter) live only while at least one plugin panel
+        // is toggled open — a shared bottom region, same collapse-to-0 rule as Output.
+        var anyPanelVisible = _viewModel.SubsystemPanels.Any(p => p.Window.IsVisible);
+        var subsystemRow = RootGrid.RowDefinitions[SubsystemRowIndex];
+        subsystemRow.MinHeight = anyPanelVisible ? SubsystemMinHeight : 0;
+        subsystemRow.Height = anyPanelVisible ? new GridLength(_subsystemHeight) : new GridLength(0);
+        SubsystemSplitter.IsVisible = anyPanelVisible;
     }
 
     // Keep the VM's Size in step with a splitter drag, and collapse/restore the track on toggle.
@@ -216,6 +229,12 @@ public partial class MainView : UserControl
         if (historyWidth > 0)
         {
             _viewModel.HistoryWindow.Size = historyWidth;
+        }
+
+        var subsystemHeight = RootGrid.RowDefinitions[SubsystemRowIndex].Height.Value;
+        if (subsystemHeight > 0)
+        {
+            _subsystemHeight = subsystemHeight;
         }
     }
 
