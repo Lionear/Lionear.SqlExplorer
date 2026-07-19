@@ -5,34 +5,36 @@ using SqlExplorer.Sdk.Tools;
 
 namespace SqlExplorer.Core.Plugins;
 
-/// <summary>Outcome of loading one <c>type: "extension"</c> plugin: the subsystem it contributed and its
-/// capability-gated runtime context, or an error explaining why it was skipped.</summary>
+/// <summary>One successfully loaded <c>type: "extension"</c> plugin, ready to activate: the subsystem
+/// instance, the capabilities its manifest declared (which gate the runtime context) and its optional
+/// localizer. The context is deliberately <em>not</em> built here — <see cref="SubsystemActivator"/> builds it
+/// and calls <c>Initialize</c> later, once the host services it needs (e.g. <c>ConnectionService</c>) exist.</summary>
+public sealed record SubsystemActivation(
+    string Id, IReadOnlyList<string> Capabilities, ISubsystemPlugin Plugin, IPluginLocalizer? Localizer);
+
+/// <summary>Outcome of loading one <c>type: "extension"</c> plugin: the activation it produced, or an error
+/// explaining why it was skipped.</summary>
 public sealed record SubsystemLoadResult(
-    string PluginDirectory, string? Id, ISubsystemPlugin? Plugin, IPluginRuntimeContext? Context, string? Error)
+    string PluginDirectory, string? Id, SubsystemActivation? Activation, string? Error)
 {
-    public bool Succeeded => Error is null && Plugin is not null && Context is not null;
+    public bool Succeeded => Error is null && Activation is not null;
 }
 
 /// <summary>
 /// Loads <c>type: "extension"</c> plugins (SE-164) — standing subsystems. Mirrors <see cref="ToolPluginLoader"/>
 /// and reuses <see cref="ProviderLoadContext"/> (SDK + Avalonia shared with the host). For each it finds the
-/// single <see cref="ISubsystemPlugin"/> implementation and builds an <see cref="IPluginRuntimeContext"/>
-/// gated on the manifest's declared capabilities. The host then calls <c>Initialize</c> and holds the
-/// instance for <c>Deactivate</c> at shutdown.
+/// single <see cref="ISubsystemPlugin"/> implementation and returns a <see cref="SubsystemActivation"/> (the
+/// instance + declared capabilities + localizer). It does <em>not</em> build the runtime context or call
+/// <c>Initialize</c>: that is <see cref="SubsystemActivator"/>'s job, run after the host's ServiceProvider is
+/// built so a plugin's context can be backed by live services (notably <c>ConnectionService</c>).
 /// </summary>
 public sealed class SubsystemPluginLoader
 {
     private readonly ILocalizer? _hostLocalizer;
-    private readonly Func<string, IPluginStorage> _storageProvider;
     private readonly Action<string>? _log;
 
-    /// <param name="storageProvider">Builds the plugin-scoped storage for a plugin id (the host injects the
-    /// Infrastructure impl, since Core can't). Only wired into the context when the plugin declared the
-    /// <see cref="PluginCapabilities.Storage"/> capability.</param>
-    public SubsystemPluginLoader(
-        Func<string, IPluginStorage> storageProvider, ILocalizer? hostLocalizer = null, Action<string>? log = null)
+    public SubsystemPluginLoader(ILocalizer? hostLocalizer = null, Action<string>? log = null)
     {
-        _storageProvider = storageProvider;
         _hostLocalizer = hostLocalizer;
         _log = log;
     }
@@ -60,14 +62,14 @@ public sealed class SubsystemPluginLoader
         {
             if (!ToolHostApi.IsCompatible(manifest.HostApiVersion))
             {
-                return new SubsystemLoadResult(dir, manifest.Id, null, null,
+                return new SubsystemLoadResult(dir, manifest.Id, null,
                     $"Extension '{manifest.Id}' targets host API v{manifest.HostApiVersion}, this host is v{ToolHostApi.Version}.");
             }
 
             var assemblyPath = Path.Combine(dir, manifest.EntryAssembly);
             if (!File.Exists(assemblyPath))
             {
-                return new SubsystemLoadResult(dir, manifest.Id, null, null,
+                return new SubsystemLoadResult(dir, manifest.Id, null,
                     $"Entry assembly '{manifest.EntryAssembly}' not found in '{dir}'.");
             }
 
@@ -78,13 +80,13 @@ public sealed class SubsystemPluginLoader
                 .FirstOrDefault(t => typeof(ISubsystemPlugin).IsAssignableFrom(t) && t is { IsAbstract: false, IsInterface: false });
             if (pluginType is null)
             {
-                return new SubsystemLoadResult(dir, manifest.Id, null, null,
+                return new SubsystemLoadResult(dir, manifest.Id, null,
                     $"Assembly '{manifest.EntryAssembly}' has no public ISubsystemPlugin implementation.");
             }
 
             if (Activator.CreateInstance(pluginType) is not ISubsystemPlugin subsystem)
             {
-                return new SubsystemLoadResult(dir, manifest.Id, null, null,
+                return new SubsystemLoadResult(dir, manifest.Id, null,
                     $"Could not instantiate '{pluginType.Name}' as an ISubsystemPlugin.");
             }
 
@@ -93,12 +95,12 @@ public sealed class SubsystemPluginLoader
                     warn => _log?.Invoke($"{manifest.Id}: {warn}"))
                 : null;
 
-            var context = CreateContext(manifest.Id, manifest.Capabilities, _storageProvider, localizer, _log);
-            return new SubsystemLoadResult(dir, manifest.Id, subsystem, context, null);
+            var activation = new SubsystemActivation(manifest.Id, manifest.Capabilities, subsystem, localizer);
+            return new SubsystemLoadResult(dir, manifest.Id, activation, null);
         }
         catch (Exception ex)
         {
-            return new SubsystemLoadResult(dir, null, null, null, ex.Message);
+            return new SubsystemLoadResult(dir, null, null, ex.Message);
         }
     }
 

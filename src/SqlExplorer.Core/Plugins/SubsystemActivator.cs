@@ -1,0 +1,62 @@
+using SqlExplorer.Sdk.Extensibility;
+
+namespace SqlExplorer.Core.Plugins;
+
+/// <summary>
+/// Activates the loaded subsystem plugins (SE-164) <em>after</em> the host's ServiceProvider is built — the
+/// only point at which the services a plugin's context leans on actually exist. Storage is available earlier,
+/// but <see cref="IManagedConnections"/> is backed by <c>ConnectionService</c>, which is registered late in
+/// <c>AppServices.Build</c>; building the context and calling <c>Initialize</c> during the build would hand
+/// plugins a dead connections seam. So the loader only produces <see cref="SubsystemActivation"/>s and this
+/// activator — resolved post-build in App startup — builds each capability-gated
+/// <see cref="PluginRuntimeContext"/>, calls <c>Initialize</c>, and returns a <see cref="SubsystemRegistry"/>
+/// so the host can <c>Deactivate</c> them at shutdown. Activation is best-effort: one plugin throwing on
+/// Initialize never blocks the others.
+/// </summary>
+public sealed class SubsystemActivator
+{
+    private readonly IReadOnlyList<SubsystemActivation> _activations;
+    private readonly Func<string, IPluginStorage> _storageProvider;
+    private readonly Func<string, IManagedConnections> _connectionsProvider;
+    private readonly Action<string>? _log;
+
+    /// <param name="storageProvider">Builds the plugin-scoped storage for a plugin id; wired into the context
+    /// only when the plugin declared <see cref="PluginCapabilities.Storage"/>.</param>
+    /// <param name="connectionsProvider">Builds the origin-scoped managed-connections facade for a plugin id
+    /// (over the live <c>ConnectionService</c>); wired in only when the plugin declared
+    /// <see cref="PluginCapabilities.Connections"/>.</param>
+    public SubsystemActivator(
+        IReadOnlyList<SubsystemActivation> activations,
+        Func<string, IPluginStorage> storageProvider,
+        Func<string, IManagedConnections> connectionsProvider,
+        Action<string>? log = null)
+    {
+        _activations = activations;
+        _storageProvider = storageProvider;
+        _connectionsProvider = connectionsProvider;
+        _log = log;
+    }
+
+    /// <summary>Build each plugin's context and Initialize it; returns the registry of the ones that came up.</summary>
+    public SubsystemRegistry ActivateAll()
+    {
+        var active = new List<ISubsystemPlugin>();
+        foreach (var activation in _activations)
+        {
+            try
+            {
+                var context = SubsystemPluginLoader.CreateContext(
+                    activation.Id, activation.Capabilities, _storageProvider,
+                    activation.Localizer, _log, _connectionsProvider);
+                activation.Plugin.Initialize(context);
+                active.Add(activation.Plugin);
+            }
+            catch (Exception ex)
+            {
+                _log?.Invoke($"{activation.Id} Initialize failed: {ex.Message}");
+            }
+        }
+
+        return new SubsystemRegistry(active);
+    }
+}

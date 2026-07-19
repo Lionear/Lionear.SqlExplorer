@@ -1,16 +1,20 @@
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using SqlExplorer.Core.Connections;
 using SqlExplorer.Core.Plugins;
+using SqlExplorer.Core.Providers;
 using SqlExplorer.Infrastructure.Extensibility;
 
 namespace SqlExplorer.Core.Tests.Extensibility;
 
 /// <summary>
-/// End-to-end proof of the SE-164 <c>storage</c> seam: the REAL <see cref="SubsystemPluginLoader"/> discovers
-/// and ALC-loads the built <c>Backends.Docker</c> extension plugin, hands it a capability-gated context, and
-/// its <c>Initialize</c> round-trips through plugin-scoped <see cref="JsonPluginStorage"/> — no host, no
-/// mocks. The plugin is a build dependency of this test project, so its output is present.
+/// End-to-end proof of the SE-164 seams: the REAL <see cref="SubsystemPluginLoader"/> discovers and ALC-loads
+/// the built <c>Backends.Docker</c> extension plugin, and the REAL <see cref="SubsystemActivator"/> — the same
+/// post-build path the app uses — builds its capability-gated context and Initialize()s it against live host
+/// services (plugin-scoped <see cref="JsonPluginStorage"/> and a <see cref="ConnectionService"/>). No host UI,
+/// no mocks of the plugin. The plugin is a build dependency of this test project, so its output is present.
 /// </summary>
 public class DockerSubsystemIntegrationTests
 {
@@ -28,30 +32,46 @@ public class DockerSubsystemIntegrationTests
         return Path.Combine(repo, "plugins", "Backends.Docker", "bin", config);
     }
 
-    [Fact]
-    public void Real_loader_activates_the_docker_extension_and_round_trips_storage()
+    // A ConnectionService over in-memory fakes: no keychain, no file I/O. A MissingDbProvider stands in for
+    // the container's engine (empty ConnectionFields, no Avalonia) — enough for ConnectionService.Save to run.
+    private static (ConnectionService Service, FakeConnectionStore Store) NewConnectionService()
     {
-        var binRoot = PluginBinRoot();
-        Assert.True(Directory.Exists(binRoot), $"plugin build output not found: {binRoot}");
+        var providers = new DbProviderRegistry([new ProviderRegistration("test", new MissingDbProvider("test"))]);
+        var store = new FakeConnectionStore();
+        return (new ConnectionService(store, new NoopSecretStore(), providers), store);
+    }
 
-        var discovered = PluginDiscovery.Discover(binRoot, string.Empty);
+    private static SubsystemActivation LoadDockerActivation()
+    {
+        var discovered = PluginDiscovery.Discover(PluginBinRoot(), string.Empty);
+        var result = new SubsystemPluginLoader().Load(discovered).SingleOrDefault(r => r.Id == "local-containers");
+
+        Assert.NotNull(result);
+        Assert.True(result!.Succeeded, result.Error);
+        return result.Activation!;
+    }
+
+    [Fact]
+    public void Activator_activates_the_docker_extension_and_round_trips_storage()
+    {
+        var activation = LoadDockerActivation();
         var storageRoot = Path.Combine(Path.GetTempPath(), "se164-int-" + Guid.NewGuid().ToString("N"));
+        var (service, _) = NewConnectionService();
         try
         {
-            var loader = new SubsystemPluginLoader(id => new JsonPluginStorage(id, storageRoot));
-            var result = loader.Load(discovered).SingleOrDefault(r => r.Id == "local-containers");
+            var activator = new SubsystemActivator(
+                [activation],
+                id => new JsonPluginStorage(id, storageRoot),
+                id => new ManagedConnections(id, service));
 
-            Assert.NotNull(result);
-            Assert.True(result!.Succeeded, result.Error);
+            var registry = activator.ActivateAll();
 
-            // Activate for real: Initialize dogfoods the storage seam by round-tripping its registry.
-            result.Plugin!.Initialize(result.Context!);
-
+            Assert.Single(registry.All);
             Assert.True(
                 File.Exists(Path.Combine(storageRoot, "local-containers", "containers.json")),
                 "the plugin did not persist through the capability-gated storage");
 
-            result.Plugin.Deactivate();
+            registry.DeactivateAll();
         }
         finally
         {
@@ -60,5 +80,60 @@ public class DockerSubsystemIntegrationTests
                 Directory.Delete(storageRoot, recursive: true);
             }
         }
+    }
+
+    [Fact] // Seed the plugin's registry, activate for real, and prove it created an origin-tagged connection
+           // through the live ConnectionService — the connections seam, wired end-to-end via the activator.
+    public void Activator_wires_connections_so_the_plugin_creates_an_origin_tagged_connection()
+    {
+        var activation = LoadDockerActivation();
+        var storageRoot = Path.Combine(Path.GetTempPath(), "se164-int-" + Guid.NewGuid().ToString("N"));
+        var (service, store) = NewConnectionService();
+        try
+        {
+            // Seed the plugin's container registry (structural JSON matching its private record shape), so the
+            // reconcile step has a container to surface as a connection.
+            new JsonPluginStorage("local-containers", storageRoot).Save(
+                "containers", new[] { new { Name = "pg-1", ProviderId = "test", HostPort = 5432 } });
+
+            var activator = new SubsystemActivator(
+                [activation],
+                id => new JsonPluginStorage(id, storageRoot),
+                id => new ManagedConnections(id, service));
+
+            activator.ActivateAll();
+
+            var saved = store.GetAll().SingleOrDefault(c => c.Origin == "local-containers");
+            Assert.NotNull(saved);
+            Assert.Equal("pg-1", saved!.Name);
+            Assert.Equal("test", saved.ProviderId);
+            Assert.Equal("localhost", saved.Values["host"]);
+            Assert.Equal("5432", saved.Values["port"]);
+        }
+        finally
+        {
+            if (Directory.Exists(storageRoot))
+            {
+                Directory.Delete(storageRoot, recursive: true);
+            }
+        }
+    }
+
+    private sealed class FakeConnectionStore : IConnectionStore
+    {
+        private readonly List<SavedConnection> _items = new();
+        public IReadOnlyList<SavedConnection> GetAll() => _items.ToList();
+        public IReadOnlyDictionary<string, int> GetFolderOrder() => new Dictionary<string, int>();
+        public void Save(SavedConnection c) { _items.RemoveAll(x => x.Id == c.Id); _items.Add(c); }
+        public void Delete(string id) => _items.RemoveAll(x => x.Id == id);
+        public void SaveAll(IReadOnlyList<SavedConnection> connections, IReadOnlyDictionary<string, int> folderOrder)
+        { _items.Clear(); _items.AddRange(connections); }
+    }
+
+    private sealed class NoopSecretStore : ISecretStore
+    {
+        public void Set(string key, string secret) { }
+        public string? Get(string key) => null;
+        public void Delete(string key) { }
     }
 }

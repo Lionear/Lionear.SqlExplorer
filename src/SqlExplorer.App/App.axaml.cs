@@ -56,6 +56,11 @@ public partial class App : Application
         var viewModel = services.GetRequiredService<MainViewModel>();
         var keymap = services.GetRequiredService<KeymapService>();
 
+        // Activate standing-subsystem plugins (SE-164) now the container is built: only here do the services
+        // their capability-gated contexts need — plugin storage and, crucially, the ConnectionService behind
+        // managed connections — actually exist. Held for Deactivate at shutdown (wired below in the desktop case).
+        var subsystems = services.GetRequiredService<Core.Plugins.SubsystemActivator>().ActivateAll();
+
         switch (ApplicationLifetime)
         {
             case IClassicDesktopStyleApplicationLifetime desktop:
@@ -86,6 +91,9 @@ public partial class App : Application
                 desktop.Exit += (_, _) =>
                 {
                     _shutdownCts.Cancel();
+                    // Best-effort teardown of the standing-subsystem plugins (SE-164) — one failing Deactivate
+                    // never blocks the rest (SubsystemRegistry swallows), and this must not hold up exit.
+                    subsystems.DeactivateAll();
                     _trayIcon?.Dispose();
                 };
                 // Stop the MCP listener cleanly on exit so its loopback port is released promptly. Run it
