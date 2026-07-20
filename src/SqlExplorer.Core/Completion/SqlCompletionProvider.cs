@@ -8,6 +8,7 @@ public enum CompletionKind
     Table,
     Column,
     Function,
+    Join,
     Keyword
 }
 
@@ -45,7 +46,8 @@ public static class SqlCompletionProvider
             : scope.Clause switch
             {
                 SqlClause.From => TablesAndCtes(fragment, snapshot, scope),
-                SqlClause.Select or SqlClause.Where or SqlClause.On
+                SqlClause.On => OnClause(fragment, scope, snapshot, keywords, functions),
+                SqlClause.Select or SqlClause.Where
                     or SqlClause.GroupBy or SqlClause.Having or SqlClause.OrderBy
                     => ScopedColumns(fragment, scope, snapshot, keywords, functions),
                 _ => Broad(fragment, snapshot, keywords, functions)
@@ -130,6 +132,66 @@ public static class SqlCompletionProvider
 
         return ranked.Concat(Functions(fragment, functions)).Concat(kw).ToList();
     }
+
+    // A JOIN's ON clause: lead with FK-derived join-condition hints between the just-joined table and the other
+    // in-scope sources, then the ordinary scoped columns/keywords so the user can still hand-write a predicate.
+    private static IReadOnlyList<CompletionItem> OnClause(
+        string fragment, SqlScope scope, SchemaSnapshot snapshot,
+        IReadOnlySet<string> keywords, IReadOnlyList<SqlFunction> functions)
+    {
+        var hints = RankBy(JoinHints(scope, snapshot), h => h.Text, fragment);
+        return hints.Concat(ScopedColumns(fragment, scope, snapshot, keywords, functions)).ToList();
+    }
+
+    // Full join predicates ("o.user_id = u.id") inferred from foreign keys between the most-recently-joined
+    // source and each earlier in-scope source, in both FK directions. Empty unless at least two base-table
+    // sources are in scope and an FK actually links them.
+    private static IReadOnlyList<CompletionItem> JoinHints(SqlScope scope, SchemaSnapshot snapshot)
+    {
+        if (scope.Sources.Count < 2)
+        {
+            return [];
+        }
+
+        var target = scope.Sources[^1];
+        var targetObj = ResolveObject(target, snapshot);
+        var hints = new List<CompletionItem>();
+
+        foreach (var other in scope.Sources.Take(scope.Sources.Count - 1))
+        {
+            var otherObj = ResolveObject(other, snapshot);
+
+            // target references other: target.col = other.refcol
+            if (targetObj is not null)
+            {
+                foreach (var fk in targetObj.ForeignKeys.Where(fk => Same(fk.ReferencedTable, other.Table)))
+                {
+                    hints.Add(JoinItem(target.Alias, fk.Column, other.Alias, fk.ReferencedColumn, targetObj.Name, other.Table));
+                }
+            }
+
+            // other references target: other.col = target.refcol
+            if (otherObj is not null)
+            {
+                foreach (var fk in otherObj.ForeignKeys.Where(fk => Same(fk.ReferencedTable, target.Table)))
+                {
+                    hints.Add(JoinItem(other.Alias, fk.Column, target.Alias, fk.ReferencedColumn, otherObj.Name, target.Table));
+                }
+            }
+        }
+
+        return hints;
+    }
+
+    private static CompletionItem JoinItem(string leftAlias, string leftColumn, string rightAlias, string rightColumn, string fromTable, string? toTable) =>
+        new($"{leftAlias}.{leftColumn} = {rightAlias}.{rightColumn}", CompletionKind.Join, $"{fromTable} → {toTable}");
+
+    private static SchemaObject? ResolveObject(SqlScopeSource source, SchemaSnapshot snapshot) =>
+        source.Table is { } table
+            ? snapshot.Objects.FirstOrDefault(o => o.Name.Equals(table, StringComparison.OrdinalIgnoreCase))
+            : null;
+
+    private static bool Same(string a, string? b) => b is not null && a.Equals(b, StringComparison.OrdinalIgnoreCase);
 
     // Columns of the aliased source when the alias resolves in scope (a base table, or a CTE/derived table with
     // known columns); otherwise (unknown alias, or a CTE/derived whose columns can't be inferred) fall back to

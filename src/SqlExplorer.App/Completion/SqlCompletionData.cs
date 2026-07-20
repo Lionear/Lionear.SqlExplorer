@@ -17,10 +17,11 @@ public sealed class SqlCompletionData(CompletionItem item) : ICompletionData
 
     public object Description => item.Detail ?? item.Kind.ToString();
 
-    // Columns are the most common pick, then tables and functions, then keywords last — matches how often
-    // each kind is actually what you were reaching for while typing a query.
+    // A FK-derived join condition is almost always what you want right after ON, so it leads; then columns,
+    // then tables and functions, then keywords last — matching how often each kind is what you were reaching for.
     public double Priority => item.Kind switch
     {
+        CompletionKind.Join => 3,
         CompletionKind.Column => 2,
         CompletionKind.Table => 1,
         CompletionKind.Function => 1,
