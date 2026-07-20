@@ -34,15 +34,24 @@ public sealed class DockerSubsystem : ISubsystemPlugin, IPanelPlugin, IMenuPlugi
 
         // The registry now persists the real ManagedContainer set through the storage seam (replacing the
         // old host-owned JSON store), and drives the container lifecycle service the create flow runs.
+        // The Docker CLI is resolved through the host container (the 'services' capability, SE-171) — the
+        // plugin dogfoods its own DI wiring — and falls back to a direct instance when it wasn't granted.
         _registry = new PluginStorageContainerRegistry(storage);
         _builder = new DockerComposeBuilder();
-        _service = new ContainerService(_builder, new DockerCli(), _registry);
+        _service = new ContainerService(_builder, ResolveDockerCli(context), _registry);
 
         var containers = _registry.GetAll();
         context.Log($"Local Containers: {containers.Count} managed container(s) restored from storage.");
 
         ReconcileConnections(context, _registry);
     }
+
+    // Resolve the Docker CLI from the plugin's own services (the 'services' capability auto-registered
+    // DockerCli under IDockerCli). context.Services is scoped to this plugin's types, so this can only ever
+    // return the plugin's own registration. Falls back to a direct instance when the capability wasn't
+    // granted (Services null) or nothing was registered — the plugin keeps working either way.
+    internal static IDockerCli ResolveDockerCli(IPluginRuntimeContext context) =>
+        context.Services?.GetService(typeof(IDockerCli)) as IDockerCli ?? new DockerCli();
 
     // Connections seam, startup-restore path: link any managed container that isn't linked yet (idempotent via
     // ConnectionId, so a restart never duplicates). Newly created containers are linked at create-time with
