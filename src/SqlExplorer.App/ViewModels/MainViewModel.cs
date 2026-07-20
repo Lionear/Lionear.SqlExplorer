@@ -1359,11 +1359,11 @@ public partial class MainViewModel : ViewModelBase
         // Metadata-only update: never round-trips the field values/secrets, so it can't wipe them (SE-174).
         var saved = _connections.SetAiAccess(c, mode, c.ExcludeFromMcp);
 
-        // A user connection (no Origin) isn't refreshed by OnConnectionSavedExternally, so rebuild its node
-        // here; an Origin-tagged one refreshes off the Saved event.
+        // Update the node in place. Rebuilding it (UpsertConnectionNode) would append it to the bottom of the
+        // list and drop its expanded/connected state (SE-173); an Origin-tagged one refreshes off the Saved event.
         if (saved.Origin is null)
         {
-            UpsertConnectionNode(saved);
+            node.UpdateConnection(saved);
         }
     }
 
@@ -1382,7 +1382,7 @@ public partial class MainViewModel : ViewModelBase
 
         if (saved.Origin is null)
         {
-            UpsertConnectionNode(saved);
+            node.UpdateConnection(saved);
         }
     }
 
