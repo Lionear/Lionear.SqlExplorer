@@ -7,6 +7,7 @@ using SqlExplorer.Core.Connections;
 using SqlExplorer.Core.Plugins;
 using SqlExplorer.Core.Providers;
 using SqlExplorer.Infrastructure.Extensibility;
+using SqlExplorer.Providers.MsSql;
 
 namespace SqlExplorer.Core.Tests.Extensibility;
 
@@ -236,18 +237,25 @@ public class DockerSubsystemIntegrationTests
         var (service, _) = NewConnectionService();
         try
         {
+            // The plugin is purely provider-driven (SE-176): containerisability comes only from the recipes the
+            // host hands in via the providers seam. Wire a real catalog carrying the SQL Server recipe so the
+            // menu item applies to "sqlserver" but not to file-based SQLite (which declares no recipe).
+            var catalog = new HostProviderCatalog(
+                new DbProviderRegistry([new ProviderRegistration("sqlserver", new MsSqlProvider())]));
+
             var activator = new SubsystemActivator(
                 [activation],
                 id => new JsonPluginStorage(id, storageRoot),
-                id => new ManagedConnections(id, service));
+                id => new ManagedConnections(id, service),
+                providerCatalog: catalog);
 
             var connMenu = activator.ActivateAll().ConnectionMenus.SingleOrDefault();
 
             Assert.NotNull(connMenu);
             var item = Assert.Single(connMenu!.ConnectionMenuItems);
             Assert.Equal("Create local Docker instance…", item.Title);
-            // Applies to a containerisable engine (postgres), not to file-based SQLite.
-            Assert.True(item.AppliesTo(new Sdk.Extensibility.ManagedConnectionInfo("c1", "PG", "postgres", null, new Dictionary<string, string?>())));
+            // Applies to a containerisable engine (sqlserver, from the catalog), not to file-based SQLite.
+            Assert.True(item.AppliesTo(new Sdk.Extensibility.ManagedConnectionInfo("c1", "MSSQL", "sqlserver", null, new Dictionary<string, string?>())));
             Assert.False(item.AppliesTo(new Sdk.Extensibility.ManagedConnectionInfo("c2", "Lite", "sqlite", null, new Dictionary<string, string?>())));
         }
         finally

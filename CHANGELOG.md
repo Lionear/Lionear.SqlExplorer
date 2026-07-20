@@ -31,8 +31,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
   empty local container matching its engine (`IDbProvider.ContainerRecipe`: image, port, data path, and the
   environment/command that carry credentials). The Local Containers plugin reads every installed provider's
   recipe through a new read-only `providers` capability, so a third-party engine becomes containerisable with
-  no change to the host. The plugin keeps its built-in recipes as a fallback, and a provider's own recipe
-  wins over it.
+  no change to the host. Every first-party engine now ships its own recipe, so the plugin is purely
+  provider-driven: the recipe travels with the engine and is the single source of truth.
 
 ### Changed
 

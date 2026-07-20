@@ -34,6 +34,15 @@
                       ReferenceOutputAssembly="false" Private="false" />
     <!-- For the ScriptDom-based MsSqlFormatter tests (SE-148 phase 2). -->
     <ProjectReference Include="..\..\src\SqlExplorer.Providers.MsSql\SqlExplorer.Providers.MsSql.csproj" />
+    <!-- ProviderContainerRecipeTests (SE-176): assert each containerisable engine's declared recipe content
+         against the real provider (the recipe is the single source of truth now the Docker built-in table is
+         gone). Bundled providers live in src/; the store providers are compiled in from plugins/ for the test. -->
+    <ProjectReference Include="..\..\src\SqlExplorer.Providers.MySql\SqlExplorer.Providers.MySql.csproj" />
+    <ProjectReference Include="..\..\src\SqlExplorer.Providers.Postgres\SqlExplorer.Providers.Postgres.csproj" />
+    <ProjectReference Include="..\..\plugins\Providers.MongoDb\SqlExplorer.Providers.MongoDb.csproj" />
+    <ProjectReference Include="..\..\plugins\Providers.Redis\SqlExplorer.Providers.Redis.csproj" />
+    <ProjectReference Include="..\..\plugins\Providers.DragonflyDb\SqlExplorer.Providers.DragonflyDb.csproj" />
+    <ProjectReference Include="..\..\plugins\Providers.Elasticsearch\SqlExplorer.Providers.Elasticsearch.csproj" />
     <!-- For the CoreToolProvider tool-handler integration tests (SE-155): exercises the tools' JSON arg
          parsing end-to-end against a real McpHost. -->
     <ProjectReference Include="..\..\src\SqlExplorer.Mcp.Server\SqlExplorer.Mcp.Server.csproj" />
