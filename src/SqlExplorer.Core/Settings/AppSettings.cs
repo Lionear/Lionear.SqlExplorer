@@ -105,6 +105,13 @@ public sealed class AppSettings
     /// Applied to newly opened browse tabs. Default 200.</summary>
     public int BrowsePageSize { get; set; } = 200;
 
+    /// <summary>Show an ad-hoc query's results one page at a time (DataGrip/DBeaver-style next/prev) when it's a
+    /// single unbounded SELECT, so "SELECT * FROM big_table" doesn't pull everything at once (SE-178). Default on.</summary>
+    public bool PageQueryResults { get; set; } = true;
+
+    /// <summary>Rows per page when <see cref="PageQueryResults"/> is on. Default 500.</summary>
+    public int QueryPageSize { get; set; } = 500;
+
     // ── Master password (optional app-level encryption of connection secrets) ────────────────────────
     // All three below are NON-secret: they enable the feature and let the app verify a typed password.
     // The derived AES key itself is never stored — only held in memory while the session is unlocked.
