@@ -175,6 +175,7 @@ public partial class MainViewModel : ViewModelBase
             return;
         }
 
+        DocumentViewModel? active = null;
         foreach (var tab in _openTabsStore.Load())
         {
             if (_connections.List().FirstOrDefault(c => c.Id == tab.ConnectionId) is not { } connection)
@@ -189,6 +190,17 @@ public partial class MainViewModel : ViewModelBase
             // save it on exit. Genuine edits after restore re-dirty the tab as usual.
             document.LoadContent(tab.Sql, tab.FilePath);
             AddDocument(document);
+            if (tab.IsActive)
+            {
+                active = document;
+            }
+        }
+
+        // Reselect the tab that was active at close (SE-179); AddDocument otherwise leaves the last one
+        // selected. Falls back to that when the remembered tab is gone (its connection was deleted).
+        if (active is not null)
+        {
+            SelectedDocument = active;
         }
     }
 
@@ -196,7 +208,7 @@ public partial class MainViewModel : ViewModelBase
     public void PersistOpenTabs() =>
         _openTabsStore.Save(Documents
             .Where(d => d is { IsQueryMode: true, Connection: not null })
-            .Select(d => new OpenTabState(d.Connection!.Id, d.SelectedDatabase, d.Sql, d.FilePath))
+            .Select(d => new OpenTabState(d.Connection!.Id, d.SelectedDatabase, d.Sql, d.FilePath, ReferenceEquals(d, SelectedDocument)))
             .ToList());
 
     /// <summary>True when the Plugin Store has staged changes that need a restart — shows a main-window banner.</summary>
@@ -238,8 +250,9 @@ public partial class MainViewModel : ViewModelBase
     public ObservableCollection<SubsystemPanel> SubsystemPanels { get; } = [];
 
     /// <summary>Mount a plugin panel: a Bottom-docked tool-window (toggle in the status bar, hidden until the
-    /// user opens it) plus its control. Called during App startup, before the view subscribes its windows.</summary>
-    public void AddSubsystemPanel(string id, string title, Control content, Geometry? icon = null)
+    /// user opens it) plus its control. Called during App startup, before the view subscribes its windows.
+    /// Returns the created <see cref="ToolWindow"/> so the caller can gate its availability (SE-183).</summary>
+    public ToolWindow AddSubsystemPanel(string id, string title, Control content, Geometry? icon = null)
     {
         var window = new ToolWindow(id, ToolWindowEdge.Bottom, title, icon ?? NodeIcons.Object, 200)
         {
@@ -247,6 +260,7 @@ public partial class MainViewModel : ViewModelBase
         };
         ToolWindows.Add(window);
         SubsystemPanels.Add(new SubsystemPanel(window, content));
+        return window;
     }
 
     /// <summary>Plugin-contributed Tools-menu items (SE-164 <c>menu</c> seam), appended to the Tools menu by

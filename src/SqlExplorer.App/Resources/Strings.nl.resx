@@ -678,6 +678,15 @@
   <data name="QueryLogTitle" xml:space="preserve">
     <value>Query-log</value>
   </data>
+  <data name="QueryLogPolicyOff" xml:space="preserve">
+    <value>Query-logging staat uit — schakel het in via Instellingen → Query-log om queries vast te leggen.</value>
+  </data>
+  <data name="QueryLogPolicyAppOnly" xml:space="preserve">
+    <value>Alleen applicatie-queries worden gelogd — AI/MCP-logging staat uit (Instellingen → Query-log).</value>
+  </data>
+  <data name="QueryLogPolicyMcpOnly" xml:space="preserve">
+    <value>Alleen AI/MCP-queries worden gelogd — applicatie-logging staat uit (Instellingen → Query-log).</value>
+  </data>
   <data name="QueryLogSearch" xml:space="preserve">
     <value>Zoek in SQL of connectie</value>
   </data>

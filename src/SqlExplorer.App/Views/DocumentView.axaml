@@ -144,7 +144,7 @@
               Content="{Binding Loc[Save]}" Command="{Binding SaveCommand}" />
       <Button Grid.Column="3" Classes="Subtle" Margin="0,0,8,0"
               Content="{Binding Loc[Discard]}" Command="{Binding DiscardCommand}" />
-      <Button Grid.Column="4" Classes="Subtle" x:Name="ExportButton" Click="OnExportClick"
+      <Button Grid.Column="4" x:Name="ExportButton" Click="OnExportClick"
               Content="{Binding Loc[Export]}" />
       <TextBlock Grid.Column="5" VerticalAlignment="Center" Margin="12,0,0,0"
                  Foreground="{DynamicResource SETextSecondaryBrush}"

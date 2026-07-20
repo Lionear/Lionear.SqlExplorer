@@ -56,4 +56,17 @@ public sealed partial class ToolWindow : ObservableObject
     private int? _badge;
 
     public bool HasBadge => Badge is > 0;
+
+    /// <summary>Whether this window's toggle is offered at all. Normally true; the first-party AI-activity
+    /// panel sets it false while the MCP server is stopped, so its toggle disappears (SE-183).</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(IsBottomToggle))]
+    [NotifyPropertyChangedFor(nameof(IsRightToggle))]
+    private bool _isAvailable = true;
+
+    /// <summary>Show the status-bar toggle (Bottom-edge windows) — gated on <see cref="IsAvailable"/>.</summary>
+    public bool IsBottomToggle => Edge == ToolWindowEdge.Bottom && IsAvailable;
+
+    /// <summary>Show the right-stripe toggle (Right-edge windows) — gated on <see cref="IsAvailable"/>.</summary>
+    public bool IsRightToggle => Edge == ToolWindowEdge.Right && IsAvailable;
 }
