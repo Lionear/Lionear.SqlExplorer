@@ -9,7 +9,7 @@
     <!-- Toolbar -->
     <Grid Grid.Row="0" ColumnDefinitions="*,Auto,Auto,Auto,Auto,Auto" Margin="12,10" ColumnSpacing="8">
       <TextBox Grid.Column="0" Text="{Binding Search}"
-               Watermark="{Binding Loc[QueryLogSearch]}" MinWidth="200" />
+               PlaceholderText="{Binding Loc[QueryLogSearch]}" MinWidth="200" />
       <ComboBox Grid.Column="1" SelectedIndex="{Binding SourceFilter, Mode=TwoWay}" MinWidth="130">
         <ComboBoxItem Content="{Binding Loc[QueryLogSourceAll]}" />
         <ComboBoxItem Content="{Binding Loc[QueryLogSourceApp]}" />

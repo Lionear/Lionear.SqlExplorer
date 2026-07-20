@@ -1068,6 +1068,9 @@
   <data name="CopiedToClipboard" xml:space="preserve">
     <value>Copied</value>
   </data>
+  <data name="CellValue" xml:space="preserve">
+    <value>Cell value</value>
+  </data>
   <data name="Cut" xml:space="preserve">
     <value>Cut</value>
   </data>
