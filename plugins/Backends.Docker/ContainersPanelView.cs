@@ -45,7 +45,7 @@ internal sealed class ContainersPanelView
 
         _count = new TextBlock { VerticalAlignment = VerticalAlignment.Center, Opacity = 0.6, FontSize = 12, Margin = new Thickness(6, 0, 0, 0) };
 
-        var newButton = new Button { Content = "+ New container…" };
+        var newButton = new Button { Content = DockerIcons.Label(DockerIcons.Plus, "New container…") };
         newButton.Click += async (_, _) => await _onNewFromConnection();
         var refreshButton = new Button { Content = DockerIcons.Label(DockerIcons.Refresh, "Refresh"), Margin = new Thickness(0, 0, 6, 0) };
         refreshButton.Click += async (_, _) => await RefreshAsync();
@@ -227,15 +227,19 @@ internal sealed class ContainersPanelView
         var actions = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 5, HorizontalAlignment = HorizontalAlignment.Right, Margin = new Thickness(0, 3, 0, 3) };
 
         var running = status.State == ContainerState.Running;
-        var startStop = new Button { Content = running ? "Stop" : "Start", Padding = new Thickness(9, 3, 9, 3), FontSize = 11 };
+        var startStop = new Button
+        {
+            Content = DockerIcons.Label(running ? DockerIcons.Stop : DockerIcons.Play, running ? "Stop" : "Start"),
+            Padding = new Thickness(9, 3, 9, 3), FontSize = 11
+        };
         startStop.Click += async (_, _) => await RunActionAsync(
             running ? "stop" : "start", container.Name,
             ct => running ? _service.StopAsync(container.Id, ct) : _service.StartAsync(container.Id, ct));
 
-        var logs = new Button { Content = "Logs", Padding = new Thickness(9, 3, 9, 3), FontSize = 11 };
+        var logs = new Button { Content = DockerIcons.Label(DockerIcons.Logs, "Logs"), Padding = new Thickness(9, 3, 9, 3), FontSize = 11 };
         logs.Click += async (_, _) => await ShowLogsAsync(container);
 
-        var remove = new Button { Content = "Remove", Padding = new Thickness(9, 3, 9, 3), FontSize = 11, Foreground = new SolidColorBrush(Color.Parse("#C4362F")) };
+        var remove = new Button { Content = DockerIcons.Label(DockerIcons.Trash, "Remove"), Padding = new Thickness(9, 3, 9, 3), FontSize = 11, Foreground = new SolidColorBrush(Color.Parse("#C4362F")) };
         remove.Click += async (_, _) =>
         {
             var confirmed = await _hostUi.ConfirmAsync(

@@ -40,7 +40,6 @@ public static class AppServices
     {
         var services = new ServiceCollection();
 
-        services.AddSingleton<ISqlFormatter, BasicSqlFormatter>();
         // Instantiated here (not just type-registered) so the plugin loader below can hand the same live
         // localizer to each plugin's PluginLocalizer — its culture is set later (App startup) and reflected
         // on every lookup, so plugin strings follow a language switch just like host strings.
@@ -142,15 +141,38 @@ public static class AppServices
             }
         }
 
+        // Auto-register the services of any subsystem plugin that declared the "services" capability (SE-171
+        // phase 2). Guard-railed to the plugin's own interfaces so it can add services but never replace a
+        // host contract; the resolved allow-list becomes the plugin's scoped resolver (context.Services).
+        // Best-effort per plugin — a malformed plugin's scan must never abort host startup.
+        var pluginServiceTypes = new Dictionary<string, IReadOnlySet<Type>>();
+        foreach (var activation in subsystemActivations)
+        {
+            if (!activation.Capabilities.Contains(PluginCapabilities.Services))
+                continue;
+            try
+            {
+                pluginServiceTypes[activation.Id] =
+                    services.AddMarkedPluginServices(activation.Plugin.GetType().Assembly);
+            }
+            catch (Exception ex)
+            {
+                Console.Error.WriteLine($"[subsystem] {activation.Id} service scan failed: {ex.Message}");
+            }
+        }
+
         // The activator resolves after BuildServiceProvider (App startup): its connections provider pulls the
         // live ConnectionService from the built container, so a connection a plugin creates lands in the real
         // host list (secrets to the keychain), tagged with the plugin id as origin. Storage is plugin-scoped
-        // JSON; Log routes to stderr for now (Output-panel wiring is a later seam).
+        // JSON; Log routes to stderr for now (Output-panel wiring is a later seam). hostServices (the built
+        // provider) + the per-plugin allow-list back each "services"-capable plugin's scoped resolver.
         services.AddSingleton(sp => new SubsystemActivator(
             subsystemActivations,
             id => new JsonPluginStorage(id),
             id => new ManagedConnections(id, sp.GetRequiredService<ConnectionService>()),
-            msg => Console.Error.WriteLine($"[subsystem] {msg}")));
+            msg => Console.Error.WriteLine($"[subsystem] {msg}"),
+            hostServices: sp,
+            pluginServiceTypes: pluginServiceTypes));
 
         // Host-side view of everything installed (loaded or not, enabled or not) for the Plugin Store's
         // Installed tab. Enable/disable/uninstall stage a change here, applied on next startup.
@@ -237,8 +259,7 @@ public static class AppServices
         services.AddSingleton<MasterPasswordService>();
 
         // Per-connection schema snapshot (tables/views/columns), built by walking the lazy tree at
-        // connect. Powers object-search and schema-aware completion.
-        services.AddSingleton<ISchemaCache, SchemaCache>();
+        // connect. Powers object-search and schema-aware completion. Registered via ISingletonService.
 
         // Per-connection engine version string (e.g. "PostgreSQL 16.2"), fetched once at connect. Shown in
         // the status bar and the connect message; null when the provider reports no version (host-API v25).
@@ -352,6 +373,15 @@ public static class AppServices
                     settingsStore.Save(s);
                 });
         });
+
+        // Auto-register any class that opted into a lifetime marker (SqlExplorer.Sdk.Extensibility). Additive
+        // and last: it complements the explicit registrations above rather than replacing them, so a service
+        // migrates simply by dropping its manual line and implementing the marker. Plugin assemblies are out
+        // of scope for now — bridging their services into the host container is capability-gated future work.
+        services.AddMarkedServices(
+            typeof(ConnectionService).Assembly,     // SqlExplorer.Core
+            typeof(JsonPluginStateStore).Assembly,  // SqlExplorer.Infrastructure
+            typeof(AppServices).Assembly);          // SqlExplorer.App
 
         var provider = services.BuildServiceProvider();
 

@@ -10,7 +10,7 @@ namespace SqlExplorer.Backends.Docker;
 /// calls surface as failed results rather than throwing. (This is why the plugin declares the
 /// <c>process</c> capability — disclosure that it starts external processes.)
 /// </summary>
-public sealed class DockerCli : IDockerCli
+public sealed class DockerCli : IDockerCli, ISingletonService
 {
     private const string Exe = "docker";
 

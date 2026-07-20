@@ -16,6 +16,18 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
   password. Editing now preserves the stored values, and setting AI access from the tree no longer
   round-trips (and so can't clear) the password.
 
+### Added
+
+- **Service auto-registration for plugins and the host** (plugin SDK) — classes can opt into dependency
+  injection by implementing a lifetime marker (`ISingletonService` / `ITransientService` / `IScopedService`)
+  instead of being wired up by hand. Extensions that declare the new `services` capability get their own
+  services registered and resolvable via `IPluginRuntimeContext.Services`, scoped so a plugin can add
+  services but never replace or read the app's. Plugin host API is now **v4**; extensions built for earlier
+  versions keep loading.
+- **Panel plugins can supply a toggle icon** (plugin SDK) — `IPanelPlugin.Icon` lets an extension's docked
+  panel show its own glyph on the bottom bar instead of the generic default. The Local Containers panel now
+  uses a container icon.
+
 ### Changed
 
 - **Refreshed icon set** — the schema tree, tabs, toolbars and Settings now use a consistent
