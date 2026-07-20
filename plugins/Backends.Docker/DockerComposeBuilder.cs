@@ -37,31 +37,33 @@ public sealed record ContainerSpec(
 /// build on top of it. One <see cref="ContainerRecipe"/> per containerisable engine; SQLite and unknown ids
 /// are unsupported (no server to run).
 /// <para>
-/// The recipe table is a merge: a built-in fallback for the seven first-party engines, overlaid with any
-/// recipes a provider declared and the host handed in via <c>IProviderCatalog</c> (SE-166). A provider-declared
-/// recipe <em>wins</em> over the built-in fallback for the same id (so a provider owns its own provisioning),
-/// and a third-party engine that ships a recipe becomes containerisable with no change here.
+/// The recipe table is <em>purely</em> provider-driven (SE-176): every recipe comes from a provider that
+/// declared its own <see cref="ContainerRecipe"/>, handed in by the host via <c>IProviderCatalog</c> (SE-166) —
+/// the provider owns its own provisioning, and a third-party engine that ships a recipe becomes containerisable
+/// with no change here. There is no built-in fallback: without any declared recipes (e.g. the <c>providers</c>
+/// capability wasn't granted) nothing is containerisable, which is fine for the first-party Local Containers
+/// plugin that declares the capability.
 /// </para>
 /// </summary>
 public sealed class DockerComposeBuilder
 {
     private readonly IReadOnlyDictionary<string, ContainerRecipe> _recipes;
 
-    /// <param name="external">Provider-declared recipes read from the host (via <c>IProviderCatalog</c>); each
-    /// overrides the built-in fallback for its id. Null/empty = built-in table only (the capability wasn't
-    /// granted, or nothing declared a recipe) — every first-party engine still works.</param>
-    public DockerComposeBuilder(IEnumerable<ProviderRecipe>? external = null)
+    /// <param name="recipes">Provider-declared recipes read from the host (via <c>IProviderCatalog</c>) — the
+    /// sole source of containerisable engines. Null/empty = nothing is containerisable (the capability wasn't
+    /// granted, or nothing declared a recipe).</param>
+    public DockerComposeBuilder(IEnumerable<ProviderRecipe>? recipes = null)
     {
-        var merged = new Dictionary<string, ContainerRecipe>(BuiltIn, StringComparer.Ordinal);
-        if (external is not null)
+        var map = new Dictionary<string, ContainerRecipe>(StringComparer.Ordinal);
+        if (recipes is not null)
         {
-            foreach (var pr in external)
+            foreach (var pr in recipes)
             {
-                merged[pr.ProviderId] = pr.Recipe;
+                map[pr.ProviderId] = pr.Recipe;
             }
         }
 
-        _recipes = merged;
+        _recipes = map;
     }
 
     /// <summary>The engine ids that can be spun up as a container (every engine with a recipe) — the choices
@@ -203,97 +205,7 @@ public sealed class DockerComposeBuilder
         return sb.ToString();
     }
 
-    // ---- built-in fallback recipe table -----------------------------------------------------------
-
-    // The first-party engines. Kept as a fallback (SE-166): a provider that declares its own ContainerRecipe
-    // overrides its entry here, and this table covers every engine whose provider does not (or when the
-    // "providers" capability isn't granted). Postgres is dogfooded from the Postgres provider, so its entry
-    // here is only reached when that recipe is absent — it stays for backwards-compatibility.
-    private static readonly IReadOnlyDictionary<string, ContainerRecipe> BuiltIn = new Dictionary<string, ContainerRecipe>(StringComparer.Ordinal)
-    {
-        ["postgres"] = new("postgres", "16", 5432, "/var/lib/postgresql/data", "postgres", "changeme",
-            e => Env(
-                ("POSTGRES_DB", e.Database ?? "postgres"),
-                ("POSTGRES_USER", e.User),
-                ("POSTGRES_PASSWORD", e.Password))),
-
-        ["mysql"] = new("mysql", "8", 3306, "/var/lib/mysql", "root", "changeme", MySqlEnv),
-
-        // SQL Server takes no MSSQL_DATABASE env; a named database is created after the server starts
-        // (DatabaseAfterStart) by the regie layer, not here. ACCEPT_EULA is mandatory.
-        ["sqlserver"] = new("mcr.microsoft.com/mssql/server", "2025-latest", 1433, "/var/opt/mssql", "sa", "Str0ng!Passw0rd",
-            e => Env(
-                ("ACCEPT_EULA", "Y"),
-                ("MSSQL_SA_PASSWORD", e.Password),
-                ("MSSQL_PID", "Developer")),
-            DatabaseAfterStart: true),
-
-        ["mongodb"] = new("mongo", "7", 27017, "/data/db", "root", "changeme", MongoEnv),
-
-        // Redis auth is a server flag, not an env var — omitted entirely when the connection has no password.
-        // Its "database" is a numeric index, not a named database (NamedDatabase: false).
-        ["redis"] = new("redis", "7", 6379, "/data", "", "",
-            _ => [], Command: e => Blank(e.Password) ? [] : ["redis-server", "--requirepass", e.Password],
-            NamedDatabase: false),
-
-        // Dragonfly is Redis-wire-compatible; its entrypoint is the daemon, so command args are bare flags,
-        // it wants an unlimited memlock ulimit, and its "database" is likewise a numeric index.
-        ["dragonflydb"] = new("docker.dragonflydb.io/dragonflydb/dragonfly", "latest", 6379, "/data", "", "",
-            _ => [], Command: e => Blank(e.Password) ? [] : ["--requirepass", e.Password],
-            Memlock: true, NamedDatabase: false),
-
-        // Elasticsearch keeps its port inside the connection's `url`, not a plain `port` field (HostPortOverride).
-        ["elasticsearch"] = new("docker.elastic.co/elasticsearch/elasticsearch", "8.13.0", 9200, "/usr/share/elasticsearch/data", "elastic", "changeme",
-            e => Env(
-                ("discovery.type", "single-node"),
-                ("xpack.security.enabled", "true"),
-                ("ELASTIC_PASSWORD", e.Password)),
-            HostPortOverride: values =>
-                Uri.TryCreate(Get(values, "url"), UriKind.Absolute, out var uri) && !uri.IsDefaultPort ? uri.Port : null),
-    };
-
-    // MySQL's image always needs a root password; a non-root connection user gets MYSQL_USER/MYSQL_PASSWORD
-    // on top (the image creates that user and grants it the initial database).
-    private static IReadOnlyList<KeyValuePair<string, string>> MySqlEnv(ContainerEnvInput e)
-    {
-        var list = new List<KeyValuePair<string, string>> { new("MYSQL_ROOT_PASSWORD", e.Password) };
-        if (e.Database is { Length: > 0 })
-        {
-            list.Add(new("MYSQL_DATABASE", e.Database));
-        }
-
-        if (!string.Equals(e.User, "root", StringComparison.OrdinalIgnoreCase) && !Blank(e.User))
-        {
-            list.Add(new("MYSQL_USER", e.User));
-            list.Add(new("MYSQL_PASSWORD", e.Password));
-        }
-
-        return list;
-    }
-
-    // Mongo only enables auth when the connection actually carries a username; otherwise the container runs
-    // open (matching a no-auth local connection).
-    private static IReadOnlyList<KeyValuePair<string, string>> MongoEnv(ContainerEnvInput e)
-    {
-        var list = new List<KeyValuePair<string, string>>();
-        if (!Blank(Get(e.Values, "username")))
-        {
-            list.Add(new("MONGO_INITDB_ROOT_USERNAME", e.User));
-            list.Add(new("MONGO_INITDB_ROOT_PASSWORD", e.Password));
-        }
-
-        if (e.Database is { Length: > 0 })
-        {
-            list.Add(new("MONGO_INITDB_DATABASE", e.Database));
-        }
-
-        return list;
-    }
-
     // ---- helpers ----------------------------------------------------------------------------------
-
-    private static IReadOnlyList<KeyValuePair<string, string>> Env(params (string Key, string Value)[] pairs) =>
-        pairs.Select(p => new KeyValuePair<string, string>(p.Key, p.Value)).ToList();
 
     private static string? Get(IReadOnlyDictionary<string, string?> values, string key) =>
         values.TryGetValue(key, out var v) ? v : null;

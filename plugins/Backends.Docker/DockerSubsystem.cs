@@ -37,9 +37,9 @@ public sealed class DockerSubsystem : ISubsystemPlugin, IPanelPlugin, IMenuPlugi
         // old host-owned JSON store), and drives the container lifecycle service the create flow runs.
         // The Docker CLI is resolved through the host container (the 'services' capability, SE-171) — the
         // plugin dogfoods its own DI wiring — and falls back to a direct instance when it wasn't granted.
-        // Provider-declared container recipes (SE-166): read via the 'providers' capability and merged over the
-        // builder's built-in fallback, so third-party engines (and dogfooded first-party ones) become
-        // containerisable. Null when the capability wasn't granted — the built-in table then covers every engine.
+        // Provider-declared container recipes (SE-166/SE-176): the sole source of containerisable engines, read
+        // via the 'providers' capability. Each provider owns its own recipe; there is no built-in fallback. Null
+        // when the capability wasn't granted — the builder is then empty and nothing is containerisable.
         _registry = new PluginStorageContainerRegistry(storage);
         _builder = new DockerComposeBuilder(context.Providers?.ContainerRecipes());
         _service = new ContainerService(_builder, ResolveDockerCli(context), _registry);
