@@ -9,6 +9,15 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 
 ## [Unreleased]
 
+### Added
+
+- **Service auto-registration for plugins and the host** (plugin SDK) — classes can opt into dependency
+  injection by implementing a lifetime marker (`ISingletonService` / `ITransientService` / `IScopedService`)
+  instead of being wired up by hand. Extensions that declare the new `services` capability get their own
+  services registered and resolvable via `IPluginRuntimeContext.Services`, scoped so a plugin can add
+  services but never replace or read the app's. Plugin host API is now **v4**; extensions built for earlier
+  versions keep loading.
+
 ### Changed
 
 - **Refreshed icon set** — the schema tree, tabs, toolbars and Settings now use a consistent
