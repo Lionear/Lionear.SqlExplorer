@@ -1,13 +1,12 @@
 {
-  "diff.title": "Schema Diff…",
+  "diff.title": "Schema Diff",
   "diff.dialogTitle": "Schema Diff",
 
   "diff.field.compareTo": "Compare against connection",
   "diff.field.database": "Database on that connection",
-  "diff.field.apply": "Apply the changes to this connection",
 
   "diff.error.unsupported": "Schema Diff doesn't support the '{0}' engine yet (reads via information_schema; Postgres, MySQL and SQL Server only).",
-  "diff.error.noTarget": "Pick a connection to compare against.",
+  "diff.error.noTarget": "Pick a connection and database to compare against.",
   "diff.error.openFailed": "Couldn't open the selected connection.",
 
   "diff.progress.readingThis": "Reading schema of {0}…",
@@ -15,9 +14,6 @@
 
   "diff.result.identical": "No differences — this schema already matches {0}.",
   "diff.result.summary": "Migration to align {0} with {1}: {2} change(s).",
-  "diff.result.previewOnly": "Preview only — tick \"Apply\" to run this script against this connection.",
-
-  "diff.apply.start": "Applying {0} statement(s)…",
-  "diff.apply.failed": "Failed: {0}",
-  "diff.apply.done": "Applied {0} statement(s)."
+  "diff.script.header": "-- These statements run against {0}; they add/adjust what it's missing or differs on versus {1}.",
+  "diff.result.opened": "Opened the migration in a query tab on {0} — review it there and run when ready."
 }

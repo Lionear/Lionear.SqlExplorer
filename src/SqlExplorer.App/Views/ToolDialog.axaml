@@ -14,8 +14,7 @@
                    PlaceholderText="{Binding Watermark}"
                    PasswordChar="{Binding PasswordChar}"
                    IsVisible="{Binding IsText}" />
-          <ToggleSwitch Grid.Column="0" HorizontalAlignment="Left" IsChecked="{Binding BoolValue}"
-                        IsVisible="{Binding IsBool}" OnContent="" OffContent="" />
+          <CheckBox Grid.Column="0" IsChecked="{Binding BoolValue}" IsVisible="{Binding IsBool}" />
           <ComboBox Grid.Column="0" HorizontalAlignment="Stretch" ItemsSource="{Binding Choices}"
                     SelectedItem="{Binding Value}" IsVisible="{Binding IsChoice}" />
           <ComboBox Grid.Column="0" HorizontalAlignment="Stretch" ItemsSource="{Binding PickerOptions}"

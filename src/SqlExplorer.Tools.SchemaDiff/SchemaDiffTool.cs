@@ -1,27 +1,25 @@
 namespace SqlExplorer.Tools.SchemaDiff;
 
 /// <summary>
-/// Compares this connection's schema to a second one the user picks and reports the migration — an ALTER
-/// script that would make <i>this</i> connection match the picked one. With "Apply" ticked it runs that
-/// script against this connection; otherwise it only reports it (preview).
+/// Compares this database against a second one the user picks (another connection + one of its databases)
+/// and produces the migration — an ALTER script that would make <i>this</i> database match the other. It
+/// doesn't run any DDL itself: it opens the script in a new query tab on this connection/database, so the
+/// user reviews and runs it in the normal editor (with its own safety and editing).
 ///
-/// <para>Route A: the picker (<see cref="ToolFieldType.ConnectionPicker"/>) is host-filtered to same-provider
-/// connections, so both sides are read and rendered with one dialect. The heavy lifting — reading each
-/// schema (<see cref="SchemaReader"/>), diffing (<see cref="SchemaDiffer"/>), and rendering
-/// (<see cref="AlterScriptWriter"/>) — is separated out and unit-tested.</para>
+/// <para>Route A: the pickers (<see cref="ToolFieldType.ConnectionPicker"/> / <see cref="ToolFieldType.DatabasePicker"/>)
+/// are host-filtered to same-provider connections, so both sides are read and rendered with one dialect. The
+/// heavy lifting — reading each schema (<see cref="SchemaReader"/>), diffing (<see cref="SchemaDiffer"/>), and
+/// rendering (<see cref="AlterScriptWriter"/>) — is separated out and unit-tested.</para>
 /// </summary>
 public sealed class SchemaDiffTool : IToolPlugin
 {
     private static readonly string[] SupportedProviders = ["postgres", "mysql", "sqlserver"];
 
     public string Id => "schema-diff";
-    public string Title => "Schema Diff…";
+    public string Title => "Schema Diff";
     public string? TitleKey => "diff.title";
     public string DialogTitle => "Schema Diff";
     public string? DialogTitleKey => "diff.dialogTitle";
-
-    // Can run DDL (Apply), so the host gates the run behind its destructive-action confirmation.
-    public bool IsDestructive => true;
 
     public ToolTarget Target { get; } = new(
         ProviderIds: SupportedProviders,
@@ -34,9 +32,7 @@ public sealed class SchemaDiffTool : IToolPlugin
         new("compareTo", "Compare against connection", ToolFieldType.ConnectionPicker,
             Required: true, LabelKey: "diff.field.compareTo"),
         new("database", "Database on that connection", ToolFieldType.DatabasePicker,
-            Required: true, LabelKey: "diff.field.database"),
-        new("apply", "Apply the changes to this connection", ToolFieldType.Bool,
-            Default: "false", LabelKey: "diff.field.apply")
+            Required: true, LabelKey: "diff.field.database")
     ];
 
     public async Task ExecuteAsync(
@@ -85,62 +81,15 @@ public sealed class SchemaDiffTool : IToolPlugin
             return;
         }
 
-        var statements = new AlterScriptWriter(SqlDialect.For(context.ProviderId)).Statements(changes);
+        // Header naming the database the script targets — the one missing/differing from the other.
+        var header = loc.Get("diff.script.header", thisLabel, otherLabel);
+        var script = header + "\n\n" + new AlterScriptWriter(SqlDialect.For(context.ProviderId)).Script(changes);
 
         progress.Report(new ToolProgress(
             loc.Get("diff.result.summary", thisLabel, otherLabel, changes.Count)));
-        progress.Report(new ToolProgress(string.Empty));
-        foreach (var statement in statements)
-        {
-            progress.Report(new ToolProgress(statement));
-        }
 
-        progress.Report(new ToolProgress(string.Empty));
-
-        if (!ParseBool(inputs.GetValueOrDefault("apply")))
-        {
-            progress.Report(new ToolProgress(loc.Get("diff.result.previewOnly")));
-            return;
-        }
-
-        await ApplyAsync(context, statements, progress, ct);
+        // Hand the migration to a query tab on this connection/database — the user reviews and runs it there.
+        context.Host.OpenQueryEditor(script);
+        progress.Report(new ToolProgress(loc.Get("diff.result.opened", thisLabel)));
     }
-
-    private static async Task ApplyAsync(
-        ToolExecutionContext context,
-        IReadOnlyList<string> statements,
-        IProgress<ToolProgress> progress,
-        CancellationToken ct)
-    {
-        var loc = context.Localizer;
-        // Comment lines (SQL Server default notes, unsupported-op notes) are reported, not executed.
-        var runnable = statements.Where(s => !s.TrimStart().StartsWith("--", StringComparison.Ordinal)).ToList();
-
-        progress.Report(new ToolProgress(loc.Get("diff.apply.start", runnable.Count)));
-
-        var done = 0;
-        foreach (var statement in runnable)
-        {
-            ct.ThrowIfCancellationRequested();
-            var key = statement;
-            progress.Report(new ToolProgress(statement, ItemKey: key, ItemStatus: ToolItemStatus.Running));
-            try
-            {
-                await context.Provider.ExecuteDdlAsync(context.Profile, statement, ct);
-                done++;
-                progress.Report(new ToolProgress(
-                    statement, (double)done / runnable.Count, key, ToolItemStatus.Done));
-            }
-            catch (Exception ex)
-            {
-                progress.Report(new ToolProgress(
-                    loc.Get("diff.apply.failed", ex.Message), ItemKey: key, ItemStatus: ToolItemStatus.Error));
-                throw;
-            }
-        }
-
-        progress.Report(new ToolProgress(loc.Get("diff.apply.done", done)));
-    }
-
-    private static bool ParseBool(string? value) => bool.TryParse(value, out var b) && b;
 }

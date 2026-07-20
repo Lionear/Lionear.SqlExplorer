@@ -34,8 +34,10 @@ public static class ToolHostApi
     //                  OpenConnection(id) (returning a runnable ToolConnection) so a cross-connection tool
     //                  (SchemaDiff, CopyTable) can open it. A companion ToolFieldType.DatabasePicker picks a
     //                  database on that connection (IToolHost.ListDatabasesAsync + OpenConnection's database
-    //                  arg), since a server hosts many. Default interface impls (empty/null) keep older hosts
-    //                  and non-dialog IToolHost implementors compiling; folded into the unreleased v4.
+    //                  arg), since a server hosts many. IToolHost.OpenQueryEditor(sql) lets a tool hand its
+    //                  generated SQL to a new query tab on the primary connection instead of running DDL itself
+    //                  (SchemaDiff uses this). Default interface impls (empty/null) keep older hosts and
+    //                  non-dialog IToolHost implementors compiling; folded into the unreleased v4.
     public const int Version = 4;
 
     /// <summary>Oldest plugin ABI this host still loads. Every bump has been additive (v2 tool defaults, v3

@@ -69,6 +69,10 @@ public partial class ToolDialogViewModel : ViewModelBase, IToolUiContext, IToolH
     /// <summary>Set by the view: shows an open-file picker (extensions) → path or null.</summary>
     public Func<string[], Task<string?>>? OpenFilePicker { get; set; }
 
+    /// <summary>Set by <c>MainViewModel</c> per open: opens a query tab on the launched connection/database
+    /// with the given SQL (used by <see cref="IToolHost.OpenQueryEditor"/>).</summary>
+    public Action<string>? OpenQueryRequested { get; set; }
+
     // --- IToolHost: the host services handed to the running tool ---
     Task<string?> IToolHost.PickSaveFileAsync(string suggestedName, params string[] extensions) =>
         SaveFilePicker?.Invoke(suggestedName, extensions) ?? Task.FromResult<string?>(null);
@@ -102,6 +106,8 @@ public partial class ToolDialogViewModel : ViewModelBase, IToolUiContext, IToolH
 
         return await provider.GetDatabasesAsync(_connections.Resolve(saved), ct);
     }
+
+    void IToolHost.OpenQueryEditor(string sql) => OpenQueryRequested?.Invoke(sql);
 
     // The picker offers same-provider connections only (a cross-provider schema diff would need type-mapping
     // we don't do yet) and never the launched connection itself (comparing it to itself is a no-op). The

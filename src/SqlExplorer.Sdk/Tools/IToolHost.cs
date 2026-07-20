@@ -50,4 +50,9 @@ public interface IToolHost
     /// dropdown. Empty default so an older host degrades gracefully.</summary>
     Task<IReadOnlyList<string>> ListDatabasesAsync(string connectionId, CancellationToken ct) =>
         Task.FromResult<IReadOnlyList<string>>([]);
+
+    /// <summary>Open a new query tab on the tool's <b>primary</b> connection and database (the one the tool
+    /// was launched on), pre-filled with <paramref name="sql"/>, for the user to review and run in the normal
+    /// editor. Lets a tool hand off generated SQL instead of executing DDL itself. No-op default.</summary>
+    void OpenQueryEditor(string sql) { }
 }
