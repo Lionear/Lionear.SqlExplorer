@@ -1,0 +1,22 @@
+{
+  "diff.title": "Schema-diff…",
+  "diff.dialogTitle": "Schema-diff",
+
+  "diff.field.compareTo": "Vergelijk met connectie",
+  "diff.field.apply": "Wijzigingen toepassen op deze connectie",
+
+  "diff.error.unsupported": "Schema-diff ondersteunt de '{0}'-engine nog niet (leest via information_schema; alleen Postgres, MySQL en SQL Server).",
+  "diff.error.noTarget": "Kies een connectie om mee te vergelijken.",
+  "diff.error.openFailed": "Kon de geselecteerde connectie niet openen.",
+
+  "diff.progress.readingThis": "Schema van {0} inlezen…",
+  "diff.progress.readingOther": "Schema van {0} inlezen…",
+
+  "diff.result.identical": "Geen verschillen — dit schema komt al overeen met {0}.",
+  "diff.result.summary": "Migratie om {0} gelijk te trekken met {1}: {2} wijziging(en).",
+  "diff.result.previewOnly": "Alleen preview — vink \"Toepassen\" aan om dit script op deze connectie te draaien.",
+
+  "diff.apply.start": "{0} statement(s) toepassen…",
+  "diff.apply.failed": "Mislukt: {0}",
+  "diff.apply.done": "{0} statement(s) toegepast."
+}
