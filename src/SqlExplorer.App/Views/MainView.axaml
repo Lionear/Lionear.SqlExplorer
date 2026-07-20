@@ -298,11 +298,26 @@
                 <MenuItem Header="{Binding Loc[AiAccess]}"
                           IsVisible="{Binding SelectedNode.CanSetAiAccess, FallbackValue=False}">
                   <MenuItem Header="{Binding Loc[AiAccessNone]}" Command="{Binding SetAiAccessCommand}"
-                            CommandParameter="{x:Static conn:AiAccessMode.None}" />
+                            CommandParameter="{x:Static conn:AiAccessMode.None}">
+                    <MenuItem.Icon>
+                      <PathIcon Width="11" Height="11" Data="M4 8.5 L7 11.5 L12.5 4.5"
+                                IsVisible="{Binding SelectedNode.IsAiAccessNone, FallbackValue=False}" />
+                    </MenuItem.Icon>
+                  </MenuItem>
                   <MenuItem Header="{Binding Loc[AiAccessReadOnly]}" Command="{Binding SetAiAccessCommand}"
-                            CommandParameter="{x:Static conn:AiAccessMode.ReadOnly}" />
+                            CommandParameter="{x:Static conn:AiAccessMode.ReadOnly}">
+                    <MenuItem.Icon>
+                      <PathIcon Width="11" Height="11" Data="M4 8.5 L7 11.5 L12.5 4.5"
+                                IsVisible="{Binding SelectedNode.IsAiAccessReadOnly, FallbackValue=False}" />
+                    </MenuItem.Icon>
+                  </MenuItem>
                   <MenuItem Header="{Binding Loc[AiAccessReadWrite]}" Command="{Binding SetAiAccessCommand}"
-                            CommandParameter="{x:Static conn:AiAccessMode.ReadWrite}" />
+                            CommandParameter="{x:Static conn:AiAccessMode.ReadWrite}">
+                    <MenuItem.Icon>
+                      <PathIcon Width="11" Height="11" Data="M4 8.5 L7 11.5 L12.5 4.5"
+                                IsVisible="{Binding SelectedNode.IsAiAccessReadWrite, FallbackValue=False}" />
+                    </MenuItem.Icon>
+                  </MenuItem>
                   <Separator />
                   <MenuItem Header="{Binding Loc[ExcludeFromMcp]}" Command="{Binding ToggleExcludeFromMcpCommand}">
                     <MenuItem.Icon>

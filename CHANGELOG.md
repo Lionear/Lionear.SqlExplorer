@@ -11,6 +11,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 
 ### Changed
 
+- The connection tree's **AI access** submenu now marks the active level (None / Read-only / Read-write)
+  with a check, so the current setting is visible at a glance instead of having to remember it.
 - **Refreshed icon set** — the schema tree, tabs, toolbars and Settings now use a consistent
   [Lucide](https://lucide.dev)-based line-icon set, drawn as crisp vectors that tint with the theme (no
   icon font, no bundled raster assets). The AI-activity panel gets its own icon.
