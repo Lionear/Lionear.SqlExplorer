@@ -5,6 +5,7 @@ using CommunityToolkit.Mvvm.Input;
 using SqlExplorer.Core.History;
 using SqlExplorer.Core.Localization;
 using SqlExplorer.Core.Logging;
+using SqlExplorer.Core.Settings;
 
 namespace SqlExplorer.App.ViewModels;
 
@@ -43,13 +44,27 @@ public partial class QueryLogViewModel : ObservableObject, IDisposable
     /// history-open path, which resolves the connection and adds a query tab).</summary>
     public Action<QueryHistoryEntry>? OpenInEditorRequested { get; set; }
 
-    public QueryLogViewModel(IQueryLog log, ILocalizer localizer)
+    public QueryLogViewModel(IQueryLog log, ILocalizer localizer, IAppSettingsStore settingsStore)
     {
         _log = log;
         Loc = localizer;
         _log.Changed += OnLogChanged;
+        LogPolicyNotice = BuildPolicyNotice(settingsStore.Load(), localizer);
         Reload();
     }
+
+    /// <summary>A banner shown when logging is (partly) off, so an empty list reads as "nothing is being
+    /// recorded" rather than "no queries yet" (SE-182). Null when everything is being logged. Reflects the
+    /// policy at the moment the window opens — the window is recreated per open, so it's always current.</summary>
+    public string? LogPolicyNotice { get; }
+
+    public bool HasLogPolicyNotice => LogPolicyNotice is not null;
+
+    private static string? BuildPolicyNotice(AppSettings s, ILocalizer loc) =>
+        !s.QueryLogEnabled || (!s.QueryLogApp && !s.QueryLogMcp) ? loc["QueryLogPolicyOff"]
+        : !s.QueryLogApp ? loc["QueryLogPolicyMcpOnly"]
+        : !s.QueryLogMcp ? loc["QueryLogPolicyAppOnly"]
+        : null;
 
     private void OnLogChanged() => Dispatcher.UIThread.Post(Reload);
 

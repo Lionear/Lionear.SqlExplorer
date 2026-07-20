@@ -82,7 +82,22 @@ public partial class App : Application
                 services.GetRequiredService<Core.Connections.ConnectionService>(),
                 loc0)
         };
-        viewModel.AddSubsystemPanel("AiActivity", loc0["AiActivity"], aiActivity, ViewModels.NodeIcons.AiActivity);
+        var aiActivityPanel = viewModel.AddSubsystemPanel("AiActivity", loc0["AiActivity"], aiActivity, ViewModels.NodeIcons.AiActivity);
+
+        // Only offer the AI-activity toggle while the MCP server is actually running (SE-183) — an empty panel
+        // for a stopped server is just clutter. React live to start/stop; hide the panel if it was open.
+        var mcpService = services.GetRequiredService<Mcp.Hosting.McpService>();
+        void SyncAiActivityAvailability()
+        {
+            aiActivityPanel.IsAvailable = mcpService.IsRunning;
+            if (!mcpService.IsRunning)
+            {
+                aiActivityPanel.IsVisible = false;
+            }
+        }
+
+        SyncAiActivityAvailability();
+        mcpService.StateChanged += () => Avalonia.Threading.Dispatcher.UIThread.Post(SyncAiActivityAvailability);
 
         // Mount any Tools-menu contributions (SE-164 menu seam).
         foreach (var menuPlugin in subsystems.Menus)

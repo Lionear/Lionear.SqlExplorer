@@ -151,6 +151,20 @@ public class SqlCompletionProviderTests
         Assert.DoesNotContain(result.Items, i => i.Kind == CompletionKind.Function);
     }
 
+    [Fact] // COUNT is both a keyword and a function — it should appear once, as the function (with a signature).
+    public void A_name_that_is_both_keyword_and_function_is_not_duplicated()
+    {
+        var keywords = new HashSet<string>(System.StringComparer.OrdinalIgnoreCase) { "SELECT", "COUNT" };
+        var functions = new List<SqlFunction> { new("count", "count(* | expression)") };
+        const string sql = "SELECT cou FROM users u";
+
+        var result = SqlCompletionProvider.Suggest(sql, "SELECT cou".Length, Schema, keywords, functions);
+
+        var counts = result.Items.Where(i => i.Text.Equals("count", System.StringComparison.OrdinalIgnoreCase)).ToList();
+        var single = Assert.Single(counts);
+        Assert.Equal(CompletionKind.Function, single.Kind);
+    }
+
     // ---- SE-149 phase 3: FK-aware JOIN hints -------------------------------------------------------
 
     [Fact] // ON position leads with the FK-derived join predicate, as a high-priority Join item.

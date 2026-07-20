@@ -15,8 +15,16 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
   other settings could reset host / port / database / username to the provider defaults and drop the saved
   password. Editing now preserves the stored values, and setting AI access from the tree no longer
   round-trips (and so can't clear) the password.
+- **Startup restores the tab you left on** — with "Restore tabs on startup", the previously *selected* tab is
+  now reselected instead of always landing on the last one in the row.
+- Small UI polish: the results **Export** action now reads as a button (not a text link); the clock icon on the
+  vertical **History** stripe is rotated to run with its label; and the **AI activity** panel's toggle only
+  appears while the MCP server is running (it live-appears/disappears as you start/stop the server).
 
 ### Added
+
+- **Query Log shows why it's empty** — when logging is off (or only one source is enabled), the Query Log
+  window now shows a banner explaining it, instead of just an empty list.
 
 - **Paged query results** — running a single `SELECT` with no `TOP`/`LIMIT` of its own now shows the results one
   page at a time with Previous/Next (DataGrip/DBeaver-style, default 200 rows/page), so a stray
