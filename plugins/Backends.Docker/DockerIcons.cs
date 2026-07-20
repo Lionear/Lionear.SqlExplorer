@@ -11,12 +11,31 @@ namespace SqlExplorer.Backends.Docker;
 /// Small stroked vector glyphs for the Docker panel/dialogs, built in code. The host draws its own icons as
 /// Paths for a reason: Linux/Avalonia has no colour-emoji fallback, so symbol characters (↻, ⚠, …) render as
 /// tofu boxes. This gives the plugin the same crisp, theme-aware icons without reaching into host resources.
-/// Coordinates sit in a 16×16 box and are scaled uniformly into the requested size.
+/// The panel/action glyphs are [Lucide](https://lucide.dev) icons (ISC, already bundled/attributed via the
+/// host's Lucide assets) in a 24×24 box; the older step glyphs sit in 16×16. Both are drawn Stretch="Uniform".
 /// </summary>
 internal static class DockerIcons
 {
-    // Circular arrow → refresh.
-    public const string Refresh = "M11.5,4.2 A5,5 0 1 0 13,8 M11.5,4.2 L9,3.8 M11.5,4.2 L11.9,6.7";
+    // Lucide "refresh-cw" → refresh.
+    public const string Refresh =
+        "M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8 M21 3v5h-5 M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16 M8 16H3v5";
+
+    // Lucide "play" → start a container.
+    public const string Play = "M5 5a2 2 0 0 1 3.008-1.728l11.997 6.998a2 2 0 0 1 .003 3.458l-12 7A2 2 0 0 1 5 19z";
+
+    // Lucide "square" → stop a container.
+    public const string Stop = "M 5 3 h 14 a 2 2 0 0 1 2 2 v 14 a 2 2 0 0 1 -2 2 h -14 a 2 2 0 0 1 -2 -2 v -14 a 2 2 0 0 1 2 -2 Z";
+
+    // Lucide "scroll-text" → view logs.
+    public const string Logs =
+        "M15 12h-5 M15 8h-5 M19 17V5a2 2 0 0 0-2-2H4 M8 21h12a2 2 0 0 0 2-2v-1a1 1 0 0 0-1-1H11a1 1 0 0 0-1 1v1a2 2 0 1 1-4 0V5a2 2 0 1 0-4 0v2a1 1 0 0 0 1 1h3";
+
+    // Lucide "trash-2" → remove a container.
+    public const string Trash =
+        "M10 11v6 M14 11v6 M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6 M3 6h18 M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2";
+
+    // Lucide "plus" → new container.
+    public const string Plus = "M5 12h14 M12 5v14";
 
     // Triangle with an exclamation → warning (the dot is a tiny round-capped segment).
     public const string Warning = "M8,2.5 L14.5,13.5 H1.5 Z M8,6 V9.7 M8,11.6 V11.8";
