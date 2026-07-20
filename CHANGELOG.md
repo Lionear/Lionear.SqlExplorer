@@ -19,7 +19,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 ### Added
 
 - **Paged query results** — running a single `SELECT` with no `TOP`/`LIMIT` of its own now shows the results one
-  page at a time with Previous/Next (DataGrip/DBeaver-style, default 500 rows/page), so a stray
+  page at a time with Previous/Next (DataGrip/DBeaver-style, default 200 rows/page), so a stray
   `SELECT * FROM big_table` doesn't pull the whole table at once; the row-range indicator shows which rows
   you're viewing. Queries with their own `TOP`/`LIMIT`, other statement types and multi-statement scripts run
   unchanged. Toggle and page size live under Settings → Query.

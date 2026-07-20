@@ -344,7 +344,7 @@ public partial class DocumentViewModel : ViewModelBase
         // value applies to newly opened browse tabs. Guard against a zero/negative stored value.
         _pageSize = settings.BrowsePageSize > 0 ? settings.BrowsePageSize : 200;
         _pageQueries = settings.PageQueryResults;
-        _queryPageSize = settings.QueryPageSize > 0 ? settings.QueryPageSize : 500;
+        _queryPageSize = settings.QueryPageSize > 0 ? settings.QueryPageSize : 200;
     }
 
     /// <summary>SQL editor font size/word-wrap, read once from settings at document creation

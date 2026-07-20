@@ -109,8 +109,9 @@ public sealed class AppSettings
     /// single unbounded SELECT, so "SELECT * FROM big_table" doesn't pull everything at once (SE-178). Default on.</summary>
     public bool PageQueryResults { get; set; } = true;
 
-    /// <summary>Rows per page when <see cref="PageQueryResults"/> is on. Default 500.</summary>
-    public int QueryPageSize { get; set; } = 500;
+    /// <summary>Rows per page when <see cref="PageQueryResults"/> is on. Default 200, matching
+    /// <see cref="BrowsePageSize"/>.</summary>
+    public int QueryPageSize { get; set; } = 200;
 
     // ── Master password (optional app-level encryption of connection secrets) ────────────────────────
     // All three below are NON-secret: they enable the feature and let the app verify a typed password.
