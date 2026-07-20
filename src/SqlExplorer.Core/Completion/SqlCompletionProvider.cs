@@ -126,11 +126,7 @@ public static class SqlCompletionProvider
         }
 
         var ranked = RankBy(columns, c => c.Text, fragment).Take(BroadCategoryCap);
-        var kw = RankBy(keywords, k => k, fragment)
-            .Select(k => new CompletionItem(k, CompletionKind.Keyword, "keyword"))
-            .Take(BroadCategoryCap);
-
-        return ranked.Concat(Functions(fragment, functions)).Concat(kw).ToList();
+        return ranked.Concat(Functions(fragment, functions)).Concat(Keywords(fragment, keywords, functions)).ToList();
     }
 
     // A JOIN's ON clause: lead with FK-derived join-condition hints between the just-joined table and the other
@@ -255,11 +251,7 @@ public static class SqlCompletionProvider
 
         var columns = RankBy(AllColumns(snapshot), c => c.Text, fragment).Take(BroadCategoryCap);
 
-        var kw = RankBy(keywords, k => k, fragment)
-            .Select(k => new CompletionItem(k, CompletionKind.Keyword, "keyword"))
-            .Take(BroadCategoryCap);
-
-        return tables.Concat(columns).Concat(Functions(fragment, functions)).Concat(kw).ToList();
+        return tables.Concat(columns).Concat(Functions(fragment, functions)).Concat(Keywords(fragment, keywords, functions)).ToList();
     }
 
     // Function catalogue entries for an expression position: name inserted, signature shown as the detail.
@@ -267,6 +259,17 @@ public static class SqlCompletionProvider
         RankBy(functions, f => f.Name, fragment)
             .Select(f => new CompletionItem(f.Name, CompletionKind.Function, f.Signature))
             .Take(BroadCategoryCap);
+
+    // Keyword entries, minus any that a function already covers (e.g. COUNT/SUM/AVG are keywords AND functions):
+    // the function entry carries a signature and is the more useful of the two, so the bare keyword is dropped.
+    private static IEnumerable<CompletionItem> Keywords(
+        string fragment, IReadOnlySet<string> keywords, IReadOnlyList<SqlFunction> functions)
+    {
+        var functionNames = new HashSet<string>(functions.Select(f => f.Name), StringComparer.OrdinalIgnoreCase);
+        return RankBy(keywords.Where(k => !functionNames.Contains(k)), k => k, fragment)
+            .Select(k => new CompletionItem(k, CompletionKind.Keyword, "keyword"))
+            .Take(BroadCategoryCap);
+    }
 
     // Fragment-ranked subset via the same TryRank order quick-open uses; an empty fragment
     // (Ctrl+Space with nothing typed yet) keeps every candidate, capped later by Suggest.

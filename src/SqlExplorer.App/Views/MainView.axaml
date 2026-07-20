@@ -572,13 +572,20 @@
           <ItemsControl.ItemTemplate>
             <DataTemplate>
               <Button Classes="Stripe" Classes.on="{Binding IsVisible}"
-                      IsVisible="{Binding Edge, Converter={x:Static cvt:EqualsConverter.Instance}, ConverterParameter={x:Static vm:ToolWindowEdge.Right}}"
+                      IsVisible="{Binding IsRightToggle}"
                       Command="{Binding $parent[ItemsControl].DataContext.ToggleToolWindowCommand}"
                       CommandParameter="{Binding}">
                 <StackPanel Spacing="6" HorizontalAlignment="Center">
+                  <!-- Rotate the icon a quarter-turn too so it runs with the 90°-rotated label below
+                       (SE-181). RenderTransform suffices — the icon is square, so layout is unchanged. -->
                   <Path Width="15" Height="15" Stretch="Uniform" Data="{Binding Icon}"
                         Stroke="{Binding $parent[Button].Foreground}" StrokeThickness="1.3"
-                        StrokeJoin="Round" StrokeLineCap="Round" HorizontalAlignment="Center" />
+                        StrokeJoin="Round" StrokeLineCap="Round" HorizontalAlignment="Center"
+                        RenderTransformOrigin="0.5,0.5">
+                    <Path.RenderTransform>
+                      <RotateTransform Angle="90" />
+                    </Path.RenderTransform>
+                  </Path>
                   <!-- LayoutTransformControl (not RenderTransform): rotation must affect layout so the
                        stripe reserves the rotated text's height instead of overlapping the next button. -->
                   <LayoutTransformControl HorizontalAlignment="Center">
@@ -719,7 +726,7 @@
           <ItemsControl.ItemTemplate>
             <DataTemplate>
               <Button Classes="StatusToggle" Classes.on="{Binding IsVisible}"
-                      IsVisible="{Binding Edge, Converter={x:Static cvt:EqualsConverter.Instance}, ConverterParameter={x:Static vm:ToolWindowEdge.Bottom}}"
+                      IsVisible="{Binding IsBottomToggle}"
                       Command="{Binding $parent[ItemsControl].DataContext.ToggleToolWindowCommand}"
                       CommandParameter="{Binding}">
                 <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">

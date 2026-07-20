@@ -139,9 +139,10 @@ public partial class DocumentView : UserControl
             ? _resultsGrid.Columns[_currentColumnIndex].Header?.ToString() ?? string.Empty
             : string.Empty;
 
+        var title = string.IsNullOrEmpty(column) ? _viewModel?.Loc["CellValue"] ?? "Cell value" : column;
         var copyLabel = _viewModel?.Loc["Copy"] ?? "Copy";
         var copiedLabel = _viewModel?.Loc["CopiedToClipboard"] ?? "Copied";
-        new CellValueWindow(column, DocumentViewModel.FormatCellValue(row.Cells[_currentColumnIndex].Value), copyLabel, copiedLabel)
+        new CellValueWindow(title, DocumentViewModel.FormatCellValue(row.Cells[_currentColumnIndex].Value), copyLabel, copiedLabel)
             .Show(owner);
     }
 

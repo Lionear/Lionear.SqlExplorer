@@ -678,6 +678,15 @@
   <data name="QueryLogTitle" xml:space="preserve">
     <value>Query Log</value>
   </data>
+  <data name="QueryLogPolicyOff" xml:space="preserve">
+    <value>Query logging is off — enable it in Settings → Query Log to record queries.</value>
+  </data>
+  <data name="QueryLogPolicyAppOnly" xml:space="preserve">
+    <value>Only application queries are being logged — AI/MCP logging is off (Settings → Query Log).</value>
+  </data>
+  <data name="QueryLogPolicyMcpOnly" xml:space="preserve">
+    <value>Only AI/MCP queries are being logged — application logging is off (Settings → Query Log).</value>
+  </data>
   <data name="QueryLogSearch" xml:space="preserve">
     <value>Search SQL or connection</value>
   </data>
@@ -1058,6 +1067,9 @@
   </data>
   <data name="CopiedToClipboard" xml:space="preserve">
     <value>Copied</value>
+  </data>
+  <data name="CellValue" xml:space="preserve">
+    <value>Cell value</value>
   </data>
   <data name="Cut" xml:space="preserve">
     <value>Cut</value>
