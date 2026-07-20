@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using SqlExplorer.Sdk;
+using SqlExplorer.Sdk.Provisioning;
 using StackExchange.Redis;
 
 namespace SqlExplorer.Providers.DragonflyDb;
@@ -36,6 +37,22 @@ public sealed class DragonflyDbProvider : IDbProvider
     public ProviderIcon? Icon { get; } = ProviderIconLoader.Load(typeof(DragonflyDbProvider), "🐉");
 
     public ISqlDialect Dialect { get; } = new DragonflyDbDialect();
+
+    // How to spin up an empty local Dragonfly container matching a connection (SE-166). Dragonfly is Redis-wire-
+    // compatible; its entrypoint is the daemon, so command args are bare flags (no "redis-server"), and it wants
+    // an unlimited memlock ulimit. Its "database" is a numeric index (NamedDatabase: false). Lazy `=> new(...)`
+    // keeps the ContainerRecipe type untouched until the host reads it.
+    public ContainerRecipe? ContainerRecipe => new(
+        Image: "docker.dragonflydb.io/dragonflydb/dragonfly",
+        DefaultTag: "latest",
+        ContainerPort: 6379,
+        DataPath: "/data",
+        DefaultUser: "",
+        DefaultPassword: "",
+        Environment: _ => [],
+        Command: e => string.IsNullOrWhiteSpace(e.Password) ? [] : ["--requirepass", e.Password],
+        Memlock: true,
+        NamedDatabase: false);
 
     public bool IsSqlBased => false;
 

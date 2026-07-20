@@ -41,6 +41,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 - **Refreshed icon set** — the schema tree, tabs, toolbars and Settings now use a consistent
   [Lucide](https://lucide.dev)-based line-icon set, drawn as crisp vectors that tint with the theme (no
   icon font, no bundled raster assets). The AI-activity panel gets its own icon.
+- **New local SQL Server containers use the 2025 image** — the Local Containers "create" flow now defaults
+  to `mcr.microsoft.com/mssql/server:2025-latest` (was 2022). Every first-party provider (PostgreSQL, MySQL,
+  SQL Server, MongoDB, Redis, DragonflyDB, Elasticsearch) now declares its own container recipe, so the
+  recipe travels with the engine instead of being hardcoded in the Local Containers plugin.
 
 ## [0.3.0] - 2026-07-19
 

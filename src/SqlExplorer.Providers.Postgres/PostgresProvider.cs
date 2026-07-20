@@ -22,7 +22,7 @@ public sealed class PostgresProvider : IDbProvider
     // than hardcoded in the Docker plugin so the recipe travels with the provider; the Docker plugin reads it
     // via IProviderCatalog and prefers it over its own built-in fallback. The three POSTGRES_* env vars are the
     // official image's init contract — user/password/first database.
-    public ContainerRecipe? ContainerRecipe { get; } = new(
+    public ContainerRecipe? ContainerRecipe => new(
         Image: "postgres",
         DefaultTag: "16",
         ContainerPort: 5432,

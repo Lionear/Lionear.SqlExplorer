@@ -151,7 +151,7 @@ public class DockerComposeBuilderTests
         Assert.Contains("ACCEPT_EULA: \"Y\"", compose);
         Assert.Contains("MSSQL_SA_PASSWORD: \"Str0ng!Passw0rd\"", compose); // '!' → quoted
         Assert.Contains("MSSQL_PID: Developer", compose);
-        Assert.Contains("image: mcr.microsoft.com/mssql/server:2022-latest", compose);
+        Assert.Contains("image: mcr.microsoft.com/mssql/server:2025-latest", compose);
         Assert.Contains("- \"1433:1433\"", compose);
         Assert.DoesNotContain("MSSQL_DATABASE", compose);
     }
