@@ -19,7 +19,8 @@ public class SqlCompletionProviderTests
         new SchemaObject
         {
             Kind = DbNodeKind.Table, Name = "orders",
-            Columns = [new("id", "int"), new("user_id", "int"), new("total", "numeric")]
+            Columns = [new("id", "int"), new("user_id", "int"), new("total", "numeric")],
+            ForeignKeys = [new("user_id", "users", "id")]
         }
     ]);
 
@@ -148,6 +149,43 @@ public class SqlCompletionProviderTests
     {
         var result = At("SELECT u.| FROM users u");
         Assert.DoesNotContain(result.Items, i => i.Kind == CompletionKind.Function);
+    }
+
+    // ---- SE-149 phase 3: FK-aware JOIN hints -------------------------------------------------------
+
+    [Fact] // ON position leads with the FK-derived join predicate, as a high-priority Join item.
+    public void On_clause_suggests_the_fk_join_condition()
+    {
+        var result = At("SELECT * FROM users u JOIN orders o ON |");
+
+        var join = result.Items.First();
+        Assert.Equal(CompletionKind.Join, join.Kind);
+        Assert.Equal("o.user_id = u.id", join.Text);
+        Assert.Equal("orders → users", join.Detail);
+    }
+
+    [Fact] // The FK is found regardless of which side is joined second (both directions considered).
+    public void On_clause_finds_the_fk_when_the_referenced_table_is_joined_second()
+    {
+        var result = At("SELECT * FROM orders o JOIN users u ON |");
+
+        Assert.Contains(result.Items, i => i is { Kind: CompletionKind.Join, Text: "o.user_id = u.id" });
+    }
+
+    [Fact] // Unaliased sources use their own names in the predicate.
+    public void Join_hint_uses_table_names_when_unaliased()
+    {
+        var result = At("SELECT * FROM users JOIN orders ON |");
+        Assert.Contains(result.Items, i => i is { Kind: CompletionKind.Join, Text: "orders.user_id = users.id" });
+    }
+
+    [Fact] // No FK between the joined tables → no join hint (but columns are still offered).
+    public void No_join_hint_without_a_foreign_key()
+    {
+        var result = At("SELECT * FROM users u JOIN users u2 ON |");
+
+        Assert.DoesNotContain(result.Items, i => i.Kind == CompletionKind.Join);
+        Assert.Contains(result.Items, i => i.Kind == CompletionKind.Column);
     }
 
     [Fact]

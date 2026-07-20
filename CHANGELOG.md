@@ -24,7 +24,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
   tables after `FROM`/`JOIN`, and never suggests from another statement in the editor. Expression positions
   (SELECT list, WHERE, …) now also suggest the engine's **built-in functions** with their signature —
   Postgres, MySQL, SQL Server and SQLite each ship their own catalogue (plugins declare theirs via the new
-  `ISqlDialect.Functions`). (FK-driven JOIN hints follow in a later phase.)
+  `ISqlDialect.Functions`). And right after `JOIN … ON`, it offers the **foreign-key join condition** between
+  the tables in scope (e.g. `o.user_id = u.id`) as the top suggestion.
 - **Service auto-registration for plugins and the host** (plugin SDK) — classes can opt into dependency
   injection by implementing a lifetime marker (`ISingletonService` / `ITransientService` / `IScopedService`)
   instead of being wired up by hand. Extensions that declare the new `services` capability get their own
