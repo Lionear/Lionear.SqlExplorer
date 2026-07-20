@@ -6,6 +6,7 @@ using System.Text.Json.Nodes;
 using Elastic.Clients.Elasticsearch;
 using Elastic.Transport;
 using SqlExplorer.Sdk;
+using SqlExplorer.Sdk.Provisioning;
 using SqlExplorer.Sdk.Editing;
 using EsHttpMethod = Elastic.Transport.HttpMethod;
 
@@ -40,6 +41,28 @@ public sealed class ElasticsearchProvider : IDbProvider
     public ProviderIcon? Icon { get; } = ProviderIconLoader.Load(typeof(ElasticsearchProvider), "🔍");
 
     public ISqlDialect Dialect { get; } = new ElasticsearchDialect();
+
+    // How to spin up an empty local Elasticsearch container matching a connection (SE-166). ES keeps its port
+    // inside the connection's `url`, not a plain `port` field (HostPortOverride). Single-node with security on
+    // and the ELASTIC_PASSWORD bootstrap. Lazy `=> new(...)` keeps the ContainerRecipe type untouched until the
+    // host reads it.
+    public ContainerRecipe? ContainerRecipe => new(
+        Image: "docker.elastic.co/elasticsearch/elasticsearch",
+        DefaultTag: "8.13.0",
+        ContainerPort: 9200,
+        DataPath: "/usr/share/elasticsearch/data",
+        DefaultUser: "elastic",
+        DefaultPassword: "changeme",
+        Environment: e =>
+        [
+            new("discovery.type", "single-node"),
+            new("xpack.security.enabled", "true"),
+            new("ELASTIC_PASSWORD", e.Password)
+        ],
+        HostPortOverride: values =>
+            values.TryGetValue("url", out var url) && Uri.TryCreate(url, UriKind.Absolute, out var uri) && !uri.IsDefaultPort
+                ? uri.Port
+                : null);
 
     public bool IsSqlBased => false;
 

@@ -4,6 +4,7 @@ using System.Diagnostics;
 using System.Globalization;
 using System.Text;
 using SqlExplorer.Sdk;
+using SqlExplorer.Sdk.Provisioning;
 using MySqlConnector;
 
 namespace SqlExplorer.Providers.MySql;
@@ -16,6 +17,34 @@ public sealed class MySqlProvider : IDbProvider
     public ProviderIcon? Icon { get; } = ProviderIconLoader.Load(typeof(MySqlProvider), "🐬");
 
     public ISqlDialect Dialect { get; } = new MySqlDialect();
+
+    // How to spin up an empty local MySQL container matching a connection (SE-166). The image always needs a
+    // root password; a non-root connection user gets MYSQL_USER/MYSQL_PASSWORD on top (the image creates that
+    // user and grants it the initial database). Lazy `=> new(...)` keeps the ContainerRecipe type untouched
+    // until the host reads it.
+    public ContainerRecipe? ContainerRecipe => new(
+        Image: "mysql",
+        DefaultTag: "8",
+        ContainerPort: 3306,
+        DataPath: "/var/lib/mysql",
+        DefaultUser: "root",
+        DefaultPassword: "changeme",
+        Environment: e =>
+        {
+            var list = new List<KeyValuePair<string, string>> { new("MYSQL_ROOT_PASSWORD", e.Password) };
+            if (e.Database is { Length: > 0 })
+            {
+                list.Add(new("MYSQL_DATABASE", e.Database));
+            }
+
+            if (!string.Equals(e.User, "root", StringComparison.OrdinalIgnoreCase) && !string.IsNullOrWhiteSpace(e.User))
+            {
+                list.Add(new("MYSQL_USER", e.User));
+                list.Add(new("MYSQL_PASSWORD", e.Password));
+            }
+
+            return list;
+        });
 
     public IReadOnlyList<ConnectionField> ConnectionFields { get; } =
     [

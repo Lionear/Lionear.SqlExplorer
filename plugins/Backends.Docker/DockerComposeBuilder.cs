@@ -221,7 +221,7 @@ public sealed class DockerComposeBuilder
 
         // SQL Server takes no MSSQL_DATABASE env; a named database is created after the server starts
         // (DatabaseAfterStart) by the regie layer, not here. ACCEPT_EULA is mandatory.
-        ["sqlserver"] = new("mcr.microsoft.com/mssql/server", "2022-latest", 1433, "/var/opt/mssql", "sa", "Str0ng!Passw0rd",
+        ["sqlserver"] = new("mcr.microsoft.com/mssql/server", "2025-latest", 1433, "/var/opt/mssql", "sa", "Str0ng!Passw0rd",
             e => Env(
                 ("ACCEPT_EULA", "Y"),
                 ("MSSQL_SA_PASSWORD", e.Password),

@@ -5,6 +5,7 @@ using System.Globalization;
 using System.Text;
 using Avalonia.Controls;
 using SqlExplorer.Sdk;
+using SqlExplorer.Sdk.Provisioning;
 using SqlExplorer.Sdk.Ui;
 using Microsoft.Data.SqlClient;
 
@@ -98,6 +99,26 @@ public sealed class MsSqlProvider : IDbProvider, ICustomConnectionUi, ICustomNod
     public ProviderIcon? Icon { get; } = ProviderIconLoader.Load(typeof(MsSqlProvider), "🗄");
 
     public ISqlDialect Dialect { get; } = new MsSqlDialect();
+
+    // How to spin up an empty local SQL Server container matching a connection (SE-166). SQL Server takes no
+    // MSSQL_DATABASE env — a named database is created after the server starts (DatabaseAfterStart), by the
+    // regie layer. ACCEPT_EULA is mandatory. Tag 2025-latest = the current release. Lazy `=> new(...)` (not a
+    // field initialiser) so the ContainerRecipe type is only touched when the host actually reads it — an
+    // older host without the type never constructs it.
+    public ContainerRecipe? ContainerRecipe => new(
+        Image: "mcr.microsoft.com/mssql/server",
+        DefaultTag: "2025-latest",
+        ContainerPort: 1433,
+        DataPath: "/var/opt/mssql",
+        DefaultUser: "sa",
+        DefaultPassword: "Str0ng!Passw0rd",
+        Environment: e =>
+        [
+            new("ACCEPT_EULA", "Y"),
+            new("MSSQL_SA_PASSWORD", e.Password),
+            new("MSSQL_PID", "Developer")
+        ],
+        DatabaseAfterStart: true);
 
     // Ship a real T-SQL formatter (ScriptDom) rather than the host's generic one (SE-148 phase 2).
     public ISqlFormatter? Formatter { get; } = new MsSqlFormatter();
