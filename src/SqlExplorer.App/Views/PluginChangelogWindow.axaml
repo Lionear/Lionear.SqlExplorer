@@ -17,7 +17,7 @@
     <!-- One section per plugin (heading + markdown notes), populated in code-behind. -->
     <Border Background="{DynamicResource SEPanelBgBrush}"
             BorderBrush="{DynamicResource SEHairlineBrush}" BorderThickness="1" CornerRadius="6">
-      <ScrollViewer Padding="14,12">
+      <ScrollViewer Padding="14,12" HorizontalScrollBarVisibility="Disabled">
         <StackPanel x:Name="SectionsHost" Spacing="14" />
       </ScrollViewer>
     </Border>
