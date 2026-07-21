@@ -24,6 +24,7 @@ using SqlExplorer.Core.Shortcuts;
 using SqlExplorer.Core.Tools;
 using SqlExplorer.Sdk;
 using SqlExplorer.Sdk.Localization;
+using SqlExplorer.Sdk.Scripting;
 using SqlExplorer.Sdk.Tools;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
@@ -2413,6 +2414,47 @@ public partial class MainViewModel : ViewModelBase
             {
                 await document.RunCommand.ExecuteAsync(null);
             }
+        }
+        catch (Exception ex)
+        {
+            ReportError(SelectedConnection?.Name, ex.Message);
+        }
+    }
+
+    // Script the table's actual rows as INSERT statements. Unlike the INSERT scaffold (placeholders), this
+    // reads real data, so it opens a tab and never auto-runs. countParam: "100"/"1000" for a top-N page,
+    // anything else (e.g. "all") scripts every row.
+    [RelayCommand]
+    private async Task ScriptInsertDataAsync(string? countParam)
+    {
+        if (SelectedNode is not { IsTableOrView: true } node)
+        {
+            return;
+        }
+
+        var connection = node.Connection;
+        var provider = _providers.Get(connection.ProviderId);
+        var dialect = provider.Dialect;
+        var qualified = dialect.QualifyName(node.DatabaseName, node.SchemaName, node.Name);
+        int? limit = int.TryParse(countParam, out var n) ? n : null;
+
+        try
+        {
+            var profile = _connections.Resolve(connection, node.DatabaseName);
+            var select = $"SELECT * FROM {qualified}";
+            var query = limit is { } lim ? dialect.Paginate(select, lim, 0) : $"{select};";
+            var result = await provider.ExecuteQueryAsync(profile, query, CancellationToken.None);
+
+            var literalDialect = SqlValueLiteral.DialectFor(connection.ProviderId);
+            var script = InsertScripter.Build(qualified, result.Columns, result.Rows, dialect, literalDialect);
+            var header = limit is { } l
+                ? $"-- Data as INSERT for {qualified} — top {l} rows ({result.Rows.Count} scripted)\n\n"
+                : $"-- Data as INSERT for {qualified} — {result.Rows.Count} rows\n\n";
+
+            var document = NewDocument();
+            document.InitQuery(connection, null);
+            document.Sql = header + script;
+            AddDocument(document);
         }
         catch (Exception ex)
         {
