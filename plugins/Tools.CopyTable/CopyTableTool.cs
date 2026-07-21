@@ -13,7 +13,7 @@ namespace SqlExplorer.Tools.CopyTable;
 /// (first run: Run the copy). Identity/auto-increment columns are handled by the "Keep identity values"
 /// toggle — see <see cref="CreateTableWriter"/>.</para>
 /// </summary>
-public sealed class CopyTableTool : IToolPlugin
+public sealed class CopyTableTool : IToolPlugin, ICustomToolUi
 {
     private static readonly string[] SupportedProviders = ["postgres", "mysql", "sqlserver"];
 
@@ -60,6 +60,11 @@ public sealed class CopyTableTool : IToolPlugin
     private const string WhatBoth = "Structure + data";
     private const string WhatStructure = "Structure only";
     private const string WhatData = "Data only";
+
+    // Route B: supply the tailored dialog (From → To pickers, segmented options, mode cards) instead of the
+    // host's generic field form. Values still flow back through IToolUiContext under the same field keys.
+    public Avalonia.Controls.Control CreateView(IToolUiContext context) =>
+        new CopyTableView(context, _lastMode, context.Node?.Name ?? "table");
 
     public async Task ExecuteAsync(
         ToolExecutionContext context,

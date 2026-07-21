@@ -45,6 +45,10 @@ public static class ToolHostApi
     //                  (Copy Table remembers its last run/script mode) across runs. Both are additive default
     //                  no-ops. New number rather than a fold-in because v4 shipped in 0.4.0 — folding post-release
     //                  surface into a released number is the SE-166 crash trap. MinimumSupported stays 1.
+    //   also in v5 (2026-07-21): IToolUiContext (Route B) gains ListConnections() + ListDatabasesAsync(id, ct),
+    //                  mirroring the IToolHost pickers, so a tool's own view can build a destination
+    //                  connection/database dropdown (Copy Table's custom view). Default impls (empty) keep
+    //                  existing custom views compiling.
     public const int Version = 5;
 
     /// <summary>Oldest plugin ABI this host still loads. Every bump has been additive (v2 tool defaults, v3

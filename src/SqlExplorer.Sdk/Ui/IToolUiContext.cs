@@ -1,6 +1,7 @@
 using SqlExplorer.Sdk.Connections;
 using SqlExplorer.Sdk.Query;
 using SqlExplorer.Sdk.Schema;
+using SqlExplorer.Sdk.Tools;
 
 namespace SqlExplorer.Sdk.Ui;
 
@@ -37,4 +38,15 @@ public interface IToolUiContext
     /// host its own Browse button. Returns the chosen path, or null if cancelled.</summary>
     Task<string?> PickSaveFileAsync(string suggestedName, params string[] extensions);
     Task<string?> PickOpenFileAsync(params string[] extensions);
+
+    /// <summary>The user's saved connections that share the target connection's provider — the same list a
+    /// Route A <see cref="ToolFieldType.ConnectionPicker"/> offers, so a custom view can build its own
+    /// destination dropdown (Copy Table). Excludes the launched connection. Empty default so a view that
+    /// ignores it — and an older host — are unaffected.</summary>
+    IReadOnlyList<ToolConnectionInfo> ListConnections() => [];
+
+    /// <summary>The databases/catalogs on one of those connections, to fill a custom view's database dropdown
+    /// once its connection is chosen (mirrors <see cref="IToolHost.ListDatabasesAsync"/>). Empty default.</summary>
+    Task<IReadOnlyList<string>> ListDatabasesAsync(string connectionId, CancellationToken ct) =>
+        Task.FromResult<IReadOnlyList<string>>([]);
 }

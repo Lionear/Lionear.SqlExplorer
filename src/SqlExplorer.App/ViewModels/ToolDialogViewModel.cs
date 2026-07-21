@@ -448,4 +448,11 @@ public partial class ToolDialogViewModel : ViewModelBase, IToolUiContext, IToolH
 
     Task<string?> IToolUiContext.PickOpenFileAsync(params string[] extensions) =>
         OpenFilePicker?.Invoke(extensions) ?? Task.FromResult<string?>(null);
+
+    // A Route B view's destination pickers reuse the same host lookups the Route A ConnectionPicker /
+    // DatabasePicker fields do.
+    IReadOnlyList<ToolConnectionInfo> IToolUiContext.ListConnections() => ((IToolHost)this).ListConnections();
+
+    Task<IReadOnlyList<string>> IToolUiContext.ListDatabasesAsync(string connectionId, CancellationToken ct) =>
+        ((IToolHost)this).ListDatabasesAsync(connectionId, ct);
 }
