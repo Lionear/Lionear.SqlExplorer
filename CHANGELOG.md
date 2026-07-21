@@ -9,6 +9,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 
 ## [Unreleased]
 
+_Nothing yet._
+
+## [0.4.0] - 2026-07-21
+
 ### Fixed
 
 - **Editing a connection no longer wipes its fields** — changing a connection's AI access, read-only or
@@ -240,6 +244,7 @@ Initial baseline — the first working SQL Explorer.
 - **Multi-platform build pipeline** (Windows installer + zip, Linux AppImage, macOS DMG) publishing
   rolling nightly and preview releases.
 
-[Unreleased]: https://github.com/Lionear/SqlExplorer/compare/v0.3.0...HEAD
+[Unreleased]: https://github.com/Lionear/SqlExplorer/compare/v0.4.0...HEAD
+[0.4.0]: https://github.com/Lionear/SqlExplorer/compare/v0.3.0...v0.4.0
 [0.3.0]: https://github.com/Lionear/SqlExplorer/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/Lionear/SqlExplorer/releases/tag/v0.2.0
