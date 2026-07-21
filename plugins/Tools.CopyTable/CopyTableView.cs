@@ -1,6 +1,7 @@
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.Templates;
+using Avalonia.Input;
 using Avalonia.Layout;
 using Avalonia.Markup.Xaml.MarkupExtensions;
 using Avalonia.Media;
@@ -12,20 +13,20 @@ namespace SqlExplorer.Tools.CopyTable;
 /// segmented "what to copy" and row scope, fidelity switches, and two mode cards (Run the copy / Open as
 /// script). It only builds the input area — the host frames it with the Run/Cancel buttons, the progress
 /// checklist and the success banner. Values are written back through <see cref="IToolUiContext"/> under the
-/// same <c>ToolField.Key</c>s <see cref="CopyTableTool"/> reads. Code-built with themed controls, so it
-/// follows the app's light/dark theme.
+/// same <c>ToolField.Key</c>s <see cref="CopyTableTool"/> reads. Segments/cards are code-built from Borders
+/// (not Fluent radios) for full styling control, using DynamicResource theme brushes so it follows the app's
+/// light/dark theme.
 /// </summary>
 internal sealed class CopyTableView : UserControl
 {
-    private readonly IToolUiContext _ctx;
-    private readonly ComboBox _databaseBox;
     private readonly TextBlock _targetChip;
-    private readonly NumericUpDown _rowCount;
+    private readonly ComboBox _databaseBox;
+
+    // Accent tint for a selected card — a low-alpha wash of the accent that reads on both light and dark.
+    private static readonly IBrush AccentWash = new SolidColorBrush(Color.Parse("#223574F0"));
 
     public CopyTableView(IToolUiContext ctx, string initialMode, string sourceTable)
     {
-        _ctx = ctx;
-
         // Seed the values the host will collect, so a straight-through "Run" uses the shown defaults.
         ctx.SetValue("what", What.Both);
         ctx.SetValue("rows", "All");
@@ -33,36 +34,33 @@ internal sealed class CopyTableView : UserControl
         ctx.SetValue("dropExisting", "false");
         ctx.SetValue("mode", initialMode);
 
-        var root = new StackPanel { Margin = new Thickness(18, 14, 18, 4), Spacing = 16 };
+        var root = new StackPanel { Margin = new Thickness(20, 16, 20, 6), Spacing = 18 };
 
         // ── From → To header ──────────────────────────────────────────────────────────────────────────
-        _targetChip = new TextBlock { Text = "—", VerticalAlignment = VerticalAlignment.Center, FontFamily = Mono };
+        _targetChip = new TextBlock { Text = "—", VerticalAlignment = VerticalAlignment.Center, FontFamily = Mono, FontSize = 12.5 };
         root.Children.Add(new StackPanel
         {
-            Orientation = Orientation.Horizontal, Spacing = 8, VerticalAlignment = VerticalAlignment.Center,
+            Orientation = Orientation.Horizontal, Spacing = 9, VerticalAlignment = VerticalAlignment.Center,
             Children =
             {
-                Chip("FROM", new TextBlock { Text = sourceTable, FontFamily = Mono, VerticalAlignment = VerticalAlignment.Center }),
-                new TextBlock { Text = "→", Opacity = 0.6, VerticalAlignment = VerticalAlignment.Center, FontSize = 15 },
+                Chip("FROM", new TextBlock { Text = sourceTable, FontFamily = Mono, FontSize = 12.5, VerticalAlignment = VerticalAlignment.Center }),
+                new TextBlock { Text = "→", Opacity = 0.55, VerticalAlignment = VerticalAlignment.Center, FontSize = 16 },
                 Chip("TO", _targetChip)
             }
         });
 
         // ── Destination connection + database ─────────────────────────────────────────────────────────
-        var connections = ctx.ListConnections();
         var connectionBox = new ComboBox
         {
             HorizontalAlignment = HorizontalAlignment.Stretch,
-            ItemsSource = connections,
+            ItemsSource = ctx.ListConnections(),
             PlaceholderText = "Pick a connection…",
             ItemTemplate = new FuncDataTemplate<ToolConnectionInfo>((c, _) =>
                 new TextBlock { Text = c?.Name ?? "" }, supportsRecycling: true)
         };
         _databaseBox = new ComboBox
         {
-            HorizontalAlignment = HorizontalAlignment.Stretch,
-            PlaceholderText = "Pick a database…",
-            IsEnabled = false
+            HorizontalAlignment = HorizontalAlignment.Stretch, PlaceholderText = "Pick a database…", IsEnabled = false
         };
 
         connectionBox.SelectionChanged += async (_, _) =>
@@ -90,44 +88,38 @@ internal sealed class CopyTableView : UserControl
 
         root.Children.Add(new Grid
         {
-            ColumnDefinitions = new ColumnDefinitions("*,12,*"),
-            Children =
-            {
-                Field("Copy to connection", connectionBox, 0),
-                Field("Database", _databaseBox, 2)
-            }
+            ColumnDefinitions = new ColumnDefinitions("*,14,*"),
+            Children = { Field("Copy to connection", connectionBox, 0), Field("Database", _databaseBox, 2) }
         });
 
         // ── What to copy (segmented) ──────────────────────────────────────────────────────────────────
-        root.Children.Add(Labeled("What to copy", Segmented("what",
+        root.Children.Add(Section("WHAT TO COPY", Segmented(
             [(What.Both, "Structure + data"), (What.Structure, "Structure only"), (What.Data, "Data only")],
-            What.Both, v => ctx.SetValue("what", v))));
+            What.Both, stretch: true, v => ctx.SetValue("what", v))));
 
-        // ── Rows ──────────────────────────────────────────────────────────────────────────────────────
-        _rowCount = new NumericUpDown
+        // ── Rows (segmented + flat number field) ──────────────────────────────────────────────────────
+        var rowCount = new TextBox
         {
-            Minimum = 1, Maximum = 10_000_000, Value = 1000, Increment = 100, Width = 110,
-            FormatString = "0", IsEnabled = false, VerticalAlignment = VerticalAlignment.Center
+            Text = "1000", Width = 84, IsEnabled = false, VerticalAlignment = VerticalAlignment.Center,
+            VerticalContentAlignment = VerticalAlignment.Center, FontFamily = Mono
         };
-        var allRows = new RadioButton { Content = "All rows", GroupName = "rows", IsChecked = true, VerticalAlignment = VerticalAlignment.Center };
-        var firstRows = new RadioButton { Content = "First", GroupName = "rows", VerticalAlignment = VerticalAlignment.Center };
 
-        void SyncRows()
+        void SetRows(bool first) => ctx.SetValue("rows", first ? Digits(rowCount.Text, "1000") : "All");
+        rowCount.TextChanged += (_, _) => { if (rowCount.IsEnabled) SetRows(true); };
+
+        var rowsSeg = Segmented([("all", "All rows"), ("first", "First")], "all", stretch: false, v =>
         {
-            _rowCount.IsEnabled = firstRows.IsChecked == true;
-            ctx.SetValue("rows", firstRows.IsChecked == true
-                ? ((int)(_rowCount.Value ?? 1000)).ToString()
-                : "All");
-        }
+            var first = v == "first";
+            rowCount.IsEnabled = first;
+            rowCount.Opacity = first ? 1 : 0.5;
+            SetRows(first);
+        });
+        rowCount.Opacity = 0.5;
 
-        allRows.IsCheckedChanged += (_, _) => SyncRows();
-        firstRows.IsCheckedChanged += (_, _) => SyncRows();
-        _rowCount.ValueChanged += (_, _) => SyncRows();
-
-        root.Children.Add(Labeled("Rows", new StackPanel
+        root.Children.Add(Section("ROWS", new StackPanel
         {
             Orientation = Orientation.Horizontal, Spacing = 12, VerticalAlignment = VerticalAlignment.Center,
-            Children = { allRows, firstRows, _rowCount }
+            Children = { rowsSeg, rowCount }
         }));
 
         // ── Fidelity options (switches) ───────────────────────────────────────────────────────────────
@@ -139,7 +131,7 @@ internal sealed class CopyTableView : UserControl
             v => ctx.SetValue("dropExisting", v ? "true" : "false")));
 
         // ── How (mode cards) ──────────────────────────────────────────────────────────────────────────
-        root.Children.Add(Labeled("How", ModeCards(initialMode, v => ctx.SetValue("mode", v))));
+        root.Children.Add(Section("HOW", ModeCards(initialMode, v => ctx.SetValue("mode", v))));
 
         Content = new ScrollViewer { Content = root };
     }
@@ -159,7 +151,8 @@ internal sealed class CopyTableView : UserControl
         public const string Data = "Data only";
     }
 
-    // A small label chip ("FROM", "TO") next to a value, in a hairline pill.
+    // ── Building blocks ───────────────────────────────────────────────────────────────────────────────
+
     private static Control Chip(string label, Control value)
     {
         var pill = new Border
@@ -170,8 +163,8 @@ internal sealed class CopyTableView : UserControl
                 Orientation = Orientation.Horizontal, Spacing = 7,
                 Children =
                 {
-                    new TextBlock { Text = label, FontSize = 10, FontWeight = FontWeight.Bold, Opacity = 0.55,
-                        VerticalAlignment = VerticalAlignment.Center },
+                    new TextBlock { Text = label, FontSize = 10, FontWeight = FontWeight.Bold, Opacity = 0.5,
+                        LetterSpacing = 0.5, VerticalAlignment = VerticalAlignment.Center },
                     value
                 }
             }
@@ -183,31 +176,92 @@ internal sealed class CopyTableView : UserControl
 
     private static Control Field(string label, Control input, int column)
     {
-        var panel = Labeled(label, input);
+        var panel = Labeled(label, input, uppercase: false);
         Grid.SetColumn(panel, column);
         return panel;
     }
 
-    private static Control Labeled(string label, Control input)
+    private static Control Section(string label, Control body) => Labeled(label, body, uppercase: true);
+
+    private static Control Labeled(string label, Control input, bool uppercase)
     {
-        var caption = new TextBlock { Text = label, FontSize = 11.5, Margin = new Thickness(0, 0, 0, 5) };
-        caption[!ForegroundProperty] = new DynamicResourceExtension("SETextSecondaryBrush");
+        var caption = new TextBlock
+        {
+            Text = label, FontSize = uppercase ? 10.5 : 11.5, Margin = new Thickness(0, 0, 0, 6),
+            LetterSpacing = uppercase ? 0.6 : 0, FontWeight = uppercase ? FontWeight.Bold : FontWeight.Normal
+        };
+        caption[!ForegroundProperty] = new DynamicResourceExtension(uppercase ? "SETextFaintBrush" : "SETextSecondaryBrush");
         return new StackPanel { Spacing = 0, Children = { caption, input } };
     }
 
-    // Segmented control: a row of RadioButtons that read as one control (host theme styles them).
-    private static Control Segmented(string group, IReadOnlyList<(string Value, string Label)> options,
-        string initial, Action<string> onChange)
+    // A real segmented pill: Border segments inside a hairline track; the selected one gets the panel
+    // background + emphasis. stretch=true fills the row (equal columns); false sizes to content (compact).
+    private static Control Segmented(IReadOnlyList<(string Value, string Label)> options, string initial,
+        bool stretch, Action<string> onChange)
     {
-        var row = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 16 };
-        foreach (var (value, label) in options)
+        var segments = new List<(Border Box, TextBlock Text, string Value)>();
+        var grid = new Grid();
+        for (var i = 0; i < options.Count; i++)
         {
-            var rb = new RadioButton { Content = label, GroupName = group, IsChecked = value == initial };
-            rb.IsCheckedChanged += (_, _) => { if (rb.IsChecked == true) onChange(value); };
-            row.Children.Add(rb);
+            grid.ColumnDefinitions.Add(new ColumnDefinition(stretch ? GridLength.Star : GridLength.Auto));
         }
 
-        return row;
+        for (var i = 0; i < options.Count; i++)
+        {
+            var (value, label) = options[i];
+            var text = new TextBlock
+            {
+                Text = label, FontSize = 12.5, HorizontalAlignment = HorizontalAlignment.Center,
+                VerticalAlignment = VerticalAlignment.Center
+            };
+            var box = new Border
+            {
+                CornerRadius = new CornerRadius(4), Padding = new Thickness(stretch ? 6 : 14, 6),
+                Cursor = new Cursor(StandardCursorType.Hand), Child = text
+            };
+            var captured = value;
+            box.PointerPressed += (_, _) =>
+            {
+                onChange(captured);
+                foreach (var (b, t, v) in segments)
+                {
+                    StyleSegment(b, t, v == captured);
+                }
+            };
+            Grid.SetColumn(box, i);
+            segments.Add((box, text, value));
+            grid.Children.Add(box);
+        }
+
+        foreach (var (b, t, v) in segments)
+        {
+            StyleSegment(b, t, v == initial);
+        }
+
+        var track = new Border
+        {
+            CornerRadius = new CornerRadius(7), Padding = new Thickness(3), BorderThickness = new Thickness(1),
+            Child = grid, HorizontalAlignment = stretch ? HorizontalAlignment.Stretch : HorizontalAlignment.Left
+        };
+        track[!BackgroundProperty] = new DynamicResourceExtension("SESecondaryBgBrush");
+        track[!BorderBrushProperty] = new DynamicResourceExtension("SEHairlineBrush");
+        return track;
+    }
+
+    private static void StyleSegment(Border box, TextBlock text, bool on)
+    {
+        if (on)
+        {
+            box[!BackgroundProperty] = new DynamicResourceExtension("SEPanelBgBrush");
+            text[!TextBlock.ForegroundProperty] = new DynamicResourceExtension("SETextPrimaryBrush");
+            text.FontWeight = FontWeight.SemiBold;
+        }
+        else
+        {
+            box.Background = Brushes.Transparent;
+            text[!TextBlock.ForegroundProperty] = new DynamicResourceExtension("SETextSecondaryBrush");
+            text.FontWeight = FontWeight.Normal;
+        }
     }
 
     private static Control SwitchRow(string label, bool initial, string help, Action<bool> onChange)
@@ -215,23 +269,17 @@ internal sealed class CopyTableView : UserControl
         var toggle = new ToggleSwitch { IsChecked = initial, OnContent = "", OffContent = "" };
         toggle.IsCheckedChanged += (_, _) => onChange(toggle.IsChecked == true);
 
+        var helpText = new TextBlock { Text = help, FontSize = 11, TextWrapping = TextWrapping.Wrap };
+        helpText[!ForegroundProperty] = new DynamicResourceExtension("SETextFaintBrush");
         var text = new StackPanel
         {
             Spacing = 1, VerticalAlignment = VerticalAlignment.Center,
-            Children = { new TextBlock { Text = label } }
+            Children = { new TextBlock { Text = label, FontWeight = FontWeight.Medium }, helpText }
         };
-        var helpText = new TextBlock { Text = help, FontSize = 11, TextWrapping = TextWrapping.Wrap };
-        helpText[!ForegroundProperty] = new DynamicResourceExtension("SETextFaintBrush");
-        text.Children.Add(helpText);
 
-        return new Grid
-        {
-            ColumnDefinitions = new ColumnDefinitions("*,Auto"),
-            Children = { text, Put(toggle, 1) }
-        };
+        return new Grid { ColumnDefinitions = new ColumnDefinitions("*,Auto"), Children = { text, Put(toggle, 1) } };
     }
 
-    // Two selectable cards; the chosen one gets an accent border.
     private Control ModeCards(string initial, Action<string> onChange)
     {
         var cards = new List<(Border Card, string Value)>();
@@ -245,18 +293,18 @@ internal sealed class CopyTableView : UserControl
 
             var card = new Border
             {
-                CornerRadius = new CornerRadius(6), Padding = new Thickness(11, 10), BorderThickness = new Thickness(1.5),
-                Child = new StackPanel
+                CornerRadius = new CornerRadius(6), Padding = new Thickness(12, 11), BorderThickness = new Thickness(1.5),
+                Cursor = new Cursor(StandardCursorType.Hand),
+                Child = new Grid
                 {
-                    Orientation = Orientation.Horizontal, Spacing = 8,
+                    ColumnDefinitions = new ColumnDefinitions("Auto,9,*"),
                     Children =
                     {
                         radio,
-                        new StackPanel { Children = { new TextBlock { Text = title, FontWeight = FontWeight.SemiBold }, descText } }
+                        Put(new StackPanel { Children = { new TextBlock { Text = title, FontWeight = FontWeight.SemiBold }, descText } }, 2)
                     }
                 }
             };
-            card[!BackgroundProperty] = new DynamicResourceExtension("SEPanelBgBrush");
 
             void Select() { onChange(value); foreach (var (c, v) in cards) Highlight(c, v == value); }
             radio.IsCheckedChanged += (_, _) => { if (radio.IsChecked == true) Select(); };
@@ -273,8 +321,24 @@ internal sealed class CopyTableView : UserControl
         return grid;
     }
 
-    private static void Highlight(Border card, bool on) =>
+    private static void Highlight(Border card, bool on)
+    {
         card[!BorderBrushProperty] = new DynamicResourceExtension(on ? "SEAccentBrush" : "SEHairlineBrush");
+        if (on)
+        {
+            card.Background = AccentWash;
+        }
+        else
+        {
+            card[!BackgroundProperty] = new DynamicResourceExtension("SEPanelBgBrush");
+        }
+    }
+
+    private static string Digits(string? text, string fallback)
+    {
+        var digits = new string((text ?? "").Where(char.IsDigit).ToArray());
+        return digits.Length > 0 ? digits : fallback;
+    }
 
     private static Control Put(Control c, int column)
     {
