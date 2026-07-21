@@ -376,6 +376,11 @@
                   <MenuItem Header="SELECT *" Command="{Binding GenerateSqlCommand}" CommandParameter="Select" />
                   <MenuItem Header="SELECT columns" Command="{Binding GenerateSqlCommand}" CommandParameter="SelectColumns" />
                   <MenuItem Header="INSERT" Command="{Binding GenerateSqlCommand}" CommandParameter="Insert" />
+                  <MenuItem Header="INSERT (with data)">
+                    <MenuItem Header="Top 100" Command="{Binding ScriptInsertDataCommand}" CommandParameter="100" />
+                    <MenuItem Header="Top 1000" Command="{Binding ScriptInsertDataCommand}" CommandParameter="1000" />
+                    <MenuItem Header="All rows" Command="{Binding ScriptInsertDataCommand}" CommandParameter="all" />
+                  </MenuItem>
                   <MenuItem Header="UPDATE" Command="{Binding GenerateSqlCommand}" CommandParameter="Update" />
                   <MenuItem Header="DELETE" Command="{Binding GenerateSqlCommand}" CommandParameter="Delete" />
                   <MenuItem Header="COUNT(*)" Command="{Binding GenerateSqlCommand}" CommandParameter="Count" />

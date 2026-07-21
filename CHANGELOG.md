@@ -32,6 +32,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 
 ### Added
 
+- **Script table data as INSERT** — right-click a table → *SQL commands ▸ INSERT (with data)* to generate real
+  `INSERT` statements from the table's rows (Top 100, Top 1000, or all rows) into a new query tab, ready to run on
+  another connection. Unlike the existing INSERT scaffold (which uses `:name` placeholders), this writes the actual
+  values — dialect-correct for booleans, binary and dates — and never auto-runs.
 - **Schema Diff tool** — a new first-party tool compares this database against a second one you pick — another
   connection and one of its databases — and generates the migration (an ALTER script that would make this one
   match the other), opening it in a new query tab on this connection/database so you review and run it in the
