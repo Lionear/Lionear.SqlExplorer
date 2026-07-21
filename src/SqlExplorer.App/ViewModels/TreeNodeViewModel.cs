@@ -166,6 +166,12 @@ public partial class TreeNodeViewModel : ViewModelBase
     /// <summary>Whether this connection is hard-excluded from MCP (drives the submenu's check mark, SE-158).</summary>
     public bool IsExcludedFromMcp => IsConnectionNode && Connection.ExcludeFromMcp;
 
+    // Which AI-access level is currently set — each drives the check mark on its submenu item (SE-173), so the
+    // active level is visible at a glance instead of having to remember it.
+    public bool IsAiAccessNone => IsConnectionNode && Connection.AiAccess == AiAccessMode.None;
+    public bool IsAiAccessReadOnly => IsConnectionNode && Connection.AiAccess == AiAccessMode.ReadOnly;
+    public bool IsAiAccessReadWrite => IsConnectionNode && Connection.AiAccess == AiAccessMode.ReadWrite;
+
     /// <summary>Connect is offered on a connection root that isn't currently connected.</summary>
     public bool CanConnect => IsConnectionNode && State != ConnectionState.Connected;
 
@@ -317,6 +323,18 @@ public partial class TreeNodeViewModel : ViewModelBase
         OnPropertyChanged(nameof(Title));
         OnPropertyChanged(nameof(ConnectionColorBrush));
         OnPropertyChanged(nameof(HasConnectionColor));
+
+        // Refresh every connection-derived display flag so a settings change (AI access, exclude, managed…)
+        // shows on the existing node without rebuilding it — which would move it and drop its live state.
+        OnPropertyChanged(nameof(IsManagedConnection));
+        OnPropertyChanged(nameof(IsTransientConnection));
+        OnPropertyChanged(nameof(IsAiReachable));
+        OnPropertyChanged(nameof(AiAccessLabel));
+        OnPropertyChanged(nameof(CanSetAiAccess));
+        OnPropertyChanged(nameof(IsExcludedFromMcp));
+        OnPropertyChanged(nameof(IsAiAccessNone));
+        OnPropertyChanged(nameof(IsAiAccessReadOnly));
+        OnPropertyChanged(nameof(IsAiAccessReadWrite));
     }
 
     /// <summary>Collapse this node and every already-loaded descendant. Doesn't force any lazy loads

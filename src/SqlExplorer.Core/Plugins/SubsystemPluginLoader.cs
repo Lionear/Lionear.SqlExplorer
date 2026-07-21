@@ -1,6 +1,7 @@
 using SqlExplorer.Core.Localization;
 using SqlExplorer.Sdk.Extensibility;
 using SqlExplorer.Sdk.Localization;
+using SqlExplorer.Sdk.Provisioning;
 using SqlExplorer.Sdk.Tools;
 
 namespace SqlExplorer.Core.Plugins;
@@ -107,18 +108,24 @@ public sealed class SubsystemPluginLoader
     /// <summary>Build a runtime context with its services gated on the declared <paramref name="capabilities"/>
     /// — a service the plugin didn't declare (and the user didn't consent to) is null. Public + static so it
     /// can be exercised without a real plugin assembly. <paramref name="connectionsProvider"/> is optional
-    /// (null until the connections seam is wired post-build).</summary>
+    /// (null until the connections seam is wired post-build); <paramref name="services"/> is the plugin's
+    /// already-scoped resolver, exposed only when the <see cref="PluginCapabilities.Services"/> capability is
+    /// declared.</summary>
     public static IPluginRuntimeContext CreateContext(
         string pluginId,
         IReadOnlyList<string> capabilities,
         Func<string, IPluginStorage> storageProvider,
         IPluginLocalizer? localizer,
         Action<string>? log,
-        Func<string, IManagedConnections>? connectionsProvider = null) =>
+        Func<string, IManagedConnections>? connectionsProvider = null,
+        IServiceProvider? services = null,
+        IProviderCatalog? providers = null) =>
         new PluginRuntimeContext(
             pluginId,
             capabilities.Contains(PluginCapabilities.Storage) ? storageProvider(pluginId) : null,
             capabilities.Contains(PluginCapabilities.Connections) ? connectionsProvider?.Invoke(pluginId) : null,
             localizer ?? NullPluginLocalizer.Instance,
-            log);
+            log,
+            capabilities.Contains(PluginCapabilities.Services) ? services : null,
+            capabilities.Contains(PluginCapabilities.Providers) ? providers : null);
 }

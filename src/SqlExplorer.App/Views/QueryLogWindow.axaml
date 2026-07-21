@@ -4,12 +4,12 @@
         Title="{Binding Loc[QueryLogTitle]}"
         Width="1200" Height="760" MinWidth="720" MinHeight="440"
         WindowStartupLocation="CenterOwner">
-  <Grid RowDefinitions="Auto,*,Auto">
+  <Grid RowDefinitions="Auto,Auto,*,Auto">
 
     <!-- Toolbar -->
     <Grid Grid.Row="0" ColumnDefinitions="*,Auto,Auto,Auto,Auto,Auto" Margin="12,10" ColumnSpacing="8">
       <TextBox Grid.Column="0" Text="{Binding Search}"
-               Watermark="{Binding Loc[QueryLogSearch]}" MinWidth="200" />
+               PlaceholderText="{Binding Loc[QueryLogSearch]}" MinWidth="200" />
       <ComboBox Grid.Column="1" SelectedIndex="{Binding SourceFilter, Mode=TwoWay}" MinWidth="130">
         <ComboBoxItem Content="{Binding Loc[QueryLogSourceAll]}" />
         <ComboBoxItem Content="{Binding Loc[QueryLogSourceApp]}" />
@@ -24,8 +24,18 @@
       <Button Grid.Column="4" Content="{Binding Loc[QueryLogClear]}" Command="{Binding ClearCommand}" />
     </Grid>
 
+    <!-- Policy banner (SE-182): shown when logging is (partly) off, so an empty list isn't mistaken for
+         "no queries yet". Recreated per window open, so it reflects the current setting. -->
+    <Border Grid.Row="1" Margin="12,0,12,10" Padding="12,8" CornerRadius="4"
+            Background="{DynamicResource SEToolbarBgBrush}"
+            BorderBrush="{DynamicResource SEHairlineBrush}" BorderThickness="1"
+            IsVisible="{Binding HasLogPolicyNotice}">
+      <TextBlock Text="{Binding LogPolicyNotice}" TextWrapping="Wrap"
+                 Foreground="{DynamicResource SETextSecondaryBrush}" />
+    </Border>
+
     <!-- Table + detail -->
-    <Grid Grid.Row="1" ColumnDefinitions="*,Auto" Margin="12,0">
+    <Grid Grid.Row="2" ColumnDefinitions="*,Auto" Margin="12,0">
       <Border Grid.Column="0" BorderBrush="{DynamicResource SEHairlineBrush}" BorderThickness="1" CornerRadius="4">
         <DataGrid ItemsSource="{Binding Entries}" SelectedItem="{Binding SelectedEntry}"
                   IsReadOnly="True" GridLinesVisibility="Horizontal"
@@ -81,7 +91,7 @@
     </Grid>
 
     <!-- Footer -->
-    <Grid Grid.Row="2" ColumnDefinitions="*,Auto" Margin="12,8">
+    <Grid Grid.Row="3" ColumnDefinitions="*,Auto" Margin="12,8">
       <TextBlock Grid.Column="0" Text="{Binding Summary}" Opacity="0.7" VerticalAlignment="Center" />
       <Button Grid.Column="1" Classes="Accent" Content="{Binding Loc[Close]}" Click="OnCloseClick" IsCancel="True" />
     </Grid>

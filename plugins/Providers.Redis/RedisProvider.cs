@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using SqlExplorer.Sdk;
+using SqlExplorer.Sdk.Provisioning;
 using StackExchange.Redis;
 
 namespace SqlExplorer.Providers.Redis;
@@ -33,6 +34,21 @@ public sealed class RedisProvider : IDbProvider
     public ProviderIcon? Icon { get; } = ProviderIconLoader.Load(typeof(RedisProvider), "🟥");
 
     public ISqlDialect Dialect { get; } = new RedisDialect();
+
+    // How to spin up an empty local Redis container matching a connection (SE-166). Redis auth is a server flag
+    // (--requirepass), not an env var — omitted entirely when the connection has no password. Its "database" is
+    // a numeric index, not a named database (NamedDatabase: false). Lazy `=> new(...)` keeps the ContainerRecipe
+    // type untouched until the host reads it.
+    public ContainerRecipe? ContainerRecipe => new(
+        Image: "redis",
+        DefaultTag: "7",
+        ContainerPort: 6379,
+        DataPath: "/data",
+        DefaultUser: "",
+        DefaultPassword: "",
+        Environment: _ => [],
+        Command: e => string.IsNullOrWhiteSpace(e.Password) ? [] : ["redis-server", "--requirepass", e.Password],
+        NamedDatabase: false);
 
     public bool IsSqlBased => false;
 

@@ -633,6 +633,15 @@
   <data name="BrowsePageSizeHint" xml:space="preserve">
     <value>Aantal rijen per pagina bij het bladeren door een tabel. Geldt voor nieuw geopende bladertabbladen.</value>
   </data>
+  <data name="PageQueryResults" xml:space="preserve">
+    <value>Query-resultaten pagen</value>
+  </data>
+  <data name="QueryPageSize" xml:space="preserve">
+    <value>Paginagrootte query's (rijen)</value>
+  </data>
+  <data name="QueryPageSizeHint" xml:space="preserve">
+    <value>Indien aan wordt een enkele SELECT zonder eigen TOP/LIMIT pagina voor pagina getoond (gebruik Vorige/Volgende om door de rijen te bladeren), zodat een losse "SELECT * FROM grote_tabel" niet in één keer alles ophaalt. Query's met een eigen TOP/LIMIT, andere statements en scripts blijven ongewijzigd. Geldt voor nieuw geopende querytabbladen.</value>
+  </data>
   <data name="ConfirmOnExit" xml:space="preserve">
     <value>Vraag om bevestiging bij afsluiten</value>
   </data>
@@ -641,6 +650,12 @@
   </data>
   <data name="CloseToTrayHint" xml:space="preserve">
     <value>De sluitknop verbergt het venster en houdt de app op de achtergrond actief (bijv. de MCP-server). Afsluiten via het systeemvak-icoon of Bestand &gt; Afsluiten.</value>
+  </data>
+  <data name="AllowMultipleInstances" xml:space="preserve">
+    <value>Meerdere instanties toestaan</value>
+  </data>
+  <data name="AllowMultipleInstancesHint" xml:space="preserve">
+    <value>Uit: de app opnieuw starten brengt het bestaande venster naar voren. Aan: elke start opent een eigen, los venster. Werkt vanaf de volgende start.</value>
   </data>
   <data name="QueryLogMenu" xml:space="preserve">
     <value>Query-log</value>
@@ -668,6 +683,15 @@
   </data>
   <data name="QueryLogTitle" xml:space="preserve">
     <value>Query-log</value>
+  </data>
+  <data name="QueryLogPolicyOff" xml:space="preserve">
+    <value>Query-logging staat uit — schakel het in via Instellingen → Query-log om queries vast te leggen.</value>
+  </data>
+  <data name="QueryLogPolicyAppOnly" xml:space="preserve">
+    <value>Alleen applicatie-queries worden gelogd — AI/MCP-logging staat uit (Instellingen → Query-log).</value>
+  </data>
+  <data name="QueryLogPolicyMcpOnly" xml:space="preserve">
+    <value>Alleen AI/MCP-queries worden gelogd — applicatie-logging staat uit (Instellingen → Query-log).</value>
   </data>
   <data name="QueryLogSearch" xml:space="preserve">
     <value>Zoek in SQL of connectie</value>
@@ -1029,6 +1053,9 @@
   <data name="ToolRunning" xml:space="preserve">
     <value>Bezig</value>
   </data>
+  <data name="ToolTargetLabel" xml:space="preserve">
+    <value>Op:</value>
+  </data>
   <data name="ToolDestructiveConfirm" xml:space="preserve">
     <value>Deze actie wijzigt de database en kan niet ongedaan worden gemaakt. Doorgaan?</value>
   </data>
@@ -1049,6 +1076,9 @@
   </data>
   <data name="CopiedToClipboard" xml:space="preserve">
     <value>Gekopieerd</value>
+  </data>
+  <data name="CellValue" xml:space="preserve">
+    <value>Celwaarde</value>
   </data>
   <data name="Cut" xml:space="preserve">
     <value>Knippen</value>
@@ -1298,6 +1328,18 @@
   </data>
   <data name="Cap_process_Desc" xml:space="preserve">
     <value>Kan externe programma's op je computer starten (bijv. docker).</value>
+  </data>
+  <data name="Cap_services_Title" xml:space="preserve">
+    <value>Eigen services</value>
+  </data>
+  <data name="Cap_services_Desc" xml:space="preserve">
+    <value>Registreert de eigen services van de plugin in de app zodat die ze kan koppelen. Kan de services van de app zelf niet vervangen of uitlezen.</value>
+  </data>
+  <data name="Cap_providers_Title" xml:space="preserve">
+    <value>Geïnstalleerde providers</value>
+  </data>
+  <data name="Cap_providers_Desc" xml:space="preserve">
+    <value>Leest welke database-engines geïnstalleerd zijn en hoe ze te containeriseren zijn. Alleen-lezen — kan je verbindingen niet wijzigen of aansturen.</value>
   </data>
   <data name="StoreConsentApprove" xml:space="preserve">
     <value>Vertrouwen en installeren</value>

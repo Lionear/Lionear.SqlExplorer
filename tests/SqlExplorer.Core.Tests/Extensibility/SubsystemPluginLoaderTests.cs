@@ -1,5 +1,6 @@
 using SqlExplorer.Core.Plugins;
 using SqlExplorer.Sdk.Extensibility;
+using SqlExplorer.Sdk.Provisioning;
 
 namespace SqlExplorer.Core.Tests.Extensibility;
 
@@ -37,5 +38,53 @@ public class SubsystemPluginLoaderTests
 
         Assert.Equal("some.key", ctx.Localizer["some.key"]);
         Assert.False(ctx.Localizer.Contains("some.key"));
+    }
+
+    private sealed class FakeServices : IServiceProvider
+    {
+        public object? GetService(Type serviceType) => null;
+    }
+
+    [Fact] // No "services" capability → context.Services is null even when a resolver was supplied.
+    public void Services_is_gated_off_without_the_capability()
+    {
+        var ctx = SubsystemPluginLoader.CreateContext(
+            "x", [], _ => new FakeStorage(), localizer: null, log: null, services: new FakeServices());
+
+        Assert.Null(ctx.Services);
+    }
+
+    [Fact]
+    public void Services_is_present_with_the_capability()
+    {
+        var resolver = new FakeServices();
+        var ctx = SubsystemPluginLoader.CreateContext(
+            "x", [PluginCapabilities.Services], _ => new FakeStorage(), localizer: null, log: null, services: resolver);
+
+        Assert.Same(resolver, ctx.Services);
+    }
+
+    private sealed class FakeCatalog : IProviderCatalog
+    {
+        public IReadOnlyList<ProviderRecipe> ContainerRecipes() => [];
+    }
+
+    [Fact] // No "providers" capability → context.Providers is null even when a catalog was supplied.
+    public void Providers_is_gated_off_without_the_capability()
+    {
+        var ctx = SubsystemPluginLoader.CreateContext(
+            "x", [], _ => new FakeStorage(), localizer: null, log: null, providers: new FakeCatalog());
+
+        Assert.Null(ctx.Providers);
+    }
+
+    [Fact]
+    public void Providers_is_present_with_the_capability()
+    {
+        var catalog = new FakeCatalog();
+        var ctx = SubsystemPluginLoader.CreateContext(
+            "x", [PluginCapabilities.Providers], _ => new FakeStorage(), localizer: null, log: null, providers: catalog);
+
+        Assert.Same(catalog, ctx.Providers);
     }
 }

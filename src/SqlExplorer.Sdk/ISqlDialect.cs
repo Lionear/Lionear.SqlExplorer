@@ -9,6 +9,11 @@ public interface ISqlDialect
 {
     IReadOnlySet<string> Keywords { get; }
 
+    /// <summary>The dialect's built-in functions, offered by completion in expression positions with their
+    /// signature (SE-149 phase 2). Default empty — a dialect that declares none, or a plugin built against an
+    /// older host, simply contributes no function suggestions.</summary>
+    IReadOnlyList<SqlFunction> Functions => [];
+
     string QuoteIdentifier(string identifier);
 
     /// <summary>
@@ -26,4 +31,13 @@ public interface ISqlDialect
     /// required for engines whose paging demands an ordering (SQL Server's OFFSET/FETCH).
     /// </summary>
     string Paginate(string sql, int limit, int offset, string? orderBy = null);
+
+    /// <summary>
+    /// Page a complete, standalone <c>SELECT</c> for query-result paging (SE-178) — unlike <see cref="Paginate"/>,
+    /// <paramref name="sql"/> may already carry its own <c>ORDER BY</c>. <paramref name="alreadyOrdered"/> says so,
+    /// which only matters where paging demands an ordering (SQL Server appends <c>OFFSET/FETCH</c> to the existing
+    /// <c>ORDER BY</c> instead of adding a second one). The default suits <c>LIMIT</c>/<c>OFFSET</c> dialects,
+    /// where appending after an optional ORDER BY is always valid; SQL-Server-like dialects override it.
+    /// </summary>
+    string PageQuery(string sql, int limit, int offset, bool alreadyOrdered = false) => Paginate(sql, limit, offset);
 }

@@ -633,6 +633,15 @@
   <data name="BrowsePageSizeHint" xml:space="preserve">
     <value>Number of rows fetched per page when browsing a table. Applies to newly opened browse tabs.</value>
   </data>
+  <data name="PageQueryResults" xml:space="preserve">
+    <value>Page query results</value>
+  </data>
+  <data name="QueryPageSize" xml:space="preserve">
+    <value>Query page size (rows)</value>
+  </data>
+  <data name="QueryPageSizeHint" xml:space="preserve">
+    <value>When on, a single SELECT with no TOP/LIMIT of its own is shown one page at a time (use Previous/Next to walk the rows), so a stray "SELECT * FROM big_table" doesn't pull everything at once. Queries with their own TOP/LIMIT, other statements and scripts run unchanged. Applies to newly opened query tabs.</value>
+  </data>
   <data name="ConfirmOnExit" xml:space="preserve">
     <value>Ask for confirmation before quitting</value>
   </data>
@@ -641,6 +650,12 @@
   </data>
   <data name="CloseToTrayHint" xml:space="preserve">
     <value>The close button hides the window and keeps the app running in the background (e.g. the MCP server). Quit from the tray icon or File &gt; Exit.</value>
+  </data>
+  <data name="AllowMultipleInstances" xml:space="preserve">
+    <value>Allow multiple instances</value>
+  </data>
+  <data name="AllowMultipleInstancesHint" xml:space="preserve">
+    <value>When off, launching the app again brings the running window to the front. When on, each launch opens its own independent window. Takes effect on the next launch.</value>
   </data>
   <data name="QueryLogMenu" xml:space="preserve">
     <value>Query Log</value>
@@ -668,6 +683,15 @@
   </data>
   <data name="QueryLogTitle" xml:space="preserve">
     <value>Query Log</value>
+  </data>
+  <data name="QueryLogPolicyOff" xml:space="preserve">
+    <value>Query logging is off — enable it in Settings → Query Log to record queries.</value>
+  </data>
+  <data name="QueryLogPolicyAppOnly" xml:space="preserve">
+    <value>Only application queries are being logged — AI/MCP logging is off (Settings → Query Log).</value>
+  </data>
+  <data name="QueryLogPolicyMcpOnly" xml:space="preserve">
+    <value>Only AI/MCP queries are being logged — application logging is off (Settings → Query Log).</value>
   </data>
   <data name="QueryLogSearch" xml:space="preserve">
     <value>Search SQL or connection</value>
@@ -1029,6 +1053,9 @@
   <data name="ToolRunning" xml:space="preserve">
     <value>Running</value>
   </data>
+  <data name="ToolTargetLabel" xml:space="preserve">
+    <value>On:</value>
+  </data>
   <data name="ToolDestructiveConfirm" xml:space="preserve">
     <value>This action modifies the database and cannot be undone. Continue?</value>
   </data>
@@ -1049,6 +1076,9 @@
   </data>
   <data name="CopiedToClipboard" xml:space="preserve">
     <value>Copied</value>
+  </data>
+  <data name="CellValue" xml:space="preserve">
+    <value>Cell value</value>
   </data>
   <data name="Cut" xml:space="preserve">
     <value>Cut</value>
@@ -1298,6 +1328,18 @@
   </data>
   <data name="Cap_process_Desc" xml:space="preserve">
     <value>Can start external programs on your machine (e.g. docker).</value>
+  </data>
+  <data name="Cap_services_Title" xml:space="preserve">
+    <value>Own services</value>
+  </data>
+  <data name="Cap_services_Desc" xml:space="preserve">
+    <value>Registers the plugin's own services in the app so it can wire them up. It cannot replace or read the app's own services.</value>
+  </data>
+  <data name="Cap_providers_Title" xml:space="preserve">
+    <value>Installed providers</value>
+  </data>
+  <data name="Cap_providers_Desc" xml:space="preserve">
+    <value>Reads which database engines are installed and how to containerise them. Read-only — it cannot change or control your connections.</value>
   </data>
   <data name="StoreConsentApprove" xml:space="preserve">
     <value>Trust and install</value>

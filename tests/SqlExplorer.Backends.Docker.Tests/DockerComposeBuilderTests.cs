@@ -1,11 +1,18 @@
 using System.Collections.Generic;
 using SqlExplorer.Backends.Docker;
+using SqlExplorer.Sdk.Provisioning;
 
 namespace SqlExplorer.Backends.Docker.Tests;
 
+// The builder is purely provider-driven (SE-176): it renders whatever recipes the host hands in, and owns no
+// recipe table itself. These tests therefore feed it local FIXTURE recipes — representative shapes that exercise
+// every render branch (env, command, memlock, host-port override, YAML/shell quoting) — and assert the emitted
+// compose/run text. The recipes' own CONTENT (which env a given engine emits) is tested against the real
+// providers in SqlExplorer.Core.Tests' ProviderContainerRecipeTests, not here.
 public class DockerComposeBuilderTests
 {
-    private static readonly DockerComposeBuilder Builder = new();
+    // Fed the fixture engines (see RecipeFixtures) — the builder ships no recipes of its own (SE-176).
+    private static readonly DockerComposeBuilder Builder = RecipeFixtures.Builder();
 
     private static Dictionary<string, string?> Values(params (string Key, string? Value)[] pairs)
     {
@@ -18,8 +25,10 @@ public class DockerComposeBuilderTests
         return d;
     }
 
+    // ---- render mechanics --------------------------------------------------------------------------
+
     [Fact]
-    public void Postgres_compose_matches_the_expected_shape()
+    public void Compose_matches_the_expected_shape()
     {
         var spec = new ContainerSpec("postgres",
             Values(("port", "5432"), ("username", "postgres"), ("password", "devpassword")),
@@ -31,6 +40,9 @@ public class DockerComposeBuilderTests
             "    image: postgres:16\n" +
             "    container_name: sales-pg-local\n" +
             "    restart: unless-stopped\n" +
+            "    labels:\n" +
+            "      kontena.managed: \"true\"\n" +
+            "      kontena.source: sqlexplorer\n" +
             "    environment:\n" +
             "      POSTGRES_DB: sales\n" +
             "      POSTGRES_USER: postgres\n" +
@@ -46,7 +58,7 @@ public class DockerComposeBuilderTests
     }
 
     [Fact]
-    public void Postgres_run_matches_the_expected_one_liner()
+    public void Run_matches_the_expected_one_liner()
     {
         var spec = new ContainerSpec("postgres",
             Values(("port", "5432"), ("username", "postgres"), ("password", "devpassword")),
@@ -55,6 +67,8 @@ public class DockerComposeBuilderTests
         var expected =
             "docker run -d \\\n" +
             "  --name sales-pg-local \\\n" +
+            "  --label kontena.managed=true \\\n" +
+            "  --label kontena.source=sqlexplorer \\\n" +
             "  -e POSTGRES_DB=sales \\\n" +
             "  -e POSTGRES_USER=postgres \\\n" +
             "  -e POSTGRES_PASSWORD=devpassword \\\n" +
@@ -65,34 +79,8 @@ public class DockerComposeBuilderTests
         Assert.Equal(expected, Builder.Build(spec, SnippetFormat.Run));
     }
 
-    [Fact] // root connection user: only the root password, no MYSQL_USER/MYSQL_PASSWORD.
-    public void MySql_root_user_gets_only_the_root_password()
-    {
-        var spec = new ContainerSpec("mysql",
-            Values(("username", "root"), ("password", "pw")), Database: "app", ContainerName: "c");
-
-        var compose = Builder.Build(spec, SnippetFormat.Compose);
-
-        Assert.Contains("MYSQL_ROOT_PASSWORD: pw", compose);
-        Assert.Contains("MYSQL_DATABASE: app", compose);
-        Assert.DoesNotContain("MYSQL_USER", compose);
-    }
-
-    [Fact] // non-root connection user: root password PLUS the user's own MYSQL_USER/MYSQL_PASSWORD.
-    public void MySql_non_root_user_gets_a_dedicated_user()
-    {
-        var spec = new ContainerSpec("mysql",
-            Values(("username", "appuser"), ("password", "pw")), Database: "app", ContainerName: "c");
-
-        var compose = Builder.Build(spec, SnippetFormat.Compose);
-
-        Assert.Contains("MYSQL_ROOT_PASSWORD: pw", compose);
-        Assert.Contains("MYSQL_USER: appuser", compose);
-        Assert.Contains("MYSQL_PASSWORD: pw", compose);
-    }
-
-    [Fact] // SQL Server: mandatory ACCEPT_EULA (quoted "Y" — bare Y is a YAML bool), no MSSQL_DATABASE.
-    public void SqlServer_requires_quoted_eula_and_has_no_database_env()
+    [Fact] // A YAML 1.1 bool keyword ("Y") and a '!' in a password force quoting; DatabaseAfterStart emits no db env.
+    public void Yaml_keywords_and_special_characters_are_quoted()
     {
         var spec = new ContainerSpec("sqlserver",
             Values(("port", "1433"), ("username", "sa"), ("password", "Str0ng!Passw0rd")),
@@ -103,67 +91,12 @@ public class DockerComposeBuilderTests
         Assert.Contains("ACCEPT_EULA: \"Y\"", compose);
         Assert.Contains("MSSQL_SA_PASSWORD: \"Str0ng!Passw0rd\"", compose); // '!' → quoted
         Assert.Contains("MSSQL_PID: Developer", compose);
-        Assert.Contains("image: mcr.microsoft.com/mssql/server:2022-latest", compose);
+        Assert.Contains("image: mcr.microsoft.com/mssql/server:2025-latest", compose);
         Assert.Contains("- \"1433:1433\"", compose);
-        Assert.DoesNotContain("MSSQL_DATABASE", compose);
-    }
-
-    [Fact] // Elasticsearch keeps its port inside a single `url` key — the builder parses it.
-    public void Elasticsearch_derives_the_host_port_from_the_url()
-    {
-        var custom = new ContainerSpec("elasticsearch",
-            Values(("url", "https://localhost:9243"), ("password", "pw")), ContainerName: "c");
-        Assert.Contains("- \"9243:9200\"", Builder.Build(custom, SnippetFormat.Compose));
-
-        // No explicit port in the url → the engine default 9200.
-        var noPort = new ContainerSpec("elasticsearch",
-            Values(("url", "https://localhost"), ("password", "pw")), ContainerName: "c");
-        Assert.Contains("- \"9200:9200\"", Builder.Build(noPort, SnippetFormat.Compose));
-
-        var es = Builder.Build(custom, SnippetFormat.Compose);
-        Assert.Contains("discovery.type: single-node", es);
-        Assert.Contains("ELASTIC_PASSWORD: pw", es);
     }
 
     [Fact]
-    public void Mongo_enables_auth_only_when_a_username_is_present()
-    {
-        var withAuth = new ContainerSpec("mongodb",
-            Values(("username", "admin"), ("password", "pw")), Database: "shop", ContainerName: "c");
-        var authCompose = Builder.Build(withAuth, SnippetFormat.Compose);
-        Assert.Contains("MONGO_INITDB_ROOT_USERNAME: admin", authCompose);
-        Assert.Contains("MONGO_INITDB_ROOT_PASSWORD: pw", authCompose);
-        Assert.Contains("MONGO_INITDB_DATABASE: shop", authCompose);
-
-        var noAuth = new ContainerSpec("mongodb", Values(("port", "27017")), ContainerName: "c");
-        Assert.DoesNotContain("MONGO_INITDB_ROOT_USERNAME", Builder.Build(noAuth, SnippetFormat.Compose));
-    }
-
-    [Fact] // Redis auth is a server flag (command), present only with a password.
-    public void Redis_requirepass_only_with_a_password()
-    {
-        var withPw = new ContainerSpec("redis", Values(("password", "secret")), ContainerName: "c");
-        Assert.Contains("command: [\"redis-server\", \"--requirepass\", \"secret\"]", Builder.Build(withPw, SnippetFormat.Compose));
-
-        var noPw = new ContainerSpec("redis", Values(("port", "6379")), ContainerName: "c");
-        Assert.DoesNotContain("command:", Builder.Build(noPw, SnippetFormat.Compose));
-    }
-
-    [Fact]
-    public void Dragonfly_sets_the_memlock_ulimit()
-    {
-        var spec = new ContainerSpec("dragonflydb", Values(("password", "pw")), ContainerName: "c");
-        var compose = Builder.Build(spec, SnippetFormat.Compose);
-        Assert.Contains("image: docker.dragonflydb.io/dragonflydb/dragonfly:latest", compose);
-        Assert.Contains("memlock: -1", compose);
-        Assert.Contains("command: [\"--requirepass\", \"pw\"]", compose);
-
-        var run = Builder.Build(spec, SnippetFormat.Run);
-        Assert.Contains("--ulimit memlock=-1", run);
-    }
-
-    [Fact] // Passwords with shell/YAML metacharacters must be quoted in both formats.
-    public void Special_characters_in_a_password_are_quoted()
+    public void Special_characters_in_a_password_are_quoted_in_both_formats()
     {
         var spec = new ContainerSpec("postgres",
             Values(("username", "postgres"), ("password", "p@ss w0rd:!")), ContainerName: "c");
@@ -172,14 +105,113 @@ public class DockerComposeBuilderTests
         Assert.Contains("-e 'POSTGRES_PASSWORD=p@ss w0rd:!'", Builder.Build(spec, SnippetFormat.Run));
     }
 
+    [Fact] // A recipe's command args render into both the compose array and the run tail; absent without one.
+    public void Command_args_render_in_both_formats()
+    {
+        var withPw = new ContainerSpec("redis", Values(("password", "secret")), ContainerName: "c");
+        Assert.Contains("command: [\"redis-server\", \"--requirepass\", \"secret\"]", Builder.Build(withPw, SnippetFormat.Compose));
+        Assert.Contains("redis:7 redis-server --requirepass secret", Builder.Build(withPw, SnippetFormat.Run));
+
+        var noPw = new ContainerSpec("redis", Values(("port", "6379")), ContainerName: "c");
+        Assert.DoesNotContain("command:", Builder.Build(noPw, SnippetFormat.Compose));
+    }
+
+    [Fact]
+    public void Memlock_ulimit_renders_in_both_formats()
+    {
+        var spec = new ContainerSpec("dragonflydb", Values(("password", "pw")), ContainerName: "c");
+
+        var compose = Builder.Build(spec, SnippetFormat.Compose);
+        Assert.Contains("image: docker.dragonflydb.io/dragonflydb/dragonfly:latest", compose);
+        Assert.Contains("memlock: -1", compose);
+        Assert.Contains("command: [\"--requirepass\", \"pw\"]", compose);
+
+        Assert.Contains("--ulimit memlock=-1", Builder.Build(spec, SnippetFormat.Run));
+    }
+
+    [Fact] // A recipe can carry its host port somewhere other than a plain `port` field (Elasticsearch: in the url).
+    public void Host_port_override_is_honoured()
+    {
+        var custom = new ContainerSpec("elasticsearch",
+            Values(("url", "https://localhost:9243"), ("password", "pw")), ContainerName: "c");
+        Assert.Contains("- \"9243:9200\"", Builder.Build(custom, SnippetFormat.Compose));
+
+        // No explicit port in the url → the recipe's default container port.
+        var noPort = new ContainerSpec("elasticsearch",
+            Values(("url", "https://localhost"), ("password", "pw")), ContainerName: "c");
+        Assert.Contains("- \"9200:9200\"", Builder.Build(noPort, SnippetFormat.Compose));
+    }
+
+    [Fact] // SE-184: every generated container carries the Kontena ownership labels, in both formats.
+    public void Both_formats_carry_the_kontena_ownership_labels()
+    {
+        var spec = new ContainerSpec("postgres", Values(("password", "pw")), ContainerName: "c");
+
+        Assert.Contains("    labels:\n      kontena.managed: \"true\"\n      kontena.source: sqlexplorer\n",
+            Builder.Build(spec, SnippetFormat.Compose));
+
+        var run = Builder.Build(spec, SnippetFormat.Run);
+        Assert.Contains("--label kontena.managed=true", run);
+        Assert.Contains("--label kontena.source=sqlexplorer", run);
+    }
+
+    // ---- provider-driven catalog -------------------------------------------------------------------
+
+    [Fact] // A third-party engine that ships a recipe becomes containerisable with no change to the builder.
+    public void A_declared_recipe_makes_a_new_engine_containerisable()
+    {
+        var recipe = new ContainerRecipe("cooldb", "1", 9999, "/var/cool", "root", "changeme",
+            e => [new("COOL_PASS", e.Password)]);
+        var builder = new DockerComposeBuilder([new ProviderRecipe("cooldb", "CoolDB", recipe)]);
+
+        Assert.True(builder.Supports("cooldb"));
+        Assert.Contains("cooldb", builder.SupportedProviderIds);
+
+        var spec = new ContainerSpec("cooldb",
+            Values(("port", "9999"), ("password", "secret")), Tag: "1", ContainerName: "cool-local");
+
+        var expected =
+            "services:\n" +
+            "  db:\n" +
+            "    image: cooldb:1\n" +
+            "    container_name: cool-local\n" +
+            "    restart: unless-stopped\n" +
+            "    labels:\n" +
+            "      kontena.managed: \"true\"\n" +
+            "      kontena.source: sqlexplorer\n" +
+            "    environment:\n" +
+            "      COOL_PASS: secret\n" +
+            "    ports:\n" +
+            "      - \"9999:9999\"\n" +
+            "    volumes:\n" +
+            "      - cool-local-data:/var/cool\n" +
+            "volumes:\n" +
+            "  cool-local-data:\n";
+
+        Assert.Equal(expected, builder.Build(spec, SnippetFormat.Compose));
+    }
+
     [Theory]
     [InlineData("postgres", true)]
     [InlineData("sqlserver", true)]
     [InlineData("elasticsearch", true)]
     [InlineData("sqlite", false)]
     [InlineData("nonsense", false)]
-    public void Supports_reflects_containerisable_engines(string providerId, bool supported) =>
+    public void Supports_reflects_the_declared_recipes(string providerId, bool supported) =>
         Assert.Equal(supported, Builder.Supports(providerId));
+
+    [Fact] // No recipes declared (e.g. the "providers" capability wasn't granted) → nothing is containerisable.
+    public void An_empty_builder_supports_nothing()
+    {
+        var empty = new DockerComposeBuilder();
+
+        Assert.Empty(empty.SupportedProviderIds);
+        Assert.False(empty.Supports("postgres"));
+        Assert.Null(empty.ImageName("postgres"));
+
+        var spec = new ContainerSpec("postgres", Values(("password", "x")), ContainerName: "c");
+        Assert.Throws<NotSupportedException>(() => empty.Build(spec, SnippetFormat.Compose));
+    }
 
     [Fact]
     public void Unsupported_provider_throws()

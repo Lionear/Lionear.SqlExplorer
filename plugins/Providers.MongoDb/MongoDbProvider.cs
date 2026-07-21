@@ -5,6 +5,7 @@ using MongoDB.Bson.IO;
 using MongoDB.Driver;
 using SqlExplorer.Sdk;
 using SqlExplorer.Sdk.Editing;
+using SqlExplorer.Sdk.Provisioning;
 
 namespace SqlExplorer.Providers.MongoDb;
 
@@ -31,6 +32,33 @@ public sealed class MongoDbProvider : IDbProvider
     public ProviderIcon? Icon { get; } = ProviderIconLoader.Load(typeof(MongoDbProvider), "🍃");
 
     public ISqlDialect Dialect { get; } = new MongoDbDialect();
+
+    // How to spin up an empty local MongoDB container matching a connection (SE-166). Auth is only enabled when
+    // the connection actually carries a username; otherwise the container runs open (matching a no-auth local
+    // connection). Lazy `=> new(...)` keeps the ContainerRecipe type untouched until the host reads it.
+    public ContainerRecipe? ContainerRecipe => new(
+        Image: "mongo",
+        DefaultTag: "7",
+        ContainerPort: 27017,
+        DataPath: "/data/db",
+        DefaultUser: "root",
+        DefaultPassword: "changeme",
+        Environment: e =>
+        {
+            var list = new List<KeyValuePair<string, string>>();
+            if (e.Values.TryGetValue("username", out var user) && !string.IsNullOrWhiteSpace(user))
+            {
+                list.Add(new("MONGO_INITDB_ROOT_USERNAME", e.User));
+                list.Add(new("MONGO_INITDB_ROOT_PASSWORD", e.Password));
+            }
+
+            if (e.Database is { Length: > 0 })
+            {
+                list.Add(new("MONGO_INITDB_DATABASE", e.Database));
+            }
+
+            return list;
+        });
 
     // Not a SQL engine: the host suppresses its SQL-scaffold "SQL commands" menu and asks this provider
     // for node-action query text (BuildNodeQuery) and DROP/TRUNCATE statements (BuildAlterStatement).

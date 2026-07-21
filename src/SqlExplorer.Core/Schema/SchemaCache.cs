@@ -1,6 +1,7 @@
 using SqlExplorer.Core.Connections;
 using SqlExplorer.Core.Providers;
 using SqlExplorer.Sdk;
+using SqlExplorer.Sdk.Extensibility;
 
 namespace SqlExplorer.Core.Schema;
 
@@ -28,7 +29,8 @@ public interface ISchemaCache
 /// sidebar uses — so it needs no SDK/host-API change and works for every provider shape. It descends
 /// only through container nodes and stops at each table/view, reading that relation's Column children.
 /// </summary>
-public sealed class SchemaCache(IDbProviderRegistry providers, ConnectionService connections) : ISchemaCache
+public sealed class SchemaCache(IDbProviderRegistry providers, ConnectionService connections)
+    : ISchemaCache, ISingletonService
 {
     // Safety valve: cap total relations so a pathologically large server can't make the walk run away.
     private const int MaxObjects = 5000;
@@ -117,13 +119,18 @@ public sealed class SchemaCache(IDbProviderRegistry providers, ConnectionService
 
             if (child.Kind is DbNodeKind.Table or DbNodeKind.View)
             {
+                var (columns, foreignKeys) = child.HasChildren
+                    ? await RelationDetailsAsync(provider, profile, path, ct)
+                    : ([], []);
+
                 sink.Add(new SchemaObject
                 {
                     Kind = child.Kind,
                     Database = DbNameOf(ancestors),
                     Schema = SchemaNameOf(ancestors),
                     Name = child.Name,
-                    Columns = child.HasChildren ? await ColumnsAsync(provider, profile, path, ct) : []
+                    Columns = columns,
+                    ForeignKeys = foreignKeys
                 });
 
                 if (sink.Count >= MaxObjects)
@@ -138,31 +145,106 @@ public sealed class SchemaCache(IDbProviderRegistry providers, ConnectionService
         }
     }
 
-    private static async Task<IReadOnlyList<SchemaColumn>> ColumnsAsync(
-        IDbProvider provider, ConnectionProfile profile, IReadOnlyList<DbNodeRef> tablePath, CancellationToken ct)
+    // A relation's columns and outgoing foreign keys, read from one fetch of its child nodes. Providers group
+    // columns under a "Columns" folder and FKs under a "Foreign Keys" folder (each a separate round-trip to
+    // expand), alongside Indexes/etc.; views expose columns directly and have no FKs. Best-effort throughout —
+    // a partial result beats none.
+    private static async Task<(IReadOnlyList<SchemaColumn> Columns, IReadOnlyList<SchemaForeignKey> ForeignKeys)>
+        RelationDetailsAsync(IDbProvider provider, ConnectionProfile profile, IReadOnlyList<DbNodeRef> tablePath, CancellationToken ct)
     {
         IReadOnlyList<DbTreeNode> children;
         try
         {
             children = await provider.GetChildNodesAsync(profile, tablePath, ct);
+        }
+        catch
+        {
+            return ([], []);
+        }
 
-            // Providers group a table's columns under a "Columns" folder (alongside Indexes/Foreign Keys);
-            // descend into it. Views still expose their columns directly, so handle both layouts.
-            if (children.FirstOrDefault(n => n.Kind == DbNodeKind.ColumnFolder) is { } folder)
+        var columns = await ColumnsAsync(provider, profile, tablePath, children, ct);
+        var foreignKeys = await ForeignKeysAsync(provider, profile, tablePath, children, ct);
+        return (columns, foreignKeys);
+    }
+
+    private static async Task<IReadOnlyList<SchemaColumn>> ColumnsAsync(
+        IDbProvider provider, ConnectionProfile profile, IReadOnlyList<DbNodeRef> tablePath,
+        IReadOnlyList<DbTreeNode> tableChildren, CancellationToken ct)
+    {
+        var children = tableChildren;
+        // A table groups its columns under a "Columns" folder; a view exposes them directly.
+        if (tableChildren.FirstOrDefault(n => n.Kind == DbNodeKind.ColumnFolder) is { } folder)
+        {
+            try
             {
                 var folderPath = new List<DbNodeRef>(tablePath) { new(folder.Kind, folder.Name) };
                 children = await provider.GetChildNodesAsync(profile, folderPath, ct);
             }
-        }
-        catch
-        {
-            return [];
+            catch
+            {
+                return [];
+            }
         }
 
         return children
             .Where(node => node.Kind == DbNodeKind.Column)
             .Select(node => new SchemaColumn(node.Name, node.Detail))
             .ToList();
+    }
+
+    private static async Task<IReadOnlyList<SchemaForeignKey>> ForeignKeysAsync(
+        IDbProvider provider, ConnectionProfile profile, IReadOnlyList<DbNodeRef> tablePath,
+        IReadOnlyList<DbTreeNode> tableChildren, CancellationToken ct)
+    {
+        if (tableChildren.FirstOrDefault(n => n.Kind == DbNodeKind.ForeignKeyFolder) is not { } folder)
+        {
+            return [];
+        }
+
+        IReadOnlyList<DbTreeNode> fkNodes;
+        try
+        {
+            var folderPath = new List<DbNodeRef>(tablePath) { new(folder.Kind, folder.Name) };
+            fkNodes = await provider.GetChildNodesAsync(profile, folderPath, ct);
+        }
+        catch
+        {
+            return [];
+        }
+
+        return fkNodes
+            .Where(node => node.Kind == DbNodeKind.ForeignKey)
+            .Select(node => ParseForeignKey(node.Detail))
+            .Where(fk => fk is not null)
+            .Select(fk => fk!)
+            .ToList();
+    }
+
+    // Providers describe an FK node uniformly as "column → refTable.refColumn" (see each provider's FK loader).
+    // Parse that shared shape back into structured data for JOIN-condition hints; null when it doesn't match
+    // (a composite/rendered form we don't recognise), so an odd entry is skipped rather than mis-suggested.
+    public static SchemaForeignKey? ParseForeignKey(string? detail)
+    {
+        if (string.IsNullOrWhiteSpace(detail))
+        {
+            return null;
+        }
+
+        var arrow = detail.IndexOf('→');
+        if (arrow < 0)
+        {
+            return null;
+        }
+
+        var column = detail[..arrow].Trim();
+        var target = detail[(arrow + 1)..].Trim();
+        var dot = target.LastIndexOf('.');
+        if (column.Length == 0 || dot <= 0 || dot >= target.Length - 1)
+        {
+            return null;
+        }
+
+        return new SchemaForeignKey(column, target[..dot].Trim(), target[(dot + 1)..].Trim());
     }
 
     private static string? DbNameOf(IReadOnlyList<DbNodeRef> path) =>

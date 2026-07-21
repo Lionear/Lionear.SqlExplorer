@@ -69,7 +69,7 @@ public partial class App : Application
         // (below), so MainView subscribes these panels' windows along with Output/History in one pass.
         foreach (var panel in subsystems.Panels)
         {
-            viewModel.AddSubsystemPanel(panel.PanelId, panel.Title, panel.CreatePanel(hostUi));
+            viewModel.AddSubsystemPanel(panel.PanelId, panel.Title, panel.CreatePanel(hostUi), panel.Icon);
         }
 
         // First-party "AI activity" panel (SE-159): a bottom tool-window fed by the MCP audit ring, mounted
@@ -82,7 +82,22 @@ public partial class App : Application
                 services.GetRequiredService<Core.Connections.ConnectionService>(),
                 loc0)
         };
-        viewModel.AddSubsystemPanel("AiActivity", loc0["AiActivity"], aiActivity);
+        var aiActivityPanel = viewModel.AddSubsystemPanel("AiActivity", loc0["AiActivity"], aiActivity, ViewModels.NodeIcons.AiActivity);
+
+        // Only offer the AI-activity toggle while the MCP server is actually running (SE-183) — an empty panel
+        // for a stopped server is just clutter. React live to start/stop; hide the panel if it was open.
+        var mcpService = services.GetRequiredService<Mcp.Hosting.McpService>();
+        void SyncAiActivityAvailability()
+        {
+            aiActivityPanel.IsAvailable = mcpService.IsRunning;
+            if (!mcpService.IsRunning)
+            {
+                aiActivityPanel.IsVisible = false;
+            }
+        }
+
+        SyncAiActivityAvailability();
+        mcpService.StateChanged += () => Avalonia.Threading.Dispatcher.UIThread.Post(SyncAiActivityAvailability);
 
         // Mount any Tools-menu contributions (SE-164 menu seam).
         foreach (var menuPlugin in subsystems.Menus)

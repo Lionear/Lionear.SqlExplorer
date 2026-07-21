@@ -97,6 +97,13 @@ public sealed class AppSettings
     /// available from the tray menu and File &gt; Exit. Off by default.</summary>
     public bool CloseToTray { get; set; }
 
+    /// <summary>When on, launching the app again opens a second, fully independent window instead of
+    /// surfacing the running instance (the single-instance default). Read straight from disk at startup,
+    /// before Avalonia/DI, so it gates whether the single-instance probe runs at all (SE-124). Off by
+    /// default. Note: plugin install/enable/remove is staged in a shared JSON store, so concurrent instances
+    /// mutating plugins is last-writer-wins.</summary>
+    public bool AllowMultipleInstances { get; set; }
+
     /// <summary>Global query timeout in seconds for app-run queries; 0 = no limit. Applied by cancelling the
     /// run's token after the interval (same mechanism as the Stop button). MCP has its own timeout.</summary>
     public int QueryTimeoutSeconds { get; set; }
@@ -104,6 +111,14 @@ public sealed class AppSettings
     /// <summary>Rows fetched per page when browsing a table/collection/index (the "Browse table" grid).
     /// Applied to newly opened browse tabs. Default 200.</summary>
     public int BrowsePageSize { get; set; } = 200;
+
+    /// <summary>Show an ad-hoc query's results one page at a time (DataGrip/DBeaver-style next/prev) when it's a
+    /// single unbounded SELECT, so "SELECT * FROM big_table" doesn't pull everything at once (SE-178). Default on.</summary>
+    public bool PageQueryResults { get; set; } = true;
+
+    /// <summary>Rows per page when <see cref="PageQueryResults"/> is on. Default 200, matching
+    /// <see cref="BrowsePageSize"/>.</summary>
+    public int QueryPageSize { get; set; } = 200;
 
     // ── Master password (optional app-level encryption of connection secrets) ────────────────────────
     // All three below are NON-secret: they enable the feature and let the app verify a typed password.

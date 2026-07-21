@@ -9,7 +9,101 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 
 ## [Unreleased]
 
-_Nothing yet._
+### Fixed
+
+- **Editing a connection no longer wipes its fields** — changing a connection's AI access, read-only or
+  other settings could reset host / port / database / username to the provider defaults and drop the saved
+  password. Editing now preserves the stored values, and setting AI access from the tree no longer
+  round-trips (and so can't clear) the password.
+- **Startup restores the tab you left on** — with "Restore tabs on startup", the previously *selected* tab is
+  now reselected instead of always landing on the last one in the row.
+- Small UI polish: the results **Export** action now reads as a button (not a text link); and the **AI activity**
+  panel's toggle only appears while the MCP server is running (it live-appears/disappears as you start/stop the
+  server).
+- **Plugin Store "Update All" now clears its badges** — updating every plugin at once staged the updates
+  correctly but the rows kept showing "update available" as if nothing happened; they now show as staged
+  (restart required), matching the per-plugin Update button.
+- **Staged plugin updates apply more reliably on restart** — a blocked rollback-backup folder could leave the
+  old plugin version in place across every restart. The swap now falls back to replacing the current copy so
+  the update still applies, and a swap that genuinely can't complete is logged instead of failing silently.
+- **"What's new" notes no longer overflow the window** — long release notes in the app- and plugin-update
+  changelog dialogs wrapped off the right edge and ran past the bottom; the text now wraps to the window width
+  and scrolls vertically.
+- The plugin-update notification now uses the Lucide icon set (a crisp refresh / download glyph) instead of a
+  Unicode symbol that could render as a missing-glyph box on some systems.
+
+### Added
+
+- **Allow multiple instances** (Settings → General) — off by default, launching the app again brings the running
+  window to the front (the single-instance behaviour). Turn it on to let each launch open its own independent
+  window — handy for keeping two databases, or dev and prod, side by side. Takes effect on the next launch.
+- **Script table data as INSERT** — right-click a table → *SQL commands ▸ INSERT (with data)* to generate real
+  `INSERT` statements from the table's rows (Top 100, Top 1000, or all rows) into a new query tab, ready to run on
+  another connection. Unlike the existing INSERT scaffold (which uses `:name` placeholders), this writes the actual
+  values — dialect-correct for booleans, binary and dates — and never auto-runs.
+- **Schema Diff tool** — a new first-party tool compares this database against a second one you pick — another
+  connection and one of its databases — and generates the migration (an ALTER script that would make this one
+  match the other), opening it in a new query tab on this connection/database so you review and run it in the
+  normal editor. It diffs tables, columns (type / nullability / default), primary keys, unique constraints and
+  foreign keys, and produces dialect-correct DDL for Postgres, MySQL and SQL Server. Reads via
+  `information_schema`, so the picker offers same-provider connections only; SQLite and cross-engine diffs are
+  not covered yet. Built on new plugin-SDK seams — `ToolFieldType.ConnectionPicker` and `DatabasePicker` plus
+  `IToolHost.ListConnections()` / `ListDatabasesAsync()` / `OpenConnection()` / `OpenQueryEditor()` — so any
+  tool can take a second connection and database and hand generated SQL to a query tab. Installs from the
+  Plugin Store (not bundled with the app).
+- **Icons in SQL completion** — each suggestion in the code-completion popup now carries an icon for its kind
+  (table, column, function, foreign-key join condition, keyword), reusing the shared Lucide glyphs from the
+  schema tree so a table reads the same in both places. The type / signature / join-condition detail alongside
+  each item is unchanged.
+- **Containers are tagged for Kontena** — containers created by the Local Containers plugin now carry
+  `kontena.managed=true` / `kontena.source=sqlexplorer` labels (in both the compose file and the `docker run`
+  snippet), so the Kontena desktop app can recognise them as SQL-Explorer-managed and leave them alone.
+- **Query Log shows why it's empty** — when logging is off (or only one source is enabled), the Query Log
+  window now shows a banner explaining it, instead of just an empty list.
+- **Paged query results** — running a single `SELECT` with no `TOP`/`LIMIT` of its own now shows the results one
+  page at a time with Previous/Next (DataGrip/DBeaver-style, default 200 rows/page), so a stray
+  `SELECT * FROM big_table` doesn't pull the whole table at once; the row-range indicator shows which rows
+  you're viewing. Queries with their own `TOP`/`LIMIT`, other statement types and multi-statement scripts run
+  unchanged. Toggle and page size live under Settings → Query.
+- **Scope-aware SQL completion** — code completion now understands query structure instead of scanning for
+  `FROM`/`JOIN` with a regex. It resolves aliases through CTEs (`WITH x AS (…)`) and derived tables
+  (`(SELECT …) d`), suggests the columns of the sources actually in scope, offers CTE names alongside real
+  tables after `FROM`/`JOIN`, and never suggests from another statement in the editor. Expression positions
+  (SELECT list, WHERE, …) now also suggest the engine's **built-in functions** with their signature —
+  Postgres, MySQL, SQL Server and SQLite each ship their own catalogue (plugins declare theirs via the new
+  `ISqlDialect.Functions`). And right after `JOIN … ON`, it offers the **foreign-key join condition** between
+  the tables in scope (e.g. `o.user_id = u.id`) as the top suggestion.
+- **Service auto-registration for plugins and the host** (plugin SDK) — classes can opt into dependency
+  injection by implementing a lifetime marker (`ISingletonService` / `ITransientService` / `IScopedService`)
+  instead of being wired up by hand. Extensions that declare the new `services` capability get their own
+  services registered and resolvable via `IPluginRuntimeContext.Services`, scoped so a plugin can add
+  services but never replace or read the app's. Plugin host API is now **v4**; extensions built for earlier
+  versions keep loading.
+- **Panel plugins can supply a toggle icon** (plugin SDK) — `IPanelPlugin.Icon` lets an extension's docked
+  panel show its own glyph on the bottom bar instead of the generic default. The Local Containers panel now
+  uses a container icon.
+- **Provider-declared container recipes** (plugin SDK) — a database provider can declare how to spin up an
+  empty local container matching its engine (`IDbProvider.ContainerRecipe`: image, port, data path, and the
+  environment/command that carry credentials). The Local Containers plugin reads every installed provider's
+  recipe through a new read-only `providers` capability, so a third-party engine becomes containerisable with
+  no change to the host. Every first-party engine now ships its own recipe, so the plugin is purely
+  provider-driven: the recipe travels with the engine and is the single source of truth.
+
+### Changed
+
+- **Double-click a result cell to open its value in a window** — long text and JSON are shown pretty-printed in
+  a standalone, resizable window you can copy from, and several can be open side by side. This replaces the
+  always-on strips below the grid (the click-to-view cell value and the selection count/sum/avg summary), which
+  are gone.
+- The connection tree's **AI access** submenu now marks the active level (None / Read-only / Read-write)
+  with a check, so the current setting is visible at a glance instead of having to remember it.
+- **Refreshed icon set** — the schema tree, tabs, toolbars and Settings now use a consistent
+  [Lucide](https://lucide.dev)-based line-icon set, drawn as crisp vectors that tint with the theme (no
+  icon font, no bundled raster assets). The AI-activity panel gets its own icon.
+- **New local SQL Server containers use the 2025 image** — the Local Containers "create" flow now defaults
+  to `mcr.microsoft.com/mssql/server:2025-latest` (was 2022). Every first-party provider (PostgreSQL, MySQL,
+  SQL Server, MongoDB, Redis, DragonflyDB, Elasticsearch) now declares its own container recipe, so the
+  recipe travels with the engine instead of being hardcoded in the Local Containers plugin.
 
 ## [0.3.0] - 2026-07-19
 

@@ -1,4 +1,5 @@
 using SqlExplorer.Sdk.Localization;
+using SqlExplorer.Sdk.Provisioning;
 
 namespace SqlExplorer.Sdk.Extensibility;
 
@@ -21,6 +22,20 @@ public interface IPluginRuntimeContext
     /// <summary>Create/list/remove host-managed connections tagged with this plugin as origin; <c>null</c>
     /// without the <see cref="PluginCapabilities.Connections"/> capability.</summary>
     IManagedConnections? Connections { get; }
+
+    /// <summary>
+    /// Resolves the plugin's own services — the ones it opted into with a lifetime marker
+    /// (<see cref="ISingletonService"/> and friends), auto-registered into the host container. Scoped to
+    /// exactly those types: resolving anything else returns <c>null</c>, so the plugin cannot reach into the
+    /// host container at large. <c>null</c> without the <see cref="PluginCapabilities.Services"/> capability.
+    /// Typed as the BCL <see cref="System.IServiceProvider"/> so no DI package leaks into the SDK.
+    /// </summary>
+    IServiceProvider? Services { get; }
+
+    /// <summary>Read-only catalog of installed providers that can be containerised (their
+    /// <see cref="IProviderCatalog.ContainerRecipes"/>); <c>null</c> without the
+    /// <see cref="PluginCapabilities.Providers"/> capability.</summary>
+    IProviderCatalog? Providers { get; }
 
     /// <summary>Localisation backed by the plugin's embedded <c>Lang/strings*.json</c> (as tools get).</summary>
     IPluginLocalizer Localizer { get; }

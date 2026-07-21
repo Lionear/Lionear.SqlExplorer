@@ -80,6 +80,12 @@
                           Condition="'$(Configuration)' == 'Debug'">
         <PluginId>redis</PluginId>
       </ProviderPluginFile>
+      <!-- Cross-connection schema-diff tool (SE-99): store-only, Debug-staged for development but not
+           bundled in Release — installed from the Plugin Store like the other plugins/ tools. -->
+      <ProviderPluginFile Include="$(MSBuildThisFileDirectory)..\..\plugins\Tools.SchemaDiff\bin\$(Configuration)\$(TargetFramework)\**\*"
+                          Condition="'$(Configuration)' == 'Debug'">
+        <PluginId>schema-diff</PluginId>
+      </ProviderPluginFile>
       <ProviderPluginFile Include="$(MSBuildThisFileDirectory)..\..\plugins\Tools.UniversalBackup\bin\$(Configuration)\$(TargetFramework)\**\*"
                           Condition="'$(Configuration)' == 'Debug'">
         <PluginId>universal-backup</PluginId>

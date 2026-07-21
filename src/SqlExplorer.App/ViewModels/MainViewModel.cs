@@ -24,6 +24,7 @@ using SqlExplorer.Core.Shortcuts;
 using SqlExplorer.Core.Tools;
 using SqlExplorer.Sdk;
 using SqlExplorer.Sdk.Localization;
+using SqlExplorer.Sdk.Scripting;
 using SqlExplorer.Sdk.Tools;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
@@ -175,6 +176,7 @@ public partial class MainViewModel : ViewModelBase
             return;
         }
 
+        DocumentViewModel? active = null;
         foreach (var tab in _openTabsStore.Load())
         {
             if (_connections.List().FirstOrDefault(c => c.Id == tab.ConnectionId) is not { } connection)
@@ -189,6 +191,17 @@ public partial class MainViewModel : ViewModelBase
             // save it on exit. Genuine edits after restore re-dirty the tab as usual.
             document.LoadContent(tab.Sql, tab.FilePath);
             AddDocument(document);
+            if (tab.IsActive)
+            {
+                active = document;
+            }
+        }
+
+        // Reselect the tab that was active at close (SE-179); AddDocument otherwise leaves the last one
+        // selected. Falls back to that when the remembered tab is gone (its connection was deleted).
+        if (active is not null)
+        {
+            SelectedDocument = active;
         }
     }
 
@@ -196,7 +209,7 @@ public partial class MainViewModel : ViewModelBase
     public void PersistOpenTabs() =>
         _openTabsStore.Save(Documents
             .Where(d => d is { IsQueryMode: true, Connection: not null })
-            .Select(d => new OpenTabState(d.Connection!.Id, d.SelectedDatabase, d.Sql, d.FilePath))
+            .Select(d => new OpenTabState(d.Connection!.Id, d.SelectedDatabase, d.Sql, d.FilePath, ReferenceEquals(d, SelectedDocument)))
             .ToList());
 
     /// <summary>True when the Plugin Store has staged changes that need a restart — shows a main-window banner.</summary>
@@ -238,15 +251,17 @@ public partial class MainViewModel : ViewModelBase
     public ObservableCollection<SubsystemPanel> SubsystemPanels { get; } = [];
 
     /// <summary>Mount a plugin panel: a Bottom-docked tool-window (toggle in the status bar, hidden until the
-    /// user opens it) plus its control. Called during App startup, before the view subscribes its windows.</summary>
-    public void AddSubsystemPanel(string id, string title, Control content)
+    /// user opens it) plus its control. Called during App startup, before the view subscribes its windows.
+    /// Returns the created <see cref="ToolWindow"/> so the caller can gate its availability (SE-183).</summary>
+    public ToolWindow AddSubsystemPanel(string id, string title, Control content, Geometry? icon = null)
     {
-        var window = new ToolWindow(id, ToolWindowEdge.Bottom, title, NodeIcons.Object, 200)
+        var window = new ToolWindow(id, ToolWindowEdge.Bottom, title, icon ?? NodeIcons.Object, 200)
         {
             IsVisible = false
         };
         ToolWindows.Add(window);
         SubsystemPanels.Add(new SubsystemPanel(window, content));
+        return window;
     }
 
     /// <summary>Plugin-contributed Tools-menu items (SE-164 <c>menu</c> seam), appended to the Tools menu by
@@ -936,7 +951,18 @@ public partial class MainViewModel : ViewModelBase
 
         var dialog = _toolDialogFactory();
         dialog.Configure(tool, profile, nodeRef, provider, connection.ProviderId);
+        // Let a tool hand generated SQL to a query tab on the launched connection/database (SchemaDiff).
+        dialog.OpenQueryRequested = sql => OpenQueryWithContent(connection, node.DatabaseName, sql);
         await ToolDialogRequested(dialog);
+    }
+
+    // Open a new query tab on a connection/database pre-filled with SQL (no file backing).
+    private void OpenQueryWithContent(SavedConnection connection, string? database, string sql)
+    {
+        var document = NewDocument();
+        document.InitQuery(connection, database);
+        document.LoadContent(sql, null);
+        AddDocument(document);
     }
 
     /// <summary>Set by the view so the VM can show the generic tool dialog.</summary>
@@ -1356,15 +1382,14 @@ public partial class MainViewModel : ViewModelBase
             return;
         }
 
-        var values = _connections.GetEditableValues(c);
-        var saved = _connections.Save(
-            c.Id, c.Name, c.ProviderId, values, c.Color, c.ReadOnly, c.Folder, mode, c.ExcludeFromMcp, c.Origin);
+        // Metadata-only update: never round-trips the field values/secrets, so it can't wipe them (SE-174).
+        var saved = _connections.SetAiAccess(c, mode, c.ExcludeFromMcp);
 
-        // A user connection (no Origin) isn't refreshed by OnConnectionSavedExternally, so rebuild its node
-        // here; an Origin-tagged one refreshes off the Saved event.
+        // Update the node in place. Rebuilding it (UpsertConnectionNode) would append it to the bottom of the
+        // list and drop its expanded/connected state (SE-173); an Origin-tagged one refreshes off the Saved event.
         if (saved.Origin is null)
         {
-            UpsertConnectionNode(saved);
+            node.UpdateConnection(saved);
         }
     }
 
@@ -1379,13 +1404,11 @@ public partial class MainViewModel : ViewModelBase
         }
 
         var c = node.Connection;
-        var values = _connections.GetEditableValues(c);
-        var saved = _connections.Save(
-            c.Id, c.Name, c.ProviderId, values, c.Color, c.ReadOnly, c.Folder, c.AiAccess, !c.ExcludeFromMcp, c.Origin);
+        var saved = _connections.SetAiAccess(c, c.AiAccess, !c.ExcludeFromMcp);
 
         if (saved.Origin is null)
         {
-            UpsertConnectionNode(saved);
+            node.UpdateConnection(saved);
         }
     }
 
@@ -2391,6 +2414,47 @@ public partial class MainViewModel : ViewModelBase
             {
                 await document.RunCommand.ExecuteAsync(null);
             }
+        }
+        catch (Exception ex)
+        {
+            ReportError(SelectedConnection?.Name, ex.Message);
+        }
+    }
+
+    // Script the table's actual rows as INSERT statements. Unlike the INSERT scaffold (placeholders), this
+    // reads real data, so it opens a tab and never auto-runs. countParam: "100"/"1000" for a top-N page,
+    // anything else (e.g. "all") scripts every row.
+    [RelayCommand]
+    private async Task ScriptInsertDataAsync(string? countParam)
+    {
+        if (SelectedNode is not { IsTableOrView: true } node)
+        {
+            return;
+        }
+
+        var connection = node.Connection;
+        var provider = _providers.Get(connection.ProviderId);
+        var dialect = provider.Dialect;
+        var qualified = dialect.QualifyName(node.DatabaseName, node.SchemaName, node.Name);
+        int? limit = int.TryParse(countParam, out var n) ? n : null;
+
+        try
+        {
+            var profile = _connections.Resolve(connection, node.DatabaseName);
+            var select = $"SELECT * FROM {qualified}";
+            var query = limit is { } lim ? dialect.Paginate(select, lim, 0) : $"{select};";
+            var result = await provider.ExecuteQueryAsync(profile, query, CancellationToken.None);
+
+            var literalDialect = SqlValueLiteral.DialectFor(connection.ProviderId);
+            var script = InsertScripter.Build(qualified, result.Columns, result.Rows, dialect, literalDialect);
+            var header = limit is { } l
+                ? $"-- Data as INSERT for {qualified} — top {l} rows ({result.Rows.Count} scripted)\n\n"
+                : $"-- Data as INSERT for {qualified} — {result.Rows.Count} rows\n\n";
+
+            var document = NewDocument();
+            document.InitQuery(connection, null);
+            document.Sql = header + script;
+            AddDocument(document);
         }
         catch (Exception ex)
         {

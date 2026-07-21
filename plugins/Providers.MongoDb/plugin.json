@@ -3,7 +3,7 @@
   "id": "mongodb",
   "type": "provider",
   "name": "MongoDB",
-  "version": "1.1.0",
-  "hostApiVersion": 25,
+  "version": "1.2.0",
+  "hostApiVersion": 27,
   "entryAssembly": "SqlExplorer.Providers.MongoDb.dll"
 }

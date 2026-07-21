@@ -50,7 +50,7 @@ public class ContainerServiceTests
         cli ??= new FakeCli();
         var reg = new FakeRegistry();
         var dir = Path.Combine(Path.GetTempPath(), "se113-" + Guid.NewGuid().ToString("N"));
-        var svc = new ContainerService(new DockerComposeBuilder(), cli, reg, containersDir: dir,
+        var svc = new ContainerService(RecipeFixtures.Builder(), cli, reg, containersDir: dir,
             pollInterval: TimeSpan.FromMilliseconds(1), readyTimeout: timeout ?? TimeSpan.FromSeconds(5));
         return (svc, cli, reg, dir);
     }
