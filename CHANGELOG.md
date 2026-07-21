@@ -20,6 +20,15 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 - Small UI polish: the results **Export** action now reads as a button (not a text link); and the **AI activity**
   panel's toggle only appears while the MCP server is running (it live-appears/disappears as you start/stop the
   server).
+- **Plugin Store "Update All" now clears its badges** — updating every plugin at once staged the updates
+  correctly but the rows kept showing "update available" as if nothing happened; they now show as staged
+  (restart required), matching the per-plugin Update button.
+- **Staged plugin updates apply more reliably on restart** — a blocked rollback-backup folder could leave the
+  old plugin version in place across every restart. The swap now falls back to replacing the current copy so
+  the update still applies, and a swap that genuinely can't complete is logged instead of failing silently.
+- **"What's new" notes no longer overflow the window** — long release notes in the app- and plugin-update
+  changelog dialogs wrapped off the right edge and ran past the bottom; the text now wraps to the window width
+  and scrolls vertically.
 
 ### Added
 

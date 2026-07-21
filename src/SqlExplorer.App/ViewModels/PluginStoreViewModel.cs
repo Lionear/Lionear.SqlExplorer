@@ -671,9 +671,27 @@ public sealed partial class PluginStoreViewModel : ViewModelBase
         try
         {
             var outcomes = await _updates.UpdateAllAsync(updates, _progress, CancellationToken.None);
+
+            // Mark each staged row done in place (mirrors the single-plugin UpdateAsync). Do NOT rebuild
+            // the installed list here: the installs are only *staged*, so _installed.Installed still
+            // reports the pre-swap versions and a re-detect would re-flag every update as still available
+            // (the badges would reappear as if nothing happened). The folder swap runs on restart; until
+            // then the row shows "staged, restart required" with its update badge cleared.
+            foreach (var outcome in outcomes.Where(o => o.Success))
+            {
+                if (UpdatablePlugins.FirstOrDefault(r => r.Id == outcome.PluginId) is { } row)
+                {
+                    row.UpdateAvailable = false;
+                    row.Pending = PluginPendingAction.Install;
+                }
+            }
+
             if (outcomes.Any(o => o.Success))
             {
                 RestartRequired = true;
+                OnPropertyChanged(nameof(HasUpdates));
+                OnPropertyChanged(nameof(UpdateCount));
+                OnPropertyChanged(nameof(UpdateAllLabel));
             }
 
             var failed = outcomes.Where(o => !o.Success).ToList();
@@ -686,8 +704,6 @@ public sealed partial class PluginStoreViewModel : ViewModelBase
         {
             IsBusy = false;
         }
-
-        BuildInstalled(_lastCatalog);
     }
 
     // Opens the changelog dialog for a single updatable row (SE-138 phase 2): its target version's notes.

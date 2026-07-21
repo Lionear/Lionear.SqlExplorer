@@ -19,7 +19,12 @@ public static class PluginMaintenance
     private const string NextSuffix = ".next";
     private const string PrevSuffix = ".prev";
 
-    public static void ApplyPending(IPluginStateStore stateStore, string userRoot)
+    /// <summary>
+    /// Runs the staged install/remove work. Returns the ids whose staged <c>&lt;id&gt;.next</c> could not be
+    /// promoted (still-locked files, an undeletable slot) so the caller can surface/log them — the update
+    /// stays staged and is retried next startup. An empty list means everything applied.
+    /// </summary>
+    public static IReadOnlyList<string> ApplyPending(IPluginStateStore stateStore, string userRoot)
     {
         // 1. Removals first, so a removed id's staged .next is gone before the swap scan runs.
         foreach (var (id, entry) in stateStore.GetAll())
@@ -34,7 +39,7 @@ public static class PluginMaintenance
         }
 
         // 2. Promote staged replacements: <id>.next -> <id>, keeping the old <id> as <id>.prev.
-        PromoteStaged(userRoot);
+        var failed = PromoteStaged(userRoot);
 
         // 3. Clear the "restart needed" markers left by a fresh install.
         foreach (var (id, entry) in stateStore.GetAll())
@@ -44,14 +49,18 @@ public static class PluginMaintenance
                 stateStore.Save(id, entry with { Pending = PluginPendingAction.None });
             }
         }
+
+        return failed;
     }
 
-    private static void PromoteStaged(string userRoot)
+    private static IReadOnlyList<string> PromoteStaged(string userRoot)
     {
         if (!Directory.Exists(userRoot))
         {
-            return;
+            return [];
         }
+
+        var failed = new List<string>();
 
         foreach (var nextDir in Directory.EnumerateDirectories(userRoot))
         {
@@ -61,15 +70,26 @@ public static class PluginMaintenance
                 continue;
             }
 
-            var target = Path.Combine(userRoot, name[..^NextSuffix.Length]);
+            var id = name[..^NextSuffix.Length];
+            var target = Path.Combine(userRoot, id);
             var prev = target + PrevSuffix;
 
             try
             {
-                TryDelete(prev);
                 if (Directory.Exists(target))
                 {
-                    Directory.Move(target, prev);
+                    // Free the target slot. Preferably demote the current copy to a single .prev backup —
+                    // but a stuck backup (an undeletable old .prev, or a demote that fails) must never
+                    // block the update forever: fall back to deleting the current copy so the staged
+                    // version can still take its place. We lose only the rollback backup, not the update.
+                    if (!TryDelete(prev) || !TryMove(target, prev))
+                    {
+                        if (!TryDelete(target))
+                        {
+                            failed.Add(id);
+                            continue;   // slot still occupied; leave .next staged and retry next startup.
+                        }
+                    }
                 }
 
                 Directory.Move(nextDir, target);
@@ -78,11 +98,27 @@ public static class PluginMaintenance
             {
                 // Leave the staged folder in place; the plugin keeps running its current version and the
                 // swap is retried next startup rather than half-applied.
+                failed.Add(id);
             }
+        }
+
+        return failed;
+    }
+
+    private static bool TryMove(string from, string to)
+    {
+        try
+        {
+            Directory.Move(from, to);
+            return true;
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            return false;
         }
     }
 
-    private static void TryDelete(string dir)
+    private static bool TryDelete(string dir)
     {
         try
         {
@@ -90,11 +126,14 @@ public static class PluginMaintenance
             {
                 Directory.Delete(dir, recursive: true);
             }
+
+            return true;
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
             // Left on disk; the state entry is still dropped so it won't load, and the next
             // install/remove will overwrite it. Don't let a locked file block startup.
+            return false;
         }
     }
 }

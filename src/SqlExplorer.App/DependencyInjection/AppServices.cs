@@ -50,7 +50,15 @@ public static class AppServices
         // and the writable per-user folder the Plugin Store installs into (user wins on id conflict).
         // Apply any install/remove the Store staged last run *before* loading, then discover both roots.
         var stateStore = new JsonPluginStateStore();
-        PluginMaintenance.ApplyPending(stateStore, PluginPaths.UserRoot);
+        var swapFailures = PluginMaintenance.ApplyPending(stateStore, PluginPaths.UserRoot);
+        if (swapFailures.Count > 0)
+        {
+            // A staged update whose folder swap couldn't complete keeps running the old version and is
+            // retried next startup. Surface it so "I updated but the old plugin is still here" is
+            // diagnosable instead of silent.
+            System.Diagnostics.Trace.TraceWarning(
+                $"Plugin update swap could not be applied for: {string.Join(", ", swapFailures)} — kept the current version, will retry next startup.");
+        }
 
         var discovered = PluginDiscovery.Discover(PluginPaths.BundledRoot, PluginPaths.UserRoot);
         var state = stateStore.GetAll();
