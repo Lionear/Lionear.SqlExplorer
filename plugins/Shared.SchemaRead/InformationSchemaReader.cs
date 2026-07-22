@@ -264,12 +264,36 @@ public sealed class InformationSchemaReader(
 
     // --- helpers ---
 
+    // Types whose length information_schema reports but whose *name* already fixes it. Rendering the
+    // reported number back would produce either invalid DDL (SQL Server's `text(2147483647)`) or a
+    // needlessly pinned one, so the bare name is what gets carried across.
+    private static readonly HashSet<string> LengthlessTypes = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "text", "ntext", "image", "xml",
+        "tinytext", "mediumtext", "longtext",
+        "tinyblob", "blob", "mediumblob", "longblob"
+    };
+
     private static string BuildType(SqlRow r)
     {
         var type = r["data_type"];
         var charLen = r.NullableInt("character_maximum_length");
         var precision = r.NullableInt("numeric_precision");
         var scale = r.NullableInt("numeric_scale");
+
+        if (LengthlessTypes.Contains(type))
+        {
+            return type;
+        }
+
+        // SQL Server reports -1 for the MAX variants (varchar(max), nvarchar(max), varbinary(max)). Dropping
+        // the length there is not a cosmetic loss: a bare `varchar` in a CREATE TABLE means **varchar(1)** on
+        // SQL Server, so the copied column silently held one character and every insert failed with "String
+        // or binary data would be truncated".
+        if (charLen is -1)
+        {
+            return $"{type}(max)";
+        }
 
         if (charLen is > 0)
         {

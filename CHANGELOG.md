@@ -33,6 +33,16 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 
 ### Fixed
 
+- **`varchar(max)` columns are no longer copied as `varchar(1)`.** SQL Server reports the MAX variants as a
+  length of -1, which was read as "no length" — and a bare `varchar` in a `CREATE TABLE` means one character
+  on SQL Server. The copied or recreated column held a single character and every insert failed with "String
+  or binary data would be truncated". `varchar(max)`, `nvarchar(max)` and `varbinary(max)` now come across
+  intact, and types whose name already fixes their length (`text`, `longtext`, `mediumblob`, …) no longer get
+  an invalid length appended.
+- **A failed copy no longer buries its own checklist.** A batched insert returns one complaint per offending
+  row, so hundreds of identical lines pushed the step list and the buttons off the dialog, with no way to
+  scroll. Repeated lines now collapse to one carrying a count (`… (×412)`), and the message area is capped and
+  scrolls inside itself.
 - **A migration no longer drops a table's auto-numbering.** Recreating a table on the target lost its
   MySQL `AUTO_INCREMENT` or SQL Server `IDENTITY` — the script ran, but the table was subtly wrong and the
   next insert failed or wrote an empty key. Auto-numbered columns are now read and recreated on every

@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Threading;
+using System.Linq;
 using System.Threading.Tasks;
 using Avalonia;
 using Avalonia.Controls;
@@ -246,10 +247,14 @@ internal static class SceneCatalog
             // The failing step stays on the list next to the banner — that is the point of the state.
             lifecycle.OnProgress(new ToolProgress("Created the table on the target.",
                 ItemKey: "create", ItemStatus: ToolItemStatus.Done, Detail: "created"));
-            lifecycle.OnProgress(new ToolProgress("duplicate key value violates unique constraint \"customers_pkey\"",
+            // Deliberately the shape a batched insert really returns: the same complaint once per offending
+            // row, which used to grow the banner past the dialog and push the checklist out of the body.
+            var complaint = "String or binary data would be truncated in table "
+                + "'Eveworkbench_Empty.dbo.AuditLogs', column 'Event'. Truncated value: 'R'.";
+            var repeated = string.Join("\n", Enumerable.Repeat(complaint, 412));
+            lifecycle.OnProgress(new ToolProgress(complaint,
                 ItemKey: "rows", ItemStatus: ToolItemStatus.Error, Detail: "1,500 / 5,000"));
-            lifecycle.OnRunFinished(ToolRunOutcome.Failed,
-                "duplicate key value violates unique constraint \"customers_pkey\"");
+            lifecycle.OnRunFinished(ToolRunOutcome.Failed, repeated);
             return;
         }
 

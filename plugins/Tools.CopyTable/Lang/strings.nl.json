@@ -77,6 +77,7 @@
   "copy.ui.banner.generic": "De kopie is klaar.",
   "copy.ui.banner.cancelled": "De kopie is geannuleerd — de bestemming kan een halve tabel bevatten.",
   "copy.ui.banner.failed": "De kopie is mislukt.",
+  "copy.ui.banner.more": "…en nog {0} andere soort(en) fout, {1} regel(s) in totaal.",
   "copy.ui.link.openTarget": "Doeltabel openen →",
   "copy.detail.columns": "{0} kol.",
   "copy.detail.columnsPk": "{0} kol. · PK",

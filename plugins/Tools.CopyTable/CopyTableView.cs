@@ -41,8 +41,8 @@ public sealed class CopyTableView : UserControl, IToolDialogLifecycle
     private readonly StackPanel _stepList = new() { Spacing = 0 };
     private readonly Control _progressBody;
     private readonly Border _resultCard;
-    private readonly TextBlock _resultText = new() { FontSize = 12.5, TextWrapping = TextWrapping.Wrap, VerticalAlignment = VerticalAlignment.Center };
-    private readonly Border _resultGlyph = new() { Width = 20, Height = 20, CornerRadius = new CornerRadius(10) };
+    private readonly TextBlock _resultText = new() { FontSize = 12.5, TextWrapping = TextWrapping.Wrap, VerticalAlignment = VerticalAlignment.Top };
+    private readonly Border _resultGlyph = new() { Width = 20, Height = 20, CornerRadius = new CornerRadius(10), VerticalAlignment = VerticalAlignment.Top };
     private readonly Button _openTargetLink;
     private readonly Control _resultBody;
 
@@ -133,13 +133,27 @@ public sealed class CopyTableView : UserControl, IToolDialogLifecycle
         };
 
         _openTargetLink = LinkButton(L("copy.ui.link.openTarget"), () => OpenTargetRequested?.Invoke());
+        _openTargetLink.VerticalAlignment = VerticalAlignment.Top;
+
+        // An engine's failure message is not a sentence — a batched insert can come back with one line per
+        // offending row, hundreds of them. Unbounded, the banner grows past the dialog, pushes the checklist
+        // it is supposed to sit above out of the body, and takes the footer with it. So it is capped and
+        // scrolls inside itself; the steps keep their space no matter how much the engine had to say.
+        var messageScroller = new ScrollViewer
+        {
+            MaxHeight = 150,
+            HorizontalScrollBarVisibility = Avalonia.Controls.Primitives.ScrollBarVisibility.Disabled,
+            VerticalScrollBarVisibility = Avalonia.Controls.Primitives.ScrollBarVisibility.Auto,
+            Content = _resultText
+        };
+
         _resultCard = new Border
         {
             CornerRadius = new CornerRadius(6), Padding = new Thickness(13, 11), BorderThickness = new Thickness(1),
             Child = new Grid
             {
                 ColumnDefinitions = new ColumnDefinitions("Auto,11,*,Auto"),
-                Children = { _resultGlyph, Put(_resultText, 2), Put(_openTargetLink, 3) }
+                Children = { _resultGlyph, Put(messageScroller, 2), Put(_openTargetLink, 3) }
             }
         };
         _resultBody = new Border
@@ -230,7 +244,8 @@ public sealed class CopyTableView : UserControl, IToolDialogLifecycle
             ToolRunOutcome.Cancelled => (ErrorWash, ErrorBrush, ErrorBrush, L("copy.ui.note.cancelled"),
                 L("copy.ui.banner.cancelled")),
             _ => (ErrorWash, ErrorBrush, ErrorBrush, L("copy.ui.note.failed"),
-                message ?? L("copy.ui.banner.failed"))
+                FailureText.Consolidate(message, (kinds, lines) => _loc.Get("copy.ui.banner.more", kinds, lines))
+                    ?? L("copy.ui.banner.failed"))
         };
 
         _resultCard.Background = wash;

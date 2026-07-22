@@ -188,6 +188,53 @@ public class SchemaReaderTests
         Assert.Empty(Assert.Single(tables).Indexes);
     }
 
+    // --- Type rendering ---
+
+    [Fact]
+    public void SqlServer_max_length_columns_keep_their_max()
+    {
+        // SQL Server reports -1 for varchar(max) / nvarchar(max) / varbinary(max). Dropping the length there
+        // isn't cosmetic: a bare `varchar` in a CREATE TABLE means varchar(1) on SQL Server, so the copied
+        // column held a single character and every insert failed with "String or binary data would be
+        // truncated".
+        var tables = InformationSchemaReader.BuildTables(
+            Columns(["dbo", "audit", "event", 1, "YES", null, "varchar", -1, null, null],
+                    ["dbo", "audit", "payload", 2, "YES", null, "nvarchar", -1, null, null],
+                    ["dbo", "audit", "blob", 3, "YES", null, "varbinary", -1, null, null]),
+            NoRows, NoRows, Indexes());
+
+        Assert.Equal(
+            ["varchar(max)", "nvarchar(max)", "varbinary(max)"],
+            Assert.Single(tables).Columns.Select(c => c.DataType));
+    }
+
+    [Theory]
+    // SQL Server reports text as 2147483647 and MySQL its text types in bytes, but neither takes a length in
+    // a declaration — `text(2147483647)` isn't even valid SQL.
+    [InlineData("text", 2147483647)]
+    [InlineData("ntext", 1073741823)]
+    [InlineData("longtext", 4294967295)]
+    [InlineData("mediumblob", 16777215)]
+    public void A_type_whose_name_already_fixes_its_length_is_left_bare(string type, long reportedLength)
+    {
+        var tables = InformationSchemaReader.BuildTables(
+            Columns(["dbo", "t", "c", 1, "YES", null, type, reportedLength, null, null]),
+            NoRows, NoRows, Indexes());
+
+        Assert.Equal(type, Assert.Single(Assert.Single(tables).Columns).DataType);
+    }
+
+    [Fact]
+    public void An_ordinary_length_still_comes_through()
+    {
+        var tables = InformationSchemaReader.BuildTables(
+            Columns(["dbo", "t", "name", 1, "YES", null, "varchar", 255, null, null],
+                    ["dbo", "t", "amount", 2, "YES", null, "decimal", null, 10, 2]),
+            NoRows, NoRows, Indexes());
+
+        Assert.Equal(["varchar(255)", "decimal(10,2)"], Assert.Single(tables).Columns.Select(c => c.DataType));
+    }
+
     // --- Auto-numbering (SE-190) ---
 
     // The same column list plus the per-engine is_identity flag the reader now selects.
