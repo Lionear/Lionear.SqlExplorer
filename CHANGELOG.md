@@ -26,8 +26,26 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
   itself (stepped checklist with per-step detail and progress, and its own footer buttons) instead of the
   generic checklist and action bar. Copy Table is the first tool to use it; every other tool is unchanged.
 
+- **Copy Table brings the table's indexes and foreign keys along**, behind an "Include indexes & foreign
+  keys" switch, and now works on **SQLite** as well as Postgres, MySQL and SQL Server. Indexes and keys are
+  created once the rows are in; a foreign key pointing at a table the copy didn't bring along is reported
+  as skipped rather than failing a copy that otherwise landed.
+
 ### Fixed
 
+- **A migration no longer drops a table's auto-numbering.** Recreating a table on the target lost its
+  MySQL `AUTO_INCREMENT` or SQL Server `IDENTITY` — the script ran, but the table was subtly wrong and the
+  next insert failed or wrote an empty key. Auto-numbered columns are now read and recreated on every
+  engine, and a column that gained or lost its auto-numbering is called out in the migration, since no
+  engine can switch that in place.
+- **Schema Diff no longer reports constraints the engine named itself as changes.** Two SQL Server databases
+  with the same schema carry different invented names for the same unique constraint or foreign key
+  (`UQ__customer__AB6E6164DF5AECAE`), so every one of them was dropped and recreated — correct, but it
+  buried the real changes. Constraints left unmatched by name are now paired up by what they actually
+  describe, which also reads a deliberately renamed constraint as no structural change.
+- **A failed copy keeps its checklist.** Copy Table replaced the progress steps with a red banner, throwing
+  away the more useful half — which step broke. The banner now sits above the list, with the failing step
+  marked.
 - **Schema Diff against MySQL compared the wrong things.** Two MySQL databases diffed as "drop everything,
   recreate everything", because MySQL's schema *is* the database, and foreign keys came out referencing the
   same column several times. Both are corrected, and a MySQL migration now applies cleanly.
