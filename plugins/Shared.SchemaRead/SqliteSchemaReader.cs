@@ -1,4 +1,4 @@
-namespace SqlExplorer.Tools.SchemaDiff;
+namespace SqlExplorer.Plugins.Schema;
 
 /// <summary>
 /// Reads a <see cref="SchemaSnapshot"/> from SQLite, which has no <c>information_schema</c>. Everything
@@ -10,8 +10,8 @@ namespace SqlExplorer.Tools.SchemaDiff;
 /// <list type="bullet">
 /// <item>Primary keys and foreign keys are <b>unnamed</b>. Names are synthesised (<c>pk_&lt;table&gt;</c>,
 /// <c>fk_&lt;table&gt;_&lt;n&gt;</c>) so the model stays uniform. The differ matches primary keys by their
-/// columns, so that one is safe; foreign keys match by name, so reordering a table's foreign keys can read
-/// as a drop plus an add rather than as no change.</item>
+/// columns and falls back to matching foreign keys by their definition, so a synthesised name that shifts
+/// with declaration order doesn't read as a change.</item>
 /// <item>A foreign key may omit the referenced column (<c>REFERENCES other(…)</c> implied), which PRAGMA
 /// reports as NULL. Those resolve against the referenced table's own primary key.</item>
 /// </list>
@@ -19,16 +19,24 @@ namespace SqlExplorer.Tools.SchemaDiff;
 /// <para>Expression indexes (<c>CREATE INDEX … ON t(lower(name))</c>) have no column name in PRAGMA and are
 /// skipped: they can't be diffed portably, and inventing a column would emit a wrong migration.</para>
 /// </summary>
-public sealed class SqliteSchemaReader(IDbProvider provider)
+public sealed class SqliteSchemaReader(IDbProvider provider, string? onlyTable = null)
 {
     public async Task<SchemaSnapshot> ReadAsync(ConnectionProfile profile, CancellationToken ct)
     {
-        var columns = await Query(profile, ColumnsSql, ct);
-        var foreignKeys = await Query(profile, ForeignKeysSql, ct);
-        var indexes = await Query(profile, IndexesSql, ct);
+        // Narrowing to one table is a filter rather than a second reader, so the single-table caller
+        // (Copy Table) exercises the same mapping as the whole-database one.
+        var only = onlyTable is { Length: > 0 } t ? $" AND m.name = '{t.Replace("'", "''")}'" : string.Empty;
+
+        var columns = await Query(profile, Sql(ColumnsSql, only), ct);
+        var foreignKeys = await Query(profile, Sql(ForeignKeysSql, only), ct);
+        var indexes = await Query(profile, Sql(IndexesSql, only), ct);
 
         return new SchemaSnapshot(BuildTables(columns, foreignKeys, indexes));
     }
+
+    // Each query ends its WHERE with the sqlite_ exclusion, so the table filter slots in right after it.
+    private static string Sql(string query, string only) =>
+        only.Length == 0 ? query : query.Replace("NOT LIKE 'sqlite_%'", $"NOT LIKE 'sqlite_%'{only}");
 
     /// <summary>The pure half: PRAGMA rows in, tables out. Unit-tested without a database.</summary>
     public static IReadOnlyList<TableDef> BuildTables(SqlRows columns, SqlRows foreignKeys, SqlRows indexes)
@@ -49,6 +57,11 @@ public sealed class SqliteSchemaReader(IDbProvider provider)
         {
             var table = tableGroup.Key;
 
+            // A lone INTEGER PRIMARY KEY *is* the rowid, so SQLite fills it in when an insert omits it — the
+            // engine's equivalent of an identity column, with or without the explicit AUTOINCREMENT keyword.
+            // A composite key or any other declared type gets no such treatment.
+            var rowidAlias = primaryKeys.TryGetValue(table, out var pkCols) && pkCols.Count == 1 ? pkCols[0] : null;
+
             var cols = tableGroup
                 .OrderBy(r => r.Int("ordinal_position"))
                 .Select(r => new ColumnDef(
@@ -57,7 +70,9 @@ public sealed class SqliteSchemaReader(IDbProvider provider)
                     r["data_type"],
                     !r.Flag("notnull"),
                     r.NullIfBlank("column_default"),
-                    r.Int("ordinal_position")))
+                    r.Int("ordinal_position"),
+                    string.Equals(r["column_name"], rowidAlias, StringComparison.OrdinalIgnoreCase)
+                        && r["data_type"].Trim().Equals("INTEGER", StringComparison.OrdinalIgnoreCase)))
                 .ToList();
 
             var primaryKey = primaryKeys.TryGetValue(table, out var pkColumns)

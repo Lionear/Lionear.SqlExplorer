@@ -1,3 +1,4 @@
+using SqlExplorer.Plugins.Schema;
 using SqlExplorer.Tools.SchemaDiff;
 
 namespace SqlExplorer.Tools.SchemaDiff.Tests;

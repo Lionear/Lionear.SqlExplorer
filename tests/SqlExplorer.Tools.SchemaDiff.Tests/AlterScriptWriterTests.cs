@@ -1,3 +1,4 @@
+using SqlExplorer.Plugins.Schema;
 using SqlExplorer.Tools.SchemaDiff;
 
 namespace SqlExplorer.Tools.SchemaDiff.Tests;
@@ -159,7 +160,7 @@ public class AlterScriptWriterTests
         // target, because that sequence belongs to the source database.
         var table = new TableDef(
             "public", "audit",
-            [new ColumnDef("id", "integer", false, "nextval('audit_id_seq'::regclass)", 1)],
+            [new ColumnDef("id", "integer", false, "nextval('audit_id_seq'::regclass)", 1, IsIdentity: true)],
             new PrimaryKeyDef("audit_pkey", ["id"]), [], [], []);
 
         var sql = Script("postgres", new CreateTable(table));
@@ -173,10 +174,39 @@ public class AlterScriptWriterTests
     {
         var table = new TableDef(
             "public", "audit",
-            [new ColumnDef("id", "bigint", false, "nextval('audit_id_seq'::regclass)", 1)],
+            [new ColumnDef("id", "bigint", false, "nextval('audit_id_seq'::regclass)", 1, IsIdentity: true)],
             null, [], [], []);
 
         Assert.Contains(@"""id"" bigserial", Script("postgres", new CreateTable(table)));
+    }
+
+    [Theory]
+    [InlineData("mysql", "`id` int NOT NULL AUTO_INCREMENT")]
+    [InlineData("sqlserver", "[id] int IDENTITY(1,1) NOT NULL")]
+    public void A_created_table_keeps_its_auto_numbering(string providerId, string expected)
+    {
+        // Without this the migration creates the table and silently drops the auto-numbering, so the next
+        // insert fails or writes a null key. MySQL and SQL Server hide the flag outside information_schema.
+        var table = new TableDef(
+            "dbo", "audit",
+            [new ColumnDef("id", "int", false, null, 1, IsIdentity: true)],
+            new PrimaryKeyDef("audit_pkey", ["id"]), [], [], []);
+
+        Assert.Contains(expected, Script(providerId, new CreateTable(table)));
+    }
+
+    [Fact]
+    public void Auto_numbering_that_changed_is_called_out_because_no_engine_can_alter_it()
+    {
+        var table = new TableDef("public", "audit", [], null, [], [], []);
+        var plain = new ColumnDef("id", "integer", false, null, 1);
+        var auto = plain with { IsIdentity = true };
+
+        var sql = Script("postgres", new AlterColumn(table, plain, auto));
+
+        Assert.Contains("-- NOTE:", sql);
+        Assert.Contains("auto-numbered on the source but not here", sql);
+        Assert.Contains("recreate the table to apply", sql);
     }
 
     [Fact]

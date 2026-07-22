@@ -1,3 +1,4 @@
+using SqlExplorer.Plugins.Schema;
 using SqlExplorer.Tools.SchemaDiff;
 
 namespace SqlExplorer.Tools.SchemaDiff.Tests;
@@ -185,5 +186,67 @@ public class SchemaReaderTests
             SqliteIndexes(["users", "ix_users_lower_name", 0, "c", 0, null]));
 
         Assert.Empty(Assert.Single(tables).Indexes);
+    }
+
+    // --- Auto-numbering (SE-190) ---
+
+    // The same column list plus the per-engine is_identity flag the reader now selects.
+    private static SqlRows IdentityColumns(params object?[][] rows) => SqlRows.Of(
+        ["table_schema", "table_name", "column_name", "ordinal_position", "is_nullable", "column_default",
+         "data_type", "character_maximum_length", "numeric_precision", "numeric_scale", "is_identity"],
+        rows);
+
+    [Fact]
+    public void An_identity_column_is_marked_however_the_engine_spells_the_flag()
+    {
+        // Each engine's is_identity expression yields its own truth value: 1, "True", or a bool.
+        var tables = InformationSchemaReader.BuildTables(
+            IdentityColumns(
+                ["dbo", "orders", "id", 1, "NO", null, "int", null, 10, 0, 1],
+                ["dbo", "orders", "code", 2, "NO", null, "varchar", 20, null, null, 0]),
+            NoRows, NoRows, Indexes());
+
+        var columns = Assert.Single(tables).Columns;
+        Assert.True(columns[0].IsIdentity);
+        Assert.False(columns[1].IsIdentity);
+    }
+
+    [Fact]
+    public void A_column_read_without_the_identity_flag_is_not_an_identity()
+    {
+        var tables = InformationSchemaReader.BuildTables(
+            Columns(["public", "t", "id", 1, "NO", null, "integer", null, 32, 0]),
+            NoRows, NoRows, Indexes());
+
+        Assert.False(Assert.Single(Assert.Single(tables).Columns).IsIdentity);
+    }
+
+    [Fact]
+    public void Sqlite_treats_a_lone_integer_primary_key_as_the_auto_numbered_column()
+    {
+        // INTEGER PRIMARY KEY *is* the rowid, so SQLite fills it in — with or without AUTOINCREMENT.
+        var tables = SqliteSchemaReader.BuildTables(
+            SqliteColumns(["orders", 0, "id", "INTEGER", 1, null, 1],
+                          ["orders", 1, "note", "TEXT", 0, null, 0]),
+            NoSqliteFks, NoSqliteIndexes);
+
+        var columns = Assert.Single(tables).Columns;
+        Assert.True(columns[0].IsIdentity);
+        Assert.False(columns[1].IsIdentity);
+    }
+
+    [Fact]
+    public void Sqlite_does_not_auto_number_a_composite_key_or_a_non_integer_one()
+    {
+        var composite = SqliteSchemaReader.BuildTables(
+            SqliteColumns(["lines", 0, "order_id", "INTEGER", 1, null, 1],
+                          ["lines", 1, "line_no", "INTEGER", 1, null, 2]),
+            NoSqliteFks, NoSqliteIndexes);
+        Assert.All(Assert.Single(composite).Columns, c => Assert.False(c.IsIdentity));
+
+        var textKey = SqliteSchemaReader.BuildTables(
+            SqliteColumns(["codes", 0, "code", "TEXT", 1, null, 1]),
+            NoSqliteFks, NoSqliteIndexes);
+        Assert.False(Assert.Single(Assert.Single(textKey).Columns).IsIdentity);
     }
 }
