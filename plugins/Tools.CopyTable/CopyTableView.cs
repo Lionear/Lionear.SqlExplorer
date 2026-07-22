@@ -33,14 +33,16 @@ public sealed class CopyTableView : UserControl, IToolDialogLifecycle
     private readonly TextBlock _targetChip;
     private readonly ComboBox _databaseBox;
 
-    // The three body states and the three footers — exactly one of each is visible at a time.
-    private readonly Panel _body = new();
+    // The three body states and the three footers. Exactly one footer is visible at a time; the body is a
+    // two-row grid because the result banner and the step list are shown *together* when a run fails —
+    // which step broke is the useful part, and a banner that replaced the list threw it away.
+    private readonly Grid _body = new() { RowDefinitions = new RowDefinitions("Auto,*") };
     private readonly Control _inputBody;
     private readonly StackPanel _stepList = new() { Spacing = 0 };
     private readonly Control _progressBody;
     private readonly Border _resultCard;
-    private readonly TextBlock _resultText = new() { FontSize = 12.5, TextWrapping = TextWrapping.Wrap, VerticalAlignment = VerticalAlignment.Center };
-    private readonly Border _resultGlyph = new() { Width = 20, Height = 20, CornerRadius = new CornerRadius(10) };
+    private readonly TextBlock _resultText = new() { FontSize = 12.5, TextWrapping = TextWrapping.Wrap, VerticalAlignment = VerticalAlignment.Top };
+    private readonly Border _resultGlyph = new() { Width = 20, Height = 20, CornerRadius = new CornerRadius(10), VerticalAlignment = VerticalAlignment.Top };
     private readonly Button _openTargetLink;
     private readonly Control _resultBody;
 
@@ -57,6 +59,7 @@ public sealed class CopyTableView : UserControl, IToolDialogLifecycle
 
     private CopySummary? _summary;
     private bool _scriptMode;
+    private bool _includeIndexes = true;
 
     // Accent tint for a selected card — a low-alpha wash of the accent that reads on both light and dark.
     private static readonly IBrush AccentWash = new SolidColorBrush(Color.Parse("#223574F0"));
@@ -81,6 +84,7 @@ public sealed class CopyTableView : UserControl, IToolDialogLifecycle
         ctx.SetValue("what", What.Both);
         ctx.SetValue("rows", "All");
         ctx.SetValue("keepIdentity", "true");
+        ctx.SetValue("includeIndexes", "true");
         ctx.SetValue("dropExisting", "false");
         ctx.SetValue("mode", initialMode);
         _scriptMode = initialMode == Modes.Script;
@@ -129,13 +133,27 @@ public sealed class CopyTableView : UserControl, IToolDialogLifecycle
         };
 
         _openTargetLink = LinkButton(L("copy.ui.link.openTarget"), () => OpenTargetRequested?.Invoke());
+        _openTargetLink.VerticalAlignment = VerticalAlignment.Top;
+
+        // An engine's failure message is not a sentence — a batched insert can come back with one line per
+        // offending row, hundreds of them. Unbounded, the banner grows past the dialog, pushes the checklist
+        // it is supposed to sit above out of the body, and takes the footer with it. So it is capped and
+        // scrolls inside itself; the steps keep their space no matter how much the engine had to say.
+        var messageScroller = new ScrollViewer
+        {
+            MaxHeight = 150,
+            HorizontalScrollBarVisibility = Avalonia.Controls.Primitives.ScrollBarVisibility.Disabled,
+            VerticalScrollBarVisibility = Avalonia.Controls.Primitives.ScrollBarVisibility.Auto,
+            Content = _resultText
+        };
+
         _resultCard = new Border
         {
             CornerRadius = new CornerRadius(6), Padding = new Thickness(13, 11), BorderThickness = new Thickness(1),
             Child = new Grid
             {
                 ColumnDefinitions = new ColumnDefinitions("Auto,11,*,Auto"),
-                Children = { _resultGlyph, Put(_resultText, 2), Put(_openTargetLink, 3) }
+                Children = { _resultGlyph, Put(messageScroller, 2), Put(_openTargetLink, 3) }
             }
         };
         _resultBody = new Border
@@ -144,9 +162,11 @@ public sealed class CopyTableView : UserControl, IToolDialogLifecycle
             VerticalAlignment = VerticalAlignment.Top
         };
 
-        _body.Children.Add(_inputBody);
-        _body.Children.Add(_progressBody);
-        _body.Children.Add(_resultBody);
+        // Row 0 is the banner, row 1 the input form or the step list — so a banner shown alongside the list
+        // sits above it, and a banner shown on its own still starts at the top of the body.
+        _body.Children.Add(PutRow(_resultBody, 0));
+        _body.Children.Add(PutRow(_inputBody, 1));
+        _body.Children.Add(PutRow(_progressBody, 1));
 
         // ── Footers ───────────────────────────────────────────────────────────────────────────────────
         _inputFooter = Footer(L("copy.ui.note.input"), out _,
@@ -224,7 +244,8 @@ public sealed class CopyTableView : UserControl, IToolDialogLifecycle
             ToolRunOutcome.Cancelled => (ErrorWash, ErrorBrush, ErrorBrush, L("copy.ui.note.cancelled"),
                 L("copy.ui.banner.cancelled")),
             _ => (ErrorWash, ErrorBrush, ErrorBrush, L("copy.ui.note.failed"),
-                message ?? L("copy.ui.banner.failed"))
+                FailureText.Consolidate(message, (kinds, lines) => _loc.Get("copy.ui.banner.more", kinds, lines))
+                    ?? L("copy.ui.banner.failed"))
         };
 
         _resultCard.Background = wash;
@@ -238,7 +259,9 @@ public sealed class CopyTableView : UserControl, IToolDialogLifecycle
         _openTargetLink.IsVisible = outcome == ToolRunOutcome.Succeeded && _summary is { Scripted: false };
         _againButton.Content = L(outcome == ToolRunOutcome.Succeeded ? "copy.ui.btn.again" : "copy.ui.btn.back");
 
-        _progressBody.IsVisible = false;
+        // A run that failed or was cancelled keeps its checklist: the banner says what went wrong, the list
+        // still says where. A successful one has nothing left to point at, so the banner stands alone.
+        _progressBody.IsVisible = outcome != ToolRunOutcome.Succeeded;
         _resultBody.IsVisible = true;
         _runningFooter.IsVisible = false;
         _resultFooter.IsVisible = true;
@@ -302,6 +325,14 @@ public sealed class CopyTableView : UserControl, IToolDialogLifecycle
         if (what != What.Structure)
         {
             Add("rows", "copy.ui.step.rows");
+        }
+
+        // Indexes and foreign keys are created after the rows are in, and only when the copy brings the
+        // structure along. The tool skips the step outright when the source table has neither, and a step
+        // nobody reports stays pending — so it is added optimistically here and reads as "nothing to do".
+        if (what != What.Data && _includeIndexes)
+        {
+            Add("indexes", "copy.ui.step.indexes");
         }
 
         Add("done", "copy.ui.step.done");
@@ -394,6 +425,12 @@ public sealed class CopyTableView : UserControl, IToolDialogLifecycle
         // ── Fidelity options (switches) ───────────────────────────────────────────────────────────────
         root.Children.Add(SwitchRow(L("copy.ui.keepIdentity"), true, L("copy.ui.keepIdentity.help"),
             v => ctx.SetValue("keepIdentity", v ? "true" : "false")));
+        root.Children.Add(SwitchRow(L("copy.ui.includeIndexes"), true, L("copy.ui.includeIndexes.help"),
+            v =>
+            {
+                ctx.SetValue("includeIndexes", v ? "true" : "false");
+                _includeIndexes = v;
+            }));
         root.Children.Add(SwitchRow(L("copy.ui.dropExisting"), false, L("copy.ui.dropExisting.help"),
             v => ctx.SetValue("dropExisting", v ? "true" : "false")));
 

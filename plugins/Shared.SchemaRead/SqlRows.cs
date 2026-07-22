@@ -1,4 +1,4 @@
-namespace SqlExplorer.Tools.SchemaDiff;
+namespace SqlExplorer.Plugins.Schema;
 
 /// <summary>
 /// A thin case-insensitive view over a <see cref="QueryResult"/>, so a reader addresses cells by column

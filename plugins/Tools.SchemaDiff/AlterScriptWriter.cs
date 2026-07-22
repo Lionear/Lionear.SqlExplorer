@@ -34,7 +34,7 @@ public sealed class AlterScriptWriter(SqlDialect dialect)
         DropTable c => [$"DROP TABLE {dialect.QuoteTable(c.Def)};"],
         AddColumn c => [$"ALTER TABLE {dialect.QuoteTable(c.Table)} {dialect.AddColumnClause} {dialect.ColumnSpec(c.Column)};"],
         DropColumn c => [$"ALTER TABLE {dialect.QuoteTable(c.Table)} DROP COLUMN {dialect.Quote(c.Column.Name)};"],
-        AlterColumn c => dialect.AlterColumn(c.Table, c.From, c.To),
+        AlterColumn c => RenderAlterColumn(c),
         AddPrimaryKey c => [Constraint(c.Table, "add primary key", c.Key.Name,
             $"ALTER TABLE {dialect.QuoteTable(c.Table)} ADD {dialect.PrimaryKeyClause(c.Key, Cols(c.Key.Columns))};")],
         DropPrimaryKey c => [Constraint(c.Table, "drop primary key", c.Key.Name,
@@ -52,6 +52,24 @@ public sealed class AlterScriptWriter(SqlDialect dialect)
         _ => []
     };
 
+    // No engine can switch a column's auto-numbering on or off with an ALTER — it is bound to a sequence or
+    // to the column's own definition — so the change is called out rather than quietly rendered as a type
+    // change that leaves the target still wrong.
+    private IEnumerable<string> RenderAlterColumn(AlterColumn c)
+    {
+        if (c.From.IsIdentity != c.To.IsIdentity)
+        {
+            var what = c.To.IsIdentity ? "is auto-numbered on the source but not here" : "is auto-numbered here but not on the source";
+            yield return $"-- NOTE: column {dialect.Quote(c.To.Name)} on {dialect.QuoteTable(c.Table)} {what}; " +
+                         "auto-numbering can't be added or removed in place — recreate the table to apply.";
+        }
+
+        foreach (var statement in dialect.AlterColumn(c.Table, c.From, c.To))
+        {
+            yield return statement;
+        }
+    }
+
     // An engine that can't ALTER a constraint (SQLite) gets a note instead of DDL that would fail on run.
     private string Constraint(TableDef table, string what, string name, string statement) =>
         dialect.SupportsAlterConstraint
@@ -62,7 +80,7 @@ public sealed class AlterScriptWriter(SqlDialect dialect)
     private IEnumerable<string> RenderCreateTable(TableDef t)
     {
         var body = new List<string>();
-        body.AddRange(t.Columns.OrderBy(c => c.Ordinal).Select(dialect.ColumnSpec));
+        body.AddRange(t.Columns.OrderBy(c => c.Ordinal).Select(c => dialect.ColumnSpec(c)));
 
         if (t.PrimaryKey is { } pk)
         {

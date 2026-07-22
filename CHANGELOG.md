@@ -25,9 +25,36 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 - **Tools can own their whole dialog** — a tool plugin's own view may now render the run's progress and result
   itself (stepped checklist with per-step detail and progress, and its own footer buttons) instead of the
   generic checklist and action bar. Copy Table is the first tool to use it; every other tool is unchanged.
+- **Copy Table brings the table's indexes and foreign keys along**, behind an "Include indexes & foreign
+  keys" switch, and now works on **SQLite** as well as Postgres, MySQL and SQL Server. Indexes and keys are
+  created once the rows are in; a foreign key pointing at a table the copy didn't bring along is reported
+  as skipped rather than failing a copy that otherwise landed.
 
 ### Fixed
 
+- **`varchar(max)` columns are no longer copied as `varchar(1)`.** SQL Server reports the MAX variants as a
+  length of -1, which was read as "no length" — and a bare `varchar` in a `CREATE TABLE` means one character
+  on SQL Server. The copied or recreated column held a single character and every insert failed with "String
+  or binary data would be truncated". `varchar(max)`, `nvarchar(max)` and `varbinary(max)` now come across
+  intact, and types whose name already fixes their length (`text`, `longtext`, `mediumblob`, …) no longer get
+  an invalid length appended.
+- **A failed copy no longer buries its own checklist.** A batched insert returns one complaint per offending
+  row, so hundreds of identical lines pushed the step list and the buttons off the dialog, with no way to
+  scroll. Repeated lines now collapse to one carrying a count (`… (×412)`), and the message area is capped and
+  scrolls inside itself.
+- **A migration no longer drops a table's auto-numbering.** Recreating a table on the target lost its
+  MySQL `AUTO_INCREMENT` or SQL Server `IDENTITY` — the script ran, but the table was subtly wrong and the
+  next insert failed or wrote an empty key. Auto-numbered columns are now read and recreated on every
+  engine, and a column that gained or lost its auto-numbering is called out in the migration, since no
+  engine can switch that in place.
+- **Schema Diff no longer reports constraints the engine named itself as changes.** Two SQL Server databases
+  with the same schema carry different invented names for the same unique constraint or foreign key
+  (`UQ__customer__AB6E6164DF5AECAE`), so every one of them was dropped and recreated — correct, but it
+  buried the real changes. Constraints left unmatched by name are now paired up by what they actually
+  describe, which also reads a deliberately renamed constraint as no structural change.
+- **A failed copy keeps its checklist.** Copy Table replaced the progress steps with a red banner, throwing
+  away the more useful half — which step broke. The banner now sits above the list, with the failing step
+  marked.
 - **A script no longer dumps every row of every table — and every result tab gets its own Previous/Next.**
   `SELECT * FROM a; SELECT * FROM b;` returned both tables in full, because paging only ever applied to a
   single SELECT. When a script is nothing but SELECTs, each result tab now pages independently: the tab shows

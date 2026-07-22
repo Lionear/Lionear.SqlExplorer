@@ -1,4 +1,4 @@
-namespace SqlExplorer.Tools.SchemaDiff;
+namespace SqlExplorer.Plugins.Schema;
 
 /// <summary>
 /// Reads a <see cref="SchemaSnapshot"/> from an engine that exposes ANSI <c>information_schema</c> —
@@ -13,9 +13,12 @@ namespace SqlExplorer.Tools.SchemaDiff;
 ///
 /// <para>Every query takes its schema filter as an explicit column expression
 /// (<see cref="_filter"/>), rather than one filter string rewritten per alias — the aliases differ per query
-/// and rewriting was fragile.</para>
+/// and rewriting was fragile. <paramref name="onlyTable"/> narrows every query to a single table, for the
+/// caller that wants one table's shape rather than the whole database (Copy Table) — a filter rather than a
+/// second reader, so both callers exercise the same mapping.</para>
 /// </summary>
-public sealed class InformationSchemaReader(IDbProvider provider, string providerId, string? database)
+public sealed class InformationSchemaReader(
+    IDbProvider provider, string providerId, string? database, string? onlyTable = null)
 {
     // Given the column that holds the schema name in one query, the predicate that keeps only user schemas.
     private readonly Func<string, string> _filter = providerId switch
@@ -25,6 +28,12 @@ public sealed class InformationSchemaReader(IDbProvider provider, string provide
         "sqlserver" => column => $"{column} NOT IN ('sys', 'INFORMATION_SCHEMA')",
         _ => column => $"{column} NOT IN ('pg_catalog', 'information_schema')"
     };
+
+    // Given the column that holds the table name in one query, the predicate that narrows to the requested
+    // table — or nothing to narrow, when reading the whole database.
+    private readonly Func<string, string> _table = onlyTable is { Length: > 0 } t
+        ? column => $"{column} = '{t.Replace("'", "''")}'"
+        : _ => "1 = 1";
 
     // On MySQL a "schema" is the database itself, not a namespace inside it. Keeping it in the model would
     // make `probe_left.orders` and `probe_right.orders` different tables, so a diff of two databases reads
@@ -66,7 +75,8 @@ public sealed class InformationSchemaReader(IDbProvider provider, string provide
                     BuildType(r),
                     string.Equals(r["is_nullable"], "YES", StringComparison.OrdinalIgnoreCase),
                     r.NullIfBlank("column_default"),
-                    r.Int("ordinal_position")))
+                    r.Int("ordinal_position"),
+                    r.Flag("is_identity")))
                 .ToList();
 
             var tableConstraints = constraints.All
@@ -118,15 +128,43 @@ public sealed class InformationSchemaReader(IDbProvider provider, string provide
 
     // --- SQL ---
 
+    // One shared column list, but the auto-numbering flag is per engine — information_schema has no portable
+    // spelling for it, so each engine contributes its own is_identity expression (and, for SQL Server, the
+    // catalogue join that expression needs).
     private string ColumnsSql() => $"""
         SELECT c.table_schema, c.table_name, c.column_name, c.ordinal_position, c.is_nullable,
-               c.column_default, c.data_type, c.character_maximum_length, c.numeric_precision, c.numeric_scale
+               c.column_default, c.data_type, c.character_maximum_length, c.numeric_precision, c.numeric_scale,
+               {IdentityExpression} AS is_identity
         FROM information_schema.columns c
         JOIN information_schema.tables t
           ON t.table_schema = c.table_schema AND t.table_name = c.table_name
-        WHERE t.table_type = 'BASE TABLE' AND {_filter("c.table_schema")}
+        {IdentityJoin}
+        WHERE t.table_type = 'BASE TABLE' AND {_filter("c.table_schema")} AND {_table("c.table_name")}
         ORDER BY c.table_schema, c.table_name, c.ordinal_position
         """;
+
+    private string IdentityExpression => providerId switch
+    {
+        // MySQL keeps it in a free-text column: EXTRA reads "auto_increment" (possibly among other words).
+        "mysql" => "CASE WHEN c.extra LIKE '%auto_increment%' THEN 1 ELSE 0 END",
+
+        // SQL Server doesn't surface it in information_schema at all — only sys.columns has is_identity.
+        "sqlserver" => "CASE WHEN sc.is_identity = 1 THEN 1 ELSE 0 END",
+
+        // Postgres covers both spellings: the SQL-standard identity column, and the older `serial`, which is
+        // an ordinary column whose default draws from a sequence.
+        _ => "CASE WHEN c.is_identity = 'YES' OR c.column_default LIKE 'nextval(%' THEN 1 ELSE 0 END"
+    };
+
+    // OBJECT_ID over the quoted schema-qualified name is how a sys.columns row is reached from an
+    // information_schema row; LEFT so a table sys can't resolve still yields its columns (is_identity null → 0).
+    private string IdentityJoin => providerId == "sqlserver"
+        ? """
+          LEFT JOIN sys.columns sc
+            ON sc.object_id = OBJECT_ID(QUOTENAME(c.table_schema) + '.' + QUOTENAME(c.table_name))
+           AND sc.name = c.column_name
+          """
+        : string.Empty;
 
     private string ConstraintsSql() => $"""
         SELECT tc.table_schema, tc.table_name, tc.constraint_name, tc.constraint_type,
@@ -136,6 +174,7 @@ public sealed class InformationSchemaReader(IDbProvider provider, string provide
           ON kcu.constraint_schema = tc.constraint_schema AND kcu.constraint_name = tc.constraint_name
          AND kcu.table_schema = tc.table_schema AND kcu.table_name = tc.table_name
         WHERE tc.constraint_type IN ('PRIMARY KEY', 'UNIQUE', 'FOREIGN KEY') AND {_filter("tc.table_schema")}
+          AND {_table("tc.table_name")}
         ORDER BY tc.table_schema, tc.table_name, tc.constraint_name, kcu.ordinal_position
         """;
 
@@ -151,6 +190,7 @@ public sealed class InformationSchemaReader(IDbProvider provider, string provide
                kcu.referenced_column_name AS ref_column, kcu.ordinal_position
         FROM information_schema.key_column_usage kcu
         WHERE kcu.referenced_table_name IS NOT NULL AND {_filter("kcu.constraint_schema")}
+          AND {_table("kcu.table_name")}
         ORDER BY kcu.constraint_schema, kcu.table_name, kcu.constraint_name, kcu.ordinal_position
         """ : $"""
         SELECT rc.constraint_schema AS table_schema, kcu.table_name AS table_name,
@@ -164,7 +204,7 @@ public sealed class InformationSchemaReader(IDbProvider provider, string provide
           ON ccu.constraint_schema = rc.unique_constraint_schema
          AND ccu.constraint_name = rc.unique_constraint_name
          AND ccu.ordinal_position = kcu.ordinal_position
-        WHERE {_filter("rc.constraint_schema")}
+        WHERE {_filter("rc.constraint_schema")} AND {_table("kcu.table_name")}
         ORDER BY table_schema, table_name, constraint_name, ccu.ordinal_position
         """;
 
@@ -184,7 +224,7 @@ public sealed class InformationSchemaReader(IDbProvider provider, string provide
                     WHERE tc.table_schema = s.table_schema AND tc.table_name = s.table_name
                       AND tc.constraint_name = s.index_name
                       AND tc.constraint_type IN ('UNIQUE', 'FOREIGN KEY'))
-              AND {_filter("s.table_schema")}
+              AND {_filter("s.table_schema")} AND {_table("s.table_name")}
             ORDER BY s.table_schema, s.table_name, s.index_name, s.seq_in_index
             """,
 
@@ -199,7 +239,7 @@ public sealed class InformationSchemaReader(IDbProvider provider, string provide
             JOIN sys.columns c ON c.object_id = ic.object_id AND c.column_id = ic.column_id
             WHERE i.is_primary_key = 0 AND i.is_unique_constraint = 0
               AND i.type <> 0 AND i.is_hypothetical = 0 AND ic.is_included_column = 0
-              AND {_filter("sch.name")}
+              AND {_filter("sch.name")} AND {_table("t.name")}
             ORDER BY sch.name, t.name, i.name, ic.key_ordinal
             """,
 
@@ -217,12 +257,22 @@ public sealed class InformationSchemaReader(IDbProvider provider, string provide
             JOIN pg_attribute a ON a.attrelid = t.oid AND a.attnum = k.attnum
             WHERE t.relkind = 'r' AND NOT ix.indisprimary
               AND NOT EXISTS (SELECT 1 FROM pg_constraint con WHERE con.conindid = i.oid)
-              AND {_filter("n.nspname")}
+              AND {_filter("n.nspname")} AND {_table("t.relname")}
             ORDER BY n.nspname, t.relname, i.relname, k.ord
             """
     };
 
     // --- helpers ---
+
+    // Types whose length information_schema reports but whose *name* already fixes it. Rendering the
+    // reported number back would produce either invalid DDL (SQL Server's `text(2147483647)`) or a
+    // needlessly pinned one, so the bare name is what gets carried across.
+    private static readonly HashSet<string> LengthlessTypes = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "text", "ntext", "image", "xml",
+        "tinytext", "mediumtext", "longtext",
+        "tinyblob", "blob", "mediumblob", "longblob"
+    };
 
     private static string BuildType(SqlRow r)
     {
@@ -230,6 +280,20 @@ public sealed class InformationSchemaReader(IDbProvider provider, string provide
         var charLen = r.NullableInt("character_maximum_length");
         var precision = r.NullableInt("numeric_precision");
         var scale = r.NullableInt("numeric_scale");
+
+        if (LengthlessTypes.Contains(type))
+        {
+            return type;
+        }
+
+        // SQL Server reports -1 for the MAX variants (varchar(max), nvarchar(max), varbinary(max)). Dropping
+        // the length there is not a cosmetic loss: a bare `varchar` in a CREATE TABLE means **varchar(1)** on
+        // SQL Server, so the copied column silently held one character and every insert failed with "String
+        // or binary data would be truncated".
+        if (charLen is -1)
+        {
+            return $"{type}(max)";
+        }
 
         if (charLen is > 0)
         {

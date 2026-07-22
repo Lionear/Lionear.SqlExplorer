@@ -1,4 +1,4 @@
-namespace SqlExplorer.Tools.SchemaDiff;
+namespace SqlExplorer.Plugins.Schema;
 
 /// <summary>
 /// Reads a <see cref="SchemaSnapshot"/> from a live connection through the host's <see cref="IDbProvider"/>,
@@ -17,8 +17,11 @@ public sealed class SchemaReader(IDbProvider provider)
     public static bool Supports(string providerId) =>
         providerId is "postgres" or "mysql" or "sqlserver" or "sqlite";
 
-    public Task<SchemaSnapshot> ReadAsync(ConnectionProfile profile, string providerId, CancellationToken ct) =>
+    /// <param name="onlyTable">Narrows the read to a single base table by name, for the caller that wants one
+    /// table's shape rather than the whole database (Copy Table). Null reads everything.</param>
+    public Task<SchemaSnapshot> ReadAsync(
+        ConnectionProfile profile, string providerId, CancellationToken ct, string? onlyTable = null) =>
         providerId == "sqlite"
-            ? new SqliteSchemaReader(provider).ReadAsync(profile, ct)
-            : new InformationSchemaReader(provider, providerId, profile.Database).ReadAsync(profile, ct);
+            ? new SqliteSchemaReader(provider, onlyTable).ReadAsync(profile, ct)
+            : new InformationSchemaReader(provider, providerId, profile.Database, onlyTable).ReadAsync(profile, ct);
 }
