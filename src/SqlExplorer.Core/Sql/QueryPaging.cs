@@ -1,3 +1,5 @@
+using SqlExplorer.Sdk;
+
 namespace SqlExplorer.Core.Sql;
 
 /// <summary>
@@ -11,6 +13,10 @@ namespace SqlExplorer.Core.Sql;
 /// verbatim. Quote/comment/paren-aware, so a keyword inside a string, a quoted identifier or a subquery never
 /// misleads the check.
 /// </summary>
+/// <summary>One statement of a fully pageable script: the SQL without its terminator, and whether it already
+/// carries a top-level <c>ORDER BY</c> (which decides how a dialect appends its offset clause).</summary>
+public sealed record PageableStatement(string Sql, bool Ordered);
+
 public static class QueryPaging
 {
     // Keywords whose top-level presence means the statement already bounds itself or isn't a plain result set.
@@ -71,6 +77,96 @@ public static class QueryPaging
         statement = trimmed;
         ordered = words.Any(w => w.Equals("ORDER", StringComparison.OrdinalIgnoreCase));
         return true;
+    }
+
+    /// <summary>
+    /// True when a script is <b>entirely</b> made of pageable SELECTs (at least two of them) — the shape
+    /// where every result tab can carry its own prev/next, because each result set maps to exactly one
+    /// statement.
+    ///
+    /// <para>The all-or-nothing rule is the point. Mix a SELECT with an UPDATE and the driver's result sets
+    /// no longer line up one-for-one with the statements — whether a non-result statement yields a
+    /// <c>QueryResult</c> at all is a driver's business — so a page-flip could re-run the wrong statement.
+    /// Those scripts fall back to <see cref="CapPageableStatements"/>: bounded, but no page bar.</para>
+    /// </summary>
+    public static bool TryGetPageableScript(string sql, out IReadOnlyList<PageableStatement> statements)
+    {
+        statements = [];
+        if (string.IsNullOrWhiteSpace(sql))
+        {
+            return false;
+        }
+
+        var spans = SqlStatementSplitter.Split(sql)
+            .Where(s => StripTerminators(s.Text).Length > 0)
+            .ToList();
+
+        if (spans.Count < 2)
+        {
+            return false; // one statement is the single-SELECT paging path; zero is nothing to do
+        }
+
+        var found = new List<PageableStatement>(spans.Count);
+        foreach (var span in spans)
+        {
+            if (!TryGetPageableSelect(span.Text, out var statement, out var ordered))
+            {
+                return false;
+            }
+
+            found.Add(new PageableStatement(statement, ordered));
+        }
+
+        statements = found;
+        return true;
+    }
+
+    /// <summary>
+    /// Bounds every unbounded <c>SELECT</c> in a multi-statement script to <paramref name="limit"/> rows,
+    /// leaving everything else exactly as written.
+    ///
+    /// <para>A script is not pageable — its statements aren't all result sets, and a prev/next bar can only
+    /// drive one of them — so it used to run wide open: <c>SELECT * FROM a; SELECT * FROM b;</c> pulled both
+    /// tables in full. Capping is not paging, but it is the part that matters: the rows never leave the
+    /// server, so the cost is bounded rather than merely hidden. The caller is expected to say that the
+    /// results were capped; a silently shortened result set is worse than a slow one.</para>
+    ///
+    /// <para>Statements that already bound themselves (<c>TOP</c>/<c>LIMIT</c>/<c>OFFSET</c>/<c>FETCH</c>),
+    /// non-SELECTs and anything the parser isn't sure about are passed through untouched — the same
+    /// conservative test <see cref="TryGetPageableSelect"/> uses.</para>
+    /// </summary>
+    /// <param name="capped">How many statements were bounded, so the caller can report it.</param>
+    public static string CapPageableStatements(string sql, ISqlDialect dialect, int limit, out int capped)
+    {
+        capped = 0;
+        if (limit <= 0)
+        {
+            return sql;
+        }
+
+        var spans = SqlStatementSplitter.Split(sql);
+        if (spans.Count == 0)
+        {
+            return sql;
+        }
+
+        var parts = new List<string>(spans.Count);
+        foreach (var span in spans)
+        {
+            if (TryGetPageableSelect(span.Text, out var statement, out var ordered))
+            {
+                parts.Add(dialect.PageQuery(statement, limit, 0, ordered) + ";");
+                capped++;
+            }
+            else
+            {
+                // Verbatim, terminator and all — the splitter keeps it, and rewriting a statement we chose
+                // not to bound would be a change nobody asked for.
+                parts.Add(span.Text);
+            }
+        }
+
+        return capped == 0 ? sql : string.Join("\n", parts);
     }
 
     /// <summary>
