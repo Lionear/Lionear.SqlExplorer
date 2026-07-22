@@ -25,7 +25,6 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 - **Tools can own their whole dialog** — a tool plugin's own view may now render the run's progress and result
   itself (stepped checklist with per-step detail and progress, and its own footer buttons) instead of the
   generic checklist and action bar. Copy Table is the first tool to use it; every other tool is unchanged.
-
 - **Copy Table brings the table's indexes and foreign keys along**, behind an "Include indexes & foreign
   keys" switch, and now works on **SQLite** as well as Postgres, MySQL and SQL Server. Indexes and keys are
   created once the rows are in; a foreign key pointing at a table the copy didn't bring along is reported
@@ -56,6 +55,18 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 - **A failed copy keeps its checklist.** Copy Table replaced the progress steps with a red banner, throwing
   away the more useful half — which step broke. The banner now sits above the list, with the failing step
   marked.
+- **A script no longer dumps every row of every table — and every result tab gets its own Previous/Next.**
+  `SELECT * FROM a; SELECT * FROM b;` returned both tables in full, because paging only ever applied to a
+  single SELECT. When a script is nothing but SELECTs, each result tab now pages independently: the tab shows
+  which rows you're looking at ("rows 201–400"), Previous/Next move just that tab, and switching tabs moves
+  the page bar to where that tab is. A script that mixes SELECTs with other statements can't map tabs to
+  statements safely, so it has no page bar — but its SELECTs are still bounded to one page each on the
+  server, and the Output panel says so. Statements with their own `TOP`/`LIMIT` and non-SELECTs run exactly
+  as written, and the whole thing follows the existing "Page query results" setting.
+- **A query that ends in a semicolon can be paged again.** `SELECT * FROM Donations;` failed with "Incorrect
+  syntax near the keyword 'ORDER'" (and the equivalent on every other engine), because paging appends its
+  `ORDER BY … OFFSET … FETCH` / `LIMIT` *after* the statement — semicolon and all. The terminator is now
+  dropped before the page is built, and a stray extra semicolon no longer costs you the page bar either.
 - **Schema Diff against MySQL compared the wrong things.** Two MySQL databases diffed as "drop everything,
   recreate everything", because MySQL's schema *is* the database, and foreign keys came out referencing the
   same column several times. Both are corrected, and a MySQL migration now applies cleanly.
