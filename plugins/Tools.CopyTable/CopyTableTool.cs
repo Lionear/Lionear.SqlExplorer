@@ -4,18 +4,23 @@ namespace SqlExplorer.Tools.CopyTable;
 
 /// <summary>
 /// Copies the selected table to another connection and database the user picks. Reads the table's shape
-/// (columns, primary key, identity) and its rows from the source, then either <b>runs the copy</b> —
-/// creating and filling the table on the target with a live checklist — or <b>opens it as a script</b> in a
-/// new query tab on the target to review and run. Same-provider only (the picker enforces it), so one
-/// dialect renders both sides; reads via <c>information_schema</c> → Postgres, MySQL and SQL Server.
+/// (columns, primary key, identity, unique constraints, secondary indexes and foreign keys) and its rows
+/// from the source, then either <b>runs the copy</b> — creating and filling the table on the target with a
+/// live checklist — or <b>opens it as a script</b> in a new query tab on the target to review and run.
+/// Same-provider only (the picker enforces it), so one dialect renders both sides.
+///
+/// <para>The read comes from <c>Shared.SchemaRead</c>, the same reader Schema Diff uses, narrowed to the one
+/// clicked table — which is what brings SQLite along with Postgres, MySQL and SQL Server. The tool only
+/// knows the table's <em>name</em> (the clicked node), not its schema, so it resolves the schema from the
+/// read; when the name is ambiguous across schemas it takes the first and says so.</para>
 ///
 /// <para>The mode is remembered per session and persisted, so the tool re-opens on the choice you used last
 /// (first run: Run the copy). Identity/auto-increment columns are handled by the "Keep identity values"
-/// toggle — see <see cref="CreateTableWriter"/>.</para>
+/// toggle, indexes and foreign keys by their own switch — see <see cref="CreateTableWriter"/>.</para>
 /// </summary>
 public sealed class CopyTableTool : IToolPlugin, ICustomToolUi
 {
-    private static readonly string[] SupportedProviders = ["postgres", "mysql", "sqlserver"];
+    private static readonly string[] SupportedProviders = ["postgres", "mysql", "sqlserver", "sqlite"];
 
     private const string ModeRun = "Run the copy";
     private const string ModeScript = "Open as script";
@@ -63,6 +68,8 @@ public sealed class CopyTableTool : IToolPlugin, ICustomToolUi
             Choices: ["All", "100", "1000", "5000"], LabelKey: "copy.field.rows"),
         new("keepIdentity", "Keep identity / sequence values", ToolFieldType.Bool, Default: "true",
             LabelKey: "copy.field.keepIdentity"),
+        new("includeIndexes", "Include indexes & foreign keys", ToolFieldType.Bool, Default: "true",
+            LabelKey: "copy.field.includeIndexes"),
         new("dropExisting", "Drop target table if it exists", ToolFieldType.Bool, Default: "false",
             LabelKey: "copy.field.dropExisting"),
         new("mode", "How", ToolFieldType.Choice, Default: _lastMode,
@@ -97,7 +104,7 @@ public sealed class CopyTableTool : IToolPlugin, ICustomToolUi
     {
         var loc = context.Localizer;
 
-        if (!TableReader.Supports(context.ProviderId))
+        if (!SchemaReader.Supports(context.ProviderId))
         {
             progress.Report(new ToolProgress(loc.Get("copy.error.unsupported", context.ProviderId)));
             return;
@@ -121,6 +128,7 @@ public sealed class CopyTableTool : IToolPlugin, ICustomToolUi
         var copyStructure = what != WhatData;
         var copyData = what != WhatStructure;
         var keepIdentity = inputs.GetValueOrDefault("keepIdentity") != "false";
+        var includeIndexes = inputs.GetValueOrDefault("includeIndexes") != "false";
         var dropExisting = inputs.GetValueOrDefault("dropExisting") == "true";
         var mode = inputs.GetValueOrDefault("mode") ?? ModeRun;
         int? limit = int.TryParse(inputs.GetValueOrDefault("rows"), out var n) ? n : null;
@@ -137,17 +145,22 @@ public sealed class CopyTableTool : IToolPlugin, ICustomToolUi
         _openDatabase = toDatabase;
         _openSelect = null;
 
-        var reader = new TableReader(context.Provider);
         progress.Report(new ToolProgress(loc.Get("copy.progress.reading", tableName),
             ItemKey: "schema", ItemStatus: ToolItemStatus.Running));
 
-        var model = await reader.ReadAsync(context.Profile, context.ProviderId, tableName, ct);
-        if (model is null)
+        // One narrowed read covers both questions: the table's shape, and whether the name is ambiguous —
+        // the snapshot carries a table per schema that has one.
+        var snapshot = await new SchemaReader(context.Provider)
+            .ReadAsync(context.Profile, context.ProviderId, ct, onlyTable: tableName);
+
+        if (snapshot.Tables is not [var model, ..])
         {
             progress.Report(new ToolProgress(loc.Get("copy.error.notFound", tableName),
                 ItemKey: "schema", ItemStatus: ToolItemStatus.Error));
             return;
         }
+
+        var ambiguous = snapshot.Tables.Count > 1;
 
         progress.Report(new ToolProgress(loc.Get("copy.progress.read", tableName, model.Columns.Count),
             ItemKey: "schema", ItemStatus: ToolItemStatus.Done,
@@ -157,7 +170,8 @@ public sealed class CopyTableTool : IToolPlugin, ICustomToolUi
 
         var dialect = context.Provider.Dialect;
         var literalDialect = SqlValueLiteral.DialectFor(context.ProviderId);
-        var quotedTarget = CreateTableWriter.QuoteTable(context.ProviderId, model);
+        var writer = new CreateTableWriter(SqlDialect.For(context.ProviderId));
+        var quotedTarget = writer.QuoteTable(model);
 
         // The insert columns depend on whether we keep the identity; the source SELECT must match so the read
         // rows and the insert line up.
@@ -165,7 +179,7 @@ public sealed class CopyTableTool : IToolPlugin, ICustomToolUi
         QueryResult? data = null;
         if (copyData)
         {
-            var columnList = string.Join(", ", insertColumns.Select(c => CreateTableWriter.QuoteId(context.ProviderId, c.Name)));
+            var columnList = string.Join(", ", insertColumns.Select(c => writer.Quote(c.Name)));
             var sourceQualified = dialect.QualifyName(context.Profile.Database, model.Schema, model.Name);
             var select = $"SELECT {columnList} FROM {sourceQualified}";
             var dataSql = limit is { } lim ? dialect.Paginate(select, lim, 0) : $"{select};";
@@ -174,21 +188,20 @@ public sealed class CopyTableTool : IToolPlugin, ICustomToolUi
             data = await context.Provider.ExecuteQueryAsync(context.Profile, dataSql, ct);
         }
 
-        var ambiguous = await reader.IsAmbiguousAsync(context.Profile, context.ProviderId, tableName, ct);
-
         if (mode == ModeScript)
         {
             progress.Report(new ToolProgress(loc.Get("copy.progress.scripting"),
                 ItemKey: "script", ItemStatus: ToolItemStatus.Running));
-            await OpenAsScriptAsync(context, model, data, dropExisting, copyStructure, copyData, keepIdentity,
-                dialect, literalDialect, quotedTarget, toConnection!, toDatabase!, ambiguous, tableName, progress, loc);
+            OpenAsScript(context, model, data, dropExisting, copyStructure, copyData, keepIdentity, includeIndexes,
+                dialect, literalDialect, writer, quotedTarget, toConnection!, toDatabase!, ambiguous, progress, loc);
             _view?.SetSummary(new CopySummary(tableName, $"{toDatabase}.{model.Name}", data?.Rows.Count ?? 0,
                 DateTime.UtcNow - started, Scripted: true));
         }
         else
         {
             await RunCopyAsync(context, model, data, dropExisting, copyStructure, copyData, keepIdentity,
-                dialect, literalDialect, quotedTarget, toConnection!, toDatabase!, progress, loc, ct);
+                includeIndexes, dialect, literalDialect, writer, quotedTarget, toConnection!, toDatabase!,
+                progress, loc, ct);
             _openSelect = $"SELECT * FROM {quotedTarget};";
             _view?.SetSummary(new CopySummary(tableName, $"{toDatabase}.{model.Name}", data?.Rows.Count ?? 0,
                 DateTime.UtcNow - started, Scripted: false));
@@ -196,10 +209,10 @@ public sealed class CopyTableTool : IToolPlugin, ICustomToolUi
     }
 
     private async Task RunCopyAsync(
-        ToolExecutionContext context, TableModel model, QueryResult? data, bool dropExisting, bool copyStructure,
-        bool copyData, bool keepIdentity, ISqlDialect dialect, SqlLiteralDialect literalDialect, string quotedTarget,
-        string toConnection, string toDatabase, IProgress<ToolProgress> progress, IPluginLocalizer loc,
-        CancellationToken ct)
+        ToolExecutionContext context, TableDef model, QueryResult? data, bool dropExisting, bool copyStructure,
+        bool copyData, bool keepIdentity, bool includeIndexes, ISqlDialect dialect, SqlLiteralDialect literalDialect,
+        CreateTableWriter writer, string quotedTarget, string toConnection, string toDatabase,
+        IProgress<ToolProgress> progress, IPluginLocalizer loc, CancellationToken ct)
     {
         if (context.Host.OpenConnection(toConnection, toDatabase) is not { } target)
         {
@@ -216,12 +229,11 @@ public sealed class CopyTableTool : IToolPlugin, ICustomToolUi
             {
                 if (dropExisting)
                 {
-                    await target.Provider.ExecuteDdlAsync(target.Profile,
-                        CreateTableWriter.DropIfExists(context.ProviderId, model), ct);
+                    await target.Provider.ExecuteDdlAsync(target.Profile, writer.DropIfExists(model), ct);
                 }
 
                 await target.Provider.ExecuteDdlAsync(target.Profile,
-                    CreateTableWriter.Build(context.ProviderId, model, keepIdentity), ct);
+                    writer.Build(model, keepIdentity, includeIndexes), ct);
             }
             catch (Exception ex)
             {
@@ -277,15 +289,84 @@ public sealed class CopyTableTool : IToolPlugin, ICustomToolUi
                 Detail: loc.Get("copy.detail.rowsCopied", copied)));
         }
 
+        if (copyStructure && includeIndexes)
+        {
+            await AddIndexesAndForeignKeysAsync(target, model, writer, progress, loc, ct);
+        }
+
         progress.Report(new ToolProgress(loc.Get("copy.result.ran", model.Name, toDatabase),
             ItemKey: "done", ItemStatus: ToolItemStatus.Done));
     }
 
-    private async Task OpenAsScriptAsync(
-        ToolExecutionContext context, TableModel model, QueryResult? data, bool dropExisting, bool copyStructure,
-        bool copyData, bool keepIdentity, ISqlDialect dialect, SqlLiteralDialect literalDialect, string quotedTarget,
-        string toConnection, string toDatabase, bool ambiguous, string tableName, IProgress<ToolProgress> progress,
-        IPluginLocalizer loc)
+    /// <summary>
+    /// Creates the copied table's secondary indexes and foreign keys, once its rows are in — indexing an
+    /// empty table and then filling it is the slower way round, and a foreign key can only be checked
+    /// against rows that exist.
+    ///
+    /// <para>Each statement runs on its own and a failure is counted rather than thrown: a foreign key points
+    /// at a table this copy did not bring along, so it may legitimately not exist on the target. Losing a
+    /// constraint is worth reporting; it is not worth discarding a copy that otherwise landed, and the step's
+    /// detail says how many of each made it.</para>
+    /// </summary>
+    private static async Task AddIndexesAndForeignKeysAsync(
+        ToolConnection target, TableDef model, CreateTableWriter writer, IProgress<ToolProgress> progress,
+        IPluginLocalizer loc, CancellationToken ct)
+    {
+        var indexes = writer.Indexes(model);
+        var foreignKeys = writer.ForeignKeys(model);
+
+        // Reported even when there is nothing to create: the dialog planned this step from the same two
+        // conditions the caller checked, and a step nobody reports would sit there pending after a clean run.
+        if (indexes.Count == 0 && foreignKeys.Count == 0)
+        {
+            progress.Report(new ToolProgress(loc.Get("copy.progress.indexesDone", 0, 0),
+                ItemKey: "indexes", ItemStatus: ToolItemStatus.Done, Detail: loc.Get("copy.detail.indexesNone")));
+            return;
+        }
+
+        progress.Report(new ToolProgress(loc.Get("copy.progress.indexes"),
+            ItemKey: "indexes", ItemStatus: ToolItemStatus.Running));
+
+        var indexesMade = await RunEachAsync(target, indexes, ct);
+        var keysMade = await RunEachAsync(target, foreignKeys, ct);
+
+        var complete = indexesMade == indexes.Count && keysMade == foreignKeys.Count;
+        progress.Report(new ToolProgress(
+            loc.Get("copy.progress.indexesDone", indexesMade, keysMade),
+            ItemKey: "indexes",
+            // Not an error — the table and its rows are there. A partial result says so in its detail.
+            ItemStatus: ToolItemStatus.Done,
+            Detail: complete
+                ? loc.Get("copy.detail.indexes", indexesMade, keysMade)
+                : loc.Get("copy.detail.indexesPartial", indexesMade, indexes.Count, keysMade, foreignKeys.Count)));
+    }
+
+    private static async Task<int> RunEachAsync(
+        ToolConnection target, IReadOnlyList<string> statements, CancellationToken ct)
+    {
+        var made = 0;
+        foreach (var statement in statements)
+        {
+            ct.ThrowIfCancellationRequested();
+            try
+            {
+                await target.Provider.ExecuteDdlAsync(target.Profile, statement, ct);
+                made++;
+            }
+            catch (Exception) when (!ct.IsCancellationRequested)
+            {
+                // Counted, not thrown — see AddIndexesAndForeignKeysAsync.
+            }
+        }
+
+        return made;
+    }
+
+    private static void OpenAsScript(
+        ToolExecutionContext context, TableDef model, QueryResult? data, bool dropExisting, bool copyStructure,
+        bool copyData, bool keepIdentity, bool includeIndexes, ISqlDialect dialect, SqlLiteralDialect literalDialect,
+        CreateTableWriter writer, string quotedTarget, string toConnection, string toDatabase, bool ambiguous,
+        IProgress<ToolProgress> progress, IPluginLocalizer loc)
     {
         var parts = new List<string>();
         var header = loc.Get("copy.script.header", $"{context.Profile.Name} / {context.Profile.Database}",
@@ -301,15 +382,25 @@ public sealed class CopyTableTool : IToolPlugin, ICustomToolUi
         {
             if (dropExisting)
             {
-                parts.Add(CreateTableWriter.DropIfExists(context.ProviderId, model));
+                parts.Add(writer.DropIfExists(model));
             }
 
-            parts.Add(CreateTableWriter.Build(context.ProviderId, model, keepIdentity));
+            parts.Add(writer.Build(model, keepIdentity, includeIndexes));
         }
 
         if (copyData && data is not null)
         {
             parts.Add(InsertScripter.Build(quotedTarget, data.Columns, data.Rows, dialect, literalDialect));
+        }
+
+        // Indexes and foreign keys come after the inserts here for the same reason the run does them last:
+        // the script is meant to be run top to bottom, and a foreign key can only be checked against rows
+        // that exist. A key whose referenced table isn't on the target will fail — visibly, in a script the
+        // user is reviewing anyway.
+        if (copyStructure && includeIndexes)
+        {
+            parts.AddRange(writer.Indexes(model));
+            parts.AddRange(writer.ForeignKeys(model));
         }
 
         context.Host.OpenQueryEditorOn(toConnection, toDatabase, string.Join("\n\n", parts));
