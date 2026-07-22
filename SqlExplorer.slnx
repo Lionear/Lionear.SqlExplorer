@@ -26,7 +26,7 @@
     <Project Path="plugins/Tools.CopyTable/SqlExplorer.Tools.CopyTable.csproj" />
     <Project Path="plugins/Tools.SchemaDiff/SqlExplorer.Tools.SchemaDiff.csproj" />
   </Folder>
-  <Folder Name="/tests/">
+  ~<Folder Name="/tests/">
     <Project Path="tests/SqlExplorer.App.Tests/SqlExplorer.App.Tests.csproj" />
     <Project Path="tests/SqlExplorer.Backends.Docker.Tests/SqlExplorer.Backends.Docker.Tests.csproj" />
     <Project Path="tests/SqlExplorer.Core.Tests/SqlExplorer.Core.Tests.csproj" />

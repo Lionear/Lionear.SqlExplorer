@@ -86,24 +86,27 @@ public sealed class CopyTableView : UserControl, IToolDialogLifecycle
         _scriptMode = initialMode == Modes.Script;
 
         // ── From → To header (fixed across every state) ───────────────────────────────────────────────
-        _targetChip = new TextBlock { Text = "—", VerticalAlignment = VerticalAlignment.Center, FontFamily = Mono, FontSize = 12.5 };
+        // Two equal halves with the arrow between them: both sides read database.table, so they line up
+        // and neither can push the other off the dialog — a name too long for its half trims instead.
+        _targetChip = ChipValue("—");
+        var sourceLabel = string.IsNullOrWhiteSpace(ctx.Profile.Database)
+            ? sourceTable
+            : $"{ctx.Profile.Database}.{sourceTable}";
         var header = new Border
         {
             Padding = new Thickness(20, 14), BorderThickness = new Thickness(0, 0, 0, 1),
-            Child = new StackPanel
+            Child = new Grid
             {
-                Orientation = Orientation.Horizontal, Spacing = 9, VerticalAlignment = VerticalAlignment.Center,
+                ColumnDefinitions = new ColumnDefinitions("*,Auto,*"), VerticalAlignment = VerticalAlignment.Center,
                 Children =
                 {
-                    // Qualified the same way as the To chip, so both sides read database.table and it's
-                    // obvious which database the copy leaves from.
-                    Chip(L("copy.ui.from"), new TextBlock
+                    Chip(L("copy.ui.from"), ChipValue(sourceLabel)),
+                    Put(new TextBlock
                     {
-                        Text = string.IsNullOrWhiteSpace(ctx.Profile.Database) ? sourceTable : $"{ctx.Profile.Database}.{sourceTable}",
-                        FontFamily = Mono, FontSize = 12.5, VerticalAlignment = VerticalAlignment.Center
-                    }),
-                    new TextBlock { Text = "→", Opacity = 0.55, VerticalAlignment = VerticalAlignment.Center, FontSize = 16 },
-                    Chip(L("copy.ui.to"), _targetChip)
+                        Text = "→", Opacity = 0.55, FontSize = 16, Margin = new Thickness(9, 0),
+                        VerticalAlignment = VerticalAlignment.Center
+                    }, 1),
+                    Put(Chip(L("copy.ui.to"), _targetChip), 2)
                 }
             }
         };
@@ -433,6 +436,7 @@ public sealed class CopyTableView : UserControl, IToolDialogLifecycle
         var db = _databaseBox.SelectedItem as string;
         var chosen = !string.IsNullOrWhiteSpace(db);
         _targetChip.Text = chosen ? $"{db}.{_sourceTable}" : "—";
+        ToolTip.SetTip(_targetChip, _targetChip.Text);
         _runButton.IsEnabled = chosen;
     }
 
@@ -635,19 +639,28 @@ public sealed class CopyTableView : UserControl, IToolDialogLifecycle
         return button;
     }
 
+    /// <summary>The value half of a chip: monospace, and trimmed from the front when it doesn't fit, so a
+    /// long <c>database.table</c> keeps the end (the table name) rather than the start.</summary>
+    private static TextBlock ChipValue(string text) => new()
+    {
+        Text = text, FontFamily = Mono, FontSize = 12.5, VerticalAlignment = VerticalAlignment.Center,
+        TextTrimming = TextTrimming.PrefixCharacterEllipsis, [ToolTip.TipProperty] = text
+    };
+
     private static Control Chip(string label, Control value)
     {
         var pill = new Border
         {
             CornerRadius = new CornerRadius(6), Padding = new Thickness(9, 5), BorderThickness = new Thickness(1),
-            Child = new StackPanel
+            // Grid, not a StackPanel: the value must be given the leftover width to trim against.
+            Child = new Grid
             {
-                Orientation = Orientation.Horizontal, Spacing = 7,
+                ColumnDefinitions = new ColumnDefinitions("Auto,7,*"),
                 Children =
                 {
                     new TextBlock { Text = label, FontSize = 10, FontWeight = FontWeight.Bold, Opacity = 0.5,
                         LetterSpacing = 0.5, VerticalAlignment = VerticalAlignment.Center },
-                    value
+                    Put(value, 2)
                 }
             }
         };
